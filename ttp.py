@@ -172,6 +172,7 @@ class ttp():
         """Method to parse data in bulk by parsing each data item
         against each template and saving results in results list
         """
+        print("Parse in multy")
         num_processes = cpu_count()
 
         for template in self.templates:
