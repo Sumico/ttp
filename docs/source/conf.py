@@ -12,7 +12,7 @@
 #
 import os
 import sys
-sys.path.insert(0, "C:\\Users\\Denis\\YandexDisk\\Python\\TPG\\Text Template Parser\\ttp\\!USECASES\\!Development version\\")
+# sys.path.insert(0, "path to module")
 
 
 # -- Project information -----------------------------------------------------
