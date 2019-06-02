@@ -478,6 +478,8 @@ class template_class():
                     lookup_files = self.load_files(path=include, extensions=[], filters=[], read=False)
                     for datum in lookup_files:
                         data.read(datum[1])
+                data = {k: dict(data.items(k)) for k in list(data.keys())}
+                
 
             elif format == 'python':
                 code = element.text
