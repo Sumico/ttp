@@ -434,7 +434,6 @@ interface {{ Interface }}
 """
 
 IOS_Intfs_with_CDP2_XML = """
-<IOS_Intfs_with_CDP2>
 <v>
 filename='getfilename'
 hostname='gethostname' 
@@ -486,8 +485,6 @@ router bgpr {{ bgp_as | record(bgpAS) }}
 router bgp {{ bgp.bgp_as }}
 !
 </o>
-
-</IOS_Intfs_with_CDP2>
 """
 
 
