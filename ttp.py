@@ -21,6 +21,133 @@ from multiprocessing import Process, cpu_count, JoinableQueue, Queue
 ctime = time.ctime().replace(':', '-')
 
 
+class utils():
+    """Class to store various functions for the use along the code
+    """
+    def __init__(self):
+        pass
+
+    def load_files(self, path, extensions=[], filters=[], read=False):
+        """
+        Method to load files from path, and filter file names with
+        REs filters and extensions.
+        Args:
+            path (str): string that contains OS path
+            extensions (list): list of strings files' extensions like ['txt', 'log', 'conf']
+            filters (list): list of strings regexes to filter files
+            read (bool): if False will return file names, if true will
+        Returns:
+            List of (type, text_data) tuples or empty list []  if
+            read True, if read False return (type, url,) or []
+        """
+        files=[]
+        # check if path is directory
+        if os.path.isdir(path):
+            files = [f for f in os.listdir(path) if os.path.isfile(path + f)]
+            if extensions:
+                files=[f for f in files if f.split('.')[-1] in extensions]
+            for filter in filters:
+                files=[f for f in files if re.search(filter, f)]
+            if read:
+                return [('text_data', open((path + f), 'r', encoding='utf-8').read(),) for f in files]
+            else:
+                return [('file_name', path + f,) for f in files]
+        # check if path is a path to file
+        elif os.path.isfile(path):
+            if read:
+                return [('text_data', open(path, 'r', encoding='utf-8').read(),)]
+            else:
+                return [('file_name', path,)]
+        # check if path is a string:
+        elif isinstance(path, str):
+            return [('text_data', path,)]
+        # check if path is a file object:
+        elif hasattr(path, 'read') and hasattr(path, 'name'):
+            if read:
+                return [('text_data', path.read(),)]
+            else:
+                return [('file_name', path.name(),)]
+        else:
+            return []
+
+    def load_struct(self, element):
+        """Method to load structured data from element text
+        or from file(s) given in include attribute
+        Args:
+            element (obj): ETree xml tag object
+        Returns:
+            empy {} dict if nothing found, or python dictionary of loaded
+            data from elemnt.text string or from included text files
+        """
+        format = element.attrib.get('format', 'python').lower()
+        include = element.attrib.get('include', '')
+        text_data = element.text
+        if text_data is None:
+            text_data = ''
+        result = {}
+
+        def load_ini(text_data):
+            import configparser
+            data = configparser.ConfigParser()
+            # read from ini files first
+            if include:
+                files = self.load_files(path=include, extensions=[], filters=[], read=False)
+                for datum in files:
+                    try:
+                        data.read(datum[1])
+                    except:
+                        ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
+            # read from lookup tag text to make it more specific
+            if text_data:
+                try:
+                    data.read_string(text_data)
+                except:
+                    ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
+            # convert configparser object into dictionary
+            return {k: dict(data.items(k)) for k in list(data.keys())}
+
+        def load_python(text_data):
+            data = {}
+            if include:
+                files = self.load_files(path=include, extensions=[], filters=[], read=True)
+                for datum in files:
+                    text_data += "\n" + datum[1]
+            try:
+                exec(compile(text_data, '<string>', 'exec'), {"__builtins__" : None}, data)
+                return data
+            except:
+                print("ERROR: Unable to load Python formatted data\n'{}'".format(text_data))
+
+        def load_yaml(text_data):
+            from yaml import load
+            data = {}
+            if include:
+                files = self.load_files(path=include, extensions=[], filters=[], read=True)
+                for datum in files:
+                    text_data += "\n" + datum[1]
+            try:
+                data = load(text_data)
+                return data
+            except:
+                raise SystemExit("ERROR: Unable to load YAML formatted data\n'{}'".format(text_data))
+
+        def load_json():
+            pass
+        def load_csv():
+            pass
+
+        funcs = {
+            'ini'   : load_ini,
+            'python': load_python,
+            'yaml'  : load_yaml,
+            'json'  : load_json,
+            'csv'   : load_csv
+        }
+        # run function to load structured data
+        result = funcs[format](text_data)
+        return result
+
+
 class worker(Process):
     """Class used in multiprocesing to parse data
     """
@@ -81,6 +208,7 @@ class ttp():
         self.results = []
         self.DEBUG = DEBUG
         self.data_path_prefix = data_path_prefix
+        self.utils = utils()  # initialise utils class object
 
         # check if data given, if so - load it:
         if data is not '':
@@ -91,50 +219,11 @@ class ttp():
             self.load_template(data=template)
 
 
-    def load_files(self, path, read=False):
-        """Method to load files from path, or return string data.
-        Args:
-            path (str): string that contains OS path
-            extensions (list): list of strings files' extensions like ['txt', 'log', 'conf']
-            filters (list): list of strings regexes to filter files
-            read (bool): if False will return file names, if true will read files
-        Returns:
-            List of (type, text_data) tuples or empty list []  if
-            read True, if read False return (type, url,) or []
-        """
-        files=[]
-        # check if path is directory
-        if os.path.isdir(path):
-            files = [f for f in os.listdir(path) if os.path.isfile(path + f)]
-            if read:
-                return [('text_data', open((path + f), 'r', encoding='utf-8').read(),) for f in files]
-            else:
-                return [('file_name', path + f,) for f in files]
-        # check if path is a path to file
-        elif os.path.isfile(path):
-            if read:
-                f = open(path, 'r', encoding='utf-8')
-                return [('text_data', f.read(),)]
-            else:
-                return [('file_name', path,)]
-        # check if path is a string:
-        elif isinstance(path, str):
-            return [('text_data', path,)]
-        # check if path is a file object:
-        elif hasattr(path, 'read') and hasattr(path, 'name'):
-            if read:
-                return [('text_data', path.read(),)]
-            else:
-                return [('file_name', path.name(),)]
-        else:
-            return []
-
-
     def load_data(self, data):
         """Method to load data
         """
         # get a list of (type, url|text,) tuples or empty list []
-        items = self.load_files(path=data, read=False)
+        items = self.utils.load_files(path=data, read=False)
         for i in items:
             # check and get data size
             if self.data_size < self.multiproc_threshold:
@@ -147,7 +236,7 @@ class ttp():
         """Method to load templates
         """
         # get a list of [(type, text,)] tuples or empty list []
-        items = self.load_files(path=data, read=True)
+        items = self.utils.load_files(path=data, read=True)
         [ self.templates.append(template_class(template_text=i[1],
                                 DEBUG=self.DEBUG,
                                 data_path_prefix=self.data_path_prefix))
@@ -293,14 +382,15 @@ class template_class():
         self.PATHCHAR='.'          # character to separate path items, like ntp.clock.time, '.' is pathChar here
         self.GROUPSTARTED = False
         self.outputs = []
-        self.vars = {}                 # dict to store variables
-        self.groups = []
-        self.inputs = {}             # dict to store inputs
+        self.vars = {}             
+        self.groups = []           
+        self.inputs = {}           
         self.lookups = {}
         self.data_path_prefix = data_path_prefix
+        self.utils = utils()
 
         # load template from string:
-        self.__load_template_xml(template_text)
+        self.load_template_xml(template_text)
 
         # update inputs with the groups it has to be run against:
         self.update_inputs_with_groups()
@@ -335,8 +425,8 @@ class template_class():
                     self.inputs[input_name]['groups'].append(G.name)
                 else:
                     input_name=self.data_path_prefix + input_name.lstrip('.')
-                    file_names=self.load_files(path=input_name,extensions=[],
-                                               filters=[], read=False)
+                    file_names=self.utils.load_files(path=input_name,extensions=[],
+                                                     filters=[], read=False)
                     if file_names is not []:
                         self.inputs[input_name]={
                             'data'   : file_names,
@@ -346,124 +436,14 @@ class template_class():
                         print("Warning: input '{}' no files found".format(input_name))
 
 
-    def load_files(self, path, extensions, filters, read):
-        """
-        Method to load files from path, and filter file names with
-        REs filters and extensions.
-        Args:
-            path (str): string that contains OS path
-            extensions (list): list of strings files' extensions like ['txt', 'log', 'conf']
-            filters (list): list of strings regexes to filter files
-        Returns:
-            List of {file_name: file_open_obj} dictionaries or empty list []
-        """
-        files=[]
-        # check if path is directory
-        if os.path.isdir(path):
-            files = [f for f in os.listdir(path) if os.path.isfile(path + f)]
-            if extensions:
-                files=[f for f in files if f.split('.')[-1] in extensions]
-            for filter in filters:
-                files=[f for f in files if re.search(filter, f)]
-            if read:
-                return [('text_data', open((path + f), 'r', encoding='utf-8').read(),) for f in files]
-            else:
-                return [('file_name', path + f,) for f in files]
-        # check if path is a path to file
-        elif os.path.isfile(path):
-            if read:
-                return [('text_data', open(path, 'r', encoding='utf-8').read(),)]
-            else:
-                return [('file_name', path,)]
-        else:
-            return []
-
-
-    def __load_template_xml(self, template_text):
-
-        def load_struct(element):
-            """Method to load structured data from element text
-            or from file(s) given in include attribute
-            Args:
-                element (obj): ETree xml tag object
-            Returns:
-                empy {} dict if nothing found, or python dictionary of loaded 
-                data from elemnt.text string or from included text files
-            """
-            format = element.attrib.get('format', 'python').lower()
-            include = element.attrib.get('include', '')
-            text_data = element.text
-            if text_data is None:
-                text_data = ''
-            result = {}
-            
-            def load_ini(text_data):
-                import configparser
-                data = configparser.ConfigParser()
-                # read from ini files first
-                if include:
-                    files = self.load_files(path=include, extensions=[], filters=[], read=False)
-                    for datum in files:
-                        try:
-                            data.read(datum[1])
-                        except:
-                            ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
-                # read from lookup tag text to make it more specific
-                if text_data:
-                    try:
-                        data.read_string(text_data)
-                    except:
-                        ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
-                # convert configparser object into dictionary
-                return {k: dict(data.items(k)) for k in list(data.keys())}
-
-            def load_python(text_data):
-                data = {}
-                if include:
-                    files = self.load_files(path=include, extensions=[], filters=[], read=True)
-                    for datum in files:
-                        text_data += "\n" + datum[1]
-                try:
-                    exec(compile(text_data, '<string>', 'exec'), {"__builtins__" : None}, data)
-                    return data
-                except:
-                    print("ERROR: Unable to load Python formatted data\n'{}'".format(text_data))
-                    
-            def load_yaml(text_data):
-                from yaml import load
-                data = {}
-                if include:
-                    files = self.load_files(path=include, extensions=[], filters=[], read=True)
-                    for datum in files:
-                        text_data += "\n" + datum[1]
-                try: 
-                    data = load(text_data)
-                    return data
-                except: 
-                    raise SystemExit("ERROR: Unable to load YAML formatted data\n'{}'".format(text_data))
-                
-            def load_json():
-                pass    
-            def load_csv():
-                pass    
-                
-            funcs = {
-                'ini'   : load_ini,
-                'python': load_python,
-                'yaml'  : load_yaml,
-                'json'  : load_json,
-                'csv'   : load_csv
-            }
-            # run function to load structured data
-            result = funcs[format](text_data)
-            return result
+    def load_template_xml(self, template_text):
 
         def parse_vars(element):
             # method to parse vars data
-           vars = load_struct(element)
+           vars = self.utils.load_struct(element)
            if vars:
                self.vars.update(vars)
-           
+
         def parse_output(element):
             self.outputs.append({
                 'attributes' : element.attrib,
@@ -475,7 +455,7 @@ class template_class():
             file_names=[]
 
             # load input parameters from text:
-            input_data = load_struct(element)
+            input_data = self.utils.load_struct(element)
 
             # get parameters:
             extensions = input_data.get('extensions', [])
@@ -494,7 +474,7 @@ class template_class():
             # load data:
             for url in urls:
                 url=self.data_path_prefix + url.lstrip('.')
-                file_names += self.load_files(url, extensions, filters, read=False)
+                file_names += self.utils.load_files(url, extensions, filters, read=False)
 
             self.inputs[element.attrib['name']]={
                 'data'   : file_names,
@@ -518,20 +498,19 @@ class template_class():
             except KeyError:
                 print("Error: Lookup 'name' attribute not found but required")
                 return
-            data = load_struct(element)
-            if data is None: 
-                return            
+            data = self.utils.load_struct(element)
+            if data is None:
+                return
             self.lookups[name] = data
 
         def parse_non_hierarch_tmplt(element):
             elem = ET.XML('<g name="non_hierarch_tmplt">\n{}\n</g>'.format(element.text))
             parse_group(elem)
 
+        def invalid(C):
+            print("Warning: Invalid tag '{}'".format(C.tag))
+				
         def parse_hierarch_tmplt(element):
-
-            def invalid(C):
-                print("Warning: Invalid tag '{}'".format(C.tag))
-
             # dict to store all top tags sorted parsing as need to
             # parse variablse fist after that all the rest
             tags = {
@@ -1770,7 +1749,6 @@ class results_class():
                 elif '_line_' in item:
                     joinchar = item['_line_']
                     break
-
         # join results:
         for k in RESULT.keys():
             if k in self.record['RESULT']:                           # if we already have results
@@ -1812,9 +1790,8 @@ class results_class():
 
 
     def PROCESSGRP(self):
-        #
-        # helper functions:
-        #
+        """Method to process group results
+        """
         def check_containsall(C, D):
             # e.g.: C=['v4address', 'v4mask']
             for VarToCheck in C:
@@ -1849,8 +1826,6 @@ class results_class():
                 return False
 
         # check if dynamic path and form it
-        # if '{{' not in '.'.join(self.record['PATH']):
-        #     return
         processed_path = self.form_path(self.record['PATH'])
         if processed_path:
             self.record['PATH'] = processed_path
@@ -1996,7 +1971,7 @@ if __name__ == '__main__':
         parser_Obj = ttp(data=DATA, template=vars(ts)[TEMPLATE], DEBUG=DEBUG, data_path_prefix=DP)
     else:
         parser_Obj = ttp(data=DATA, template=TEMPLATE, DEBUG=DEBUG, data_path_prefix=DP)
-    timing("Template loaded")
+    timing("Template and data descriptors loaded")
 
     parser_Obj.parse(one=ONE)
     timing("Data parsing finished")
