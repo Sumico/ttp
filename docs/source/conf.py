@@ -12,7 +12,7 @@
 #
 import os
 import sys
-sys.path.insert(0, "C:\\Users\\Denis\\YandexDisk\\Python\\TPG\\Text Template Parser\\ttp\\!USECASES\\!Development version\\")
+# sys.path.insert(0, "path to module")
 
 
 # -- Project information -----------------------------------------------------
@@ -43,6 +43,8 @@ templates_path = ['_templates']
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = []
 
+# use index.rst instead of contents.rst:
+master_doc = 'index'
 
 # -- Options for HTML output -------------------------------------------------
 
