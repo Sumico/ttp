@@ -64,8 +64,8 @@ Templates:
                description LK:{{ peer.peer_name }}:{{ peer.peer_if }}
               {% endfor %}
 {% enddefinition IF_Descript_Hua %}
-	"""
-	
+    """
+    
 IOS_Intfs = """
 interface {{ Interface | _key_ }}
  description {{description | orphrase | upper}}
@@ -78,8 +78,8 @@ interface {{ Interface | _key_ }}
  ip address {{ ip }} {{ mask }}
  ip helper-address {{ helper }}
 ! {{ _end_ }}
-	"""
-	
+    """
+    
 IPs = """
 {% var hostname = 'gethostname' %}
 
@@ -113,8 +113,8 @@ interface {{ Interface | _key_ }}
  ip helper-address {{ helper }}
 ! {{ _end_ }}
 {% endgroup interfaces**._key_.cfg.l2 %}
-	"""
-	
+    """
+    
 iosXRsampleBGP = """
 {% group bgpProcess %}
 router bgp {{BGP_AS}}
@@ -179,8 +179,8 @@ router bgp {{BGP_AS}}
 
 !{{ _end_ }}
 {% endgroup bgpProcess %}
-	"""
-		
+    """
+        
 cdpmap = """
 {% var hostname = gethostname %}
 
@@ -218,27 +218,27 @@ Stuctures:
         'trgt_label': 'peer_interface'
         'description': "'vlans_trunked: {}\nstate: {}'.format(vlans_trunked, state)"
 {% enddefinition pythonDictTransform %}
-	"""
-	
+    """
+    
 sampleTwmplate = """
-	{% group grp-1 %}
-	grp1Version :{{ grp1Var1 }}
-	{% group grp-2 %}
-	grp2Version :{{ grp2Var1 }}
-	{% group grp-3 %}
-	grp3Version :{{ grp3Var1 }}
-	{% group grp-4 %}
-	grp4Version :{{ grp4Var1 }}
-	{% endgroup grp-4 %}
-	{% endgroup grp-3 %}
-	outGrp3Version :{{ grp5Var1 }}
-	{% endgroup grp-2 %}
-	{% endgroup grp-1 %}
-	{% group grp-4 %}
-	grp4Version :{{ grp4Var1 }}
-	{% endgroup grp-4 %}
-	"""
-	
+    {% group grp-1 %}
+    grp1Version :{{ grp1Var1 }}
+    {% group grp-2 %}
+    grp2Version :{{ grp2Var1 }}
+    {% group grp-3 %}
+    grp3Version :{{ grp3Var1 }}
+    {% group grp-4 %}
+    grp4Version :{{ grp4Var1 }}
+    {% endgroup grp-4 %}
+    {% endgroup grp-3 %}
+    outGrp3Version :{{ grp5Var1 }}
+    {% endgroup grp-2 %}
+    {% endgroup grp-1 %}
+    {% group grp-4 %}
+    grp4Version :{{ grp4Var1 }}
+    {% endgroup grp-4 %}
+    """
+    
 cdpmapNexus = """
 {% var hostname = gethostname %}
 
@@ -250,17 +250,17 @@ interface {{ Inerface }}
   ip address {{ v4address }}/{{ v4mask | default(32) }}
   ipv6 address {{ v6address | default }}/{{ v6mask | default }}
 {% endgroup NexusInterfaces %}
-	"""
-	
+    """
+    
 ios_arp = """
 {% group arp | table %}
 Internet  {{ip}} {{age}}   {{mac}}  ARPA  {{Interface}}
 Internet  {{ip}} {{age}}   {{mac}}  arpa  {{Interface}}
 {% endgroup arp %}
-	"""
-	
+    """
+    
 IOS_Intfs_with_CDP2 = """
-{% var filename='getfilename' %}	
+{% var filename='getfilename' %}    
 {% var hostname='gethostname' %}
 
 {% var domainsToStrip = ['.tpg.local', '.iinet.net.au', '.win2k', 'idn.au.tcnz.net'] %}
@@ -295,10 +295,10 @@ interface {{ Interface | resuball(IfsNormalize) | _key_ }}
 router bgp {{ bgp_as | var(bgpAS) }}
 !{{ _end_ }}
 {% endgroup bgp %}
-	"""
-	
+    """
+    
 IOS_Intfs_with_CDP = """
-{% var filename='getfilename' %}	
+{% var filename='getfilename' %}    
 {% var hostname='gethostname' %}
 
 {% var domainsToStrip = ['.tpg.local', '.iinet.net.au', '.win2k', 'idn.au.tcnz.net'] %}
@@ -340,8 +340,8 @@ interface {{ Interface | resuball(IfsNormalize) }}
 router bgp {{ bgp_as | var(bgpAS) }}
 !{{ _end_ }}
 {% endgroup bgp %}
-	"""
-	
+    """
+    
 IOS_or_Nexus_CDP = """
 {% var local_hostname = 'getfilename' %}
 
@@ -353,7 +353,7 @@ IOS_or_Nexus_CDP = """
 ## Cisco IOS:
 Device ID: {{ peer_hostname | replaceall(domainsToStrip) | resub(\(\S+\), "") }}
 Device ID:{{ peer_hostname | _start_ | replaceall(domainsToStrip) | resub(\(\S+\), "") }}
-  IP address: {{ peer_ip }}	
+  IP address: {{ peer_ip }}    
 Platform: {{ peer_platform | phrase }},  Capabilities: {{ peer_capabilities | phrase }}
 Platform: {{ peer_platform }},  Capabilities: {{ peer_capabilities | phrase }}
 Platform: {{ peer_platform }},  Capabilities: {{ peer_capabilities }}
@@ -417,8 +417,8 @@ interface {{ Inerface | replace(Vlan, SVI)}}
   
 !{{ _end_ }}
 {% endgroup Interfaces_L3 %}
-	"""
-	
+    """
+    
 ips = """
 {% var IfsNormalize = {'Vl':['Vlan', 'Vlanif'], 'Ge':['GigabitEthernet'], 'Po': 'Eth-Trunk', 'Te':['TenGigabitEthernet', 'TenGe'], 'Fe':['FastEthernet'], 'Eth':['Ethernet'], 'Pt':['Port']} %}
 
@@ -603,28 +603,28 @@ router bgp {{ bgp_as | record(loca_as) | lookup(aux.ASNs, as_name) }}
   <group name="vrfs*.{{ VRF }}">
   vrf {{ VRF }}
     {{ hostname | let(hostname) }}
-	{{ local_as | let(loca_as) }}
+    {{ local_as | let(loca_as) }}
     <group name="afi**">
-	  <group name="Unicast**.{{ AFI }}">
+      <group name="Unicast**.{{ AFI }}">
     address-family {{ AFI }} unicast
       network {{ network | joinmathes() }}
       redistribute direct route-map {{ redistr_direct_rpl }}
-	  </group>
+      </group>
     </group>
-    <group name="peers**.{{ PEER }}">	
+    <group name="peers**.{{ PEER }}">    
     neighbor {{ PEER }}
       remote-as {{ remote_as | lookup(aux.ASNs, as_name) }}
       description {{ description | chain(caps) }}
-	  <group name="afi**.{{ AFI }}">
-	   <group name="Unicast**">
+      <group name="afi**.{{ AFI }}">
+       <group name="Unicast**">
       address-family {{ AFI }} unicast
-	    shutdown {{ shutdown | set(True) }}
+        shutdown {{ shutdown | set(True) }}
         allowas-in {{ allow_as_in | set(True) }}
         route-map {{ rpl_in }} in
         route-map {{ rpl_out }} out
-	   </group>
-	  </group>
-	</group>
+       </group>
+      </group>
+    </group>
   </group>
 </group>
 

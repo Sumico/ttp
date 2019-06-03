@@ -172,7 +172,6 @@ class ttp():
         """Method to parse data in bulk by parsing each data item
         against each template and saving results in results list
         """
-        print("Parse in multy")
         num_processes = cpu_count()
 
         for template in self.templates:
@@ -382,28 +381,89 @@ class template_class():
 
     def __load_template_xml(self, template_text):
 
+        def load_struct(element):
+            """Method to load structured data from element text
+            or from file(s) given in include attribute
+            Args:
+                element (obj): ETree xml tag object
+            Returns:
+                empy {} dict if nothing found, or python dictionary of loaded 
+                data from elemnt.text string or from included text files
+            """
+            format = element.attrib.get('format', 'python').lower()
+            include = element.attrib.get('include', '')
+            text_data = element.text
+            if text_data is None:
+                text_data = ''
+            result = {}
+            
+            def load_ini(text_data):
+                import configparser
+                data = configparser.ConfigParser()
+                # read from ini files first
+                if include:
+                    files = self.load_files(path=include, extensions=[], filters=[], read=False)
+                    for datum in files:
+                        try:
+                            data.read(datum[1])
+                        except:
+                            ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
+                # read from lookup tag text to make it more specific
+                if text_data:
+                    try:
+                        data.read_string(text_data)
+                    except:
+                        ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
+                # convert configparser object into dictionary
+                return {k: dict(data.items(k)) for k in list(data.keys())}
+
+            def load_python(text_data):
+                data = {}
+                if include:
+                    files = self.load_files(path=include, extensions=[], filters=[], read=True)
+                    for datum in files:
+                        text_data += "\n" + datum[1]
+                try:
+                    exec(compile(text_data, '<string>', 'exec'), {"__builtins__" : None}, data)
+                    return data
+                except:
+                    print("ERROR: Unable to load Python formatted data\n'{}'".format(text_data))
+                    
+            def load_yaml(text_data):
+                from yaml import load
+                data = {}
+                if include:
+                    files = self.load_files(path=include, extensions=[], filters=[], read=True)
+                    for datum in files:
+                        text_data += "\n" + datum[1]
+                try: 
+                    data = load(text_data)
+                    return data
+                except: 
+                    raise SystemExit("ERROR: Unable to load YAML formatted data\n'{}'".format(text_data))
+                
+            def load_json():
+                pass    
+            def load_csv():
+                pass    
+                
+            funcs = {
+                'ini'   : load_ini,
+                'python': load_python,
+                'yaml'  : load_yaml,
+                'json'  : load_json,
+                'csv'   : load_csv
+            }
+            # run function to load structured data
+            result = funcs[format](text_data)
+            return result
+
         def parse_vars(element):
             # method to parse vars data
-            format=element.attrib.get('format', 'python')
-            include=element.attrib.get('include', '')
-            if format.lower() == 'python':
-                code=element.text
-                if code is None:
-                    code=''
-                if 'include':
-                    vars_files=self.load_files(path=include, extensions=[], filters=[], read=True)
-                    for datum in vars_files:
-                        text = datum[1]
-                        code = code + "\n" + text
-                # load vars from code:
-                functions={"__builtins__" : None} # define available functions
-                # executes text as code and assigns vars to self.vars dictionary:
-                exec(compile(code, '<string>', 'exec'), functions, self.vars)
-            elif format.lower() == 'yaml':
-                pass
-            elif format.lower() == 'ini':
-                pass
-
+           vars = load_struct(element)
+           if vars:
+               self.vars.update(vars)
+           
         def parse_output(element):
             self.outputs.append({
                 'attributes' : element.attrib,
@@ -415,20 +475,13 @@ class template_class():
             file_names=[]
 
             # load input parameters from text:
-            format=element.attrib.get('format', 'python')
-            if format.lower() == 'yaml':
-                from yaml import load
-                try: input_data=load(element.text)
-                except: raise SystemExit("ERROR: Unable to load YAML formatted input data")
-            elif format.lower() == 'python':
-                try: exec(compile(element.text, '<string>', 'exec'), {"__builtins__" : None}, input_data)
-                except: raise SystemExit("ERROR: Unable to load Python formatted input data")
+            input_data = load_struct(element)
 
             # get parameters:
-            extensions=input_data.get('extensions', [])
-            filters=input_data.get('filters', [])
-            urls=input_data.get('url', [])
-            groups=input_data.get('groups', [])
+            extensions = input_data.get('extensions', [])
+            filters = input_data.get('filters', [])
+            urls = input_data.get('url', [])
+            groups = input_data.get('groups', [])
 
             # run checks:
             if not urls:
@@ -463,43 +516,12 @@ class template_class():
             try:
                 name = element.attrib['name']
             except KeyError:
-                print("Error: lookup no 'name' attribute")
+                print("Error: Lookup 'name' attribute not found but required")
                 return
-
-            format = element.attrib.get('format', 'python').lower()
-            include = element.attrib.get('include', '')
-
-            if format == 'ini':
-                import configparser
-                data = configparser.ConfigParser()
-                text = element.text
-                if text:
-                    data.read_string(text)
-                elif include:
-                    lookup_files = self.load_files(path=include, extensions=[], filters=[], read=False)
-                    for datum in lookup_files:
-                        data.read(datum[1])
-                data = {k: dict(data.items(k)) for k in list(data.keys())}
-                
-
-            elif format == 'python':
-                code = element.text
-                data = {}
-                if code is None:
-                    code = ''
-                elif include:
-                    lookup_files=self.load_files(path=include, extensions=[], filters=[], read=True)
-                    for datum in lookup_files:
-                        code += "\n" + datum[1]
-                functions={"__builtins__" : None} # define available functions
-                # executes text as code and assigns vars to data dictionary:
-                exec(compile(code, '<string>', 'exec'), functions, data)
-
-            self.lookups[name] = {
-                '_type_': format,
-                '_data_': data
-            }
-
+            data = load_struct(element)
+            if data is None: 
+                return            
+            self.lookups[name] = data
 
         def parse_non_hierarch_tmplt(element):
             elem = ET.XML('<g name="non_hierarch_tmplt">\n{}\n</g>'.format(element.text))
@@ -1208,19 +1230,18 @@ class variable_class():
             add_field = a['lookup']['add_field']
             lookup_name = path[0]
             found_value = None
-            # get lookup dictionary/object
+            # get lookup dictionary/data:
             try:
                 lookup = P.vars['lookups'][lookup_name]
             except KeyError:
                 return D, None
-            # perfrom lookup
-            if lookup['_type_'] == 'ini':
-                section_name = path[1]
-                try:
-                    found_value = lookup['_data_'][section_name][D]
-                except KeyError:
-                    return D, None
-
+            # perfrom lookup:
+            section_name = path[1]
+            try:
+                found_value = lookup[section_name][D]
+            except KeyError:
+                return D, None
+            # decide to replace match result or add new field:
             if add_field is not False:
                 return D, {'lookup': {add_field: found_value}}
             else:
