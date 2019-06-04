@@ -509,7 +509,7 @@ class template_class():
 
         def invalid(C):
             print("Warning: Invalid tag '{}'".format(C.tag))
-				
+                
         def parse_hierarch_tmplt(element):
             # dict to store all top tags sorted parsing as need to
             # parse variablse fist after that all the rest
@@ -918,6 +918,13 @@ class variable_class():
             if len(O) == 2: self.functions.append({'lookup': {'name': O[0], 'add_field': O[1]}})
             elif len(O) == 1: self.functions.append({'lookup': {'name': O[0], 'add_field': False}})
             else: print("ERROR: wrong synaxis '{}', use lookup('name', 'add_field') or lookup(name, add_field)".format(self.LINE))
+            
+        def extract_rlookup(O):
+            """extract rlookup options
+            """
+            if len(O) == 2: self.functions.append({'rlookup': {'name': O[0], 'add_field': O[1]}})
+            elif len(O) == 1: self.functions.append({'rlookup': {'name': O[0], 'add_field': False}})
+            else: print("ERROR: wrong synaxis '{}', use rlookup('name', 'add_field') or rlookup(name, add_field)".format(self.LINE))
 
         def extract_strip(O):
             if len(O) == 0: self.functions.append({'strip': ''})
@@ -944,6 +951,7 @@ class variable_class():
         # 'wrap'        : add \n ad given position to wrap too long text
         'chain'         : extract_chain,
         'lookup'        : extract_lookup,
+        'rlookup'       : extract_rlookup,
         'set'           : extract_set,
         'unrange'       : extract_unrange,
         'replace'       : extract_replace,
@@ -1216,6 +1224,10 @@ class variable_class():
                 return D, None
             # perfrom lookup:
             section_name = path[1]
+            if not section_name in lookup:
+                return D, None
+            if isinstance(lookup[section_name], dict) is False:
+                return D, None
             try:
                 found_value = lookup[section_name][D]
             except KeyError:
@@ -1226,6 +1238,34 @@ class variable_class():
             else:
                 return found_value, None
 
+        def do_actions_rlookup(a,D,P):
+            path = [i.strip() for i in a['rlookup']['name'].split('.')]
+            add_field = a['rlookup']['add_field']
+            rlookup_name = path[0]
+            found_value = None
+            # get rlookup dictionary/data:
+            try:
+                rlookup = P.vars['lookups'][rlookup_name]
+            except KeyError:
+                return D, None
+            # perfrom rlookup:
+            section_name = path[1]
+            if not section_name in rlookup:
+                return D, None
+            if isinstance(rlookup[section_name], dict) is False:
+                return D, None
+            for key in rlookup[section_name].keys():
+                if key in D:
+                    found_value = rlookup[section_name][key]
+                    break
+            # decide to replace match result or add new field:
+            if found_value is None:
+                return D, None
+            elif add_field is not False:
+                return D, {'lookup': {add_field: found_value}}
+            else:
+                return found_value, None
+                
         #
         # Conditions Helper Functions:
         #
@@ -1274,6 +1314,7 @@ class variable_class():
         'replaceall'    : do_actions_replaceall,
         'resuball'      : do_actions_resuball,
         'lookup'        : do_actions_lookup,
+        'rlookup'       : do_actions_rlookup,
         # Conditions checks Functions:
         'startswith'    : lambda a, D, P: (D, True) if re.search('^{}'.format(a['startswith']), D) else (D, False),
         'endsswith'     : lambda a, D, P: (D, True) if re.search('{}$'.format(a['endswith']), D) else (D, False),
