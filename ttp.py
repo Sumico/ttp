@@ -1215,21 +1215,17 @@ class variable_class():
         def do_actions_lookup(a,D,P):
             path = [i.strip() for i in a['lookup']['name'].split('.')]
             add_field = a['lookup']['add_field']
-            lookup_name = path[0]
             found_value = None
             # get lookup dictionary/data:
             try:
-                lookup = P.vars['lookups'][lookup_name]
+                lookup = P.vars['lookups']
+                for i in path: 
+                    lookup = lookup.get(i,{})
             except KeyError:
                 return D, None
             # perfrom lookup:
-            section_name = path[1]
-            if not section_name in lookup:
-                return D, None
-            if isinstance(lookup[section_name], dict) is False:
-                return D, None
             try:
-                found_value = lookup[section_name][D]
+                found_value = lookup[D]
             except KeyError:
                 return D, None
             # decide to replace match result or add new field:
@@ -1241,22 +1237,20 @@ class variable_class():
         def do_actions_rlookup(a,D,P):
             path = [i.strip() for i in a['rlookup']['name'].split('.')]
             add_field = a['rlookup']['add_field']
-            rlookup_name = path[0]
             found_value = None
-            # get rlookup dictionary/data:
+            # get lookup dictionary/data:
             try:
-                rlookup = P.vars['lookups'][rlookup_name]
+                rlookup = P.vars['lookups']
+                for i in path: 
+                    rlookup = rlookup.get(i,{})
             except KeyError:
                 return D, None
             # perfrom rlookup:
-            section_name = path[1]
-            if not section_name in rlookup:
+            if isinstance(rlookup, dict) is False:
                 return D, None
-            if isinstance(rlookup[section_name], dict) is False:
-                return D, None
-            for key in rlookup[section_name].keys():
+            for key in rlookup.keys():
                 if key in D:
-                    found_value = rlookup[section_name][key]
+                    found_value = rlookup[key]
                     break
             # decide to replace match result or add new field:
             if found_value is None:
