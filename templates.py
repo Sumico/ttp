@@ -614,17 +614,17 @@ caps = "orphrase | upper"
 </vars>
 
 <lookup 
-name="aux" 
+name="aux_ini" 
 format="ini" 
 include="C:/Users/Denis/YandexDisk/Python/TPG/Text Template Parser/ttp/!USECASES/BGP MAP/aux_data.txt"
 />
 
 <lookup 
-name="aux1" 
+name="aux_csv" 
 format="csv" 
 key='ASN'
 >
-ASN,name,description
+ASN,as_name,as_description
 9942,SOUL,Public ASN
 7545,TPG,Public ASN
 2764,AAPT,Public ASN
@@ -635,7 +635,7 @@ ASN,name,description
 
 <!--NXOS "show run | sec bgp" parse template-->
 <group name="{{ hostname }}.bgp_config.AS_{{ loca_as }}">
-router bgp {{ bgp_as | record(loca_as) | lookup(aux.ASNs) }}
+router bgp {{ bgp_as | record(loca_as) | lookup(aux_csv) }}
   router-id {{ rid }}
   <group name="vrfs*.{{ VRF }}">
   vrf {{ VRF }}
@@ -650,7 +650,7 @@ router bgp {{ bgp_as | record(loca_as) | lookup(aux.ASNs) }}
     </group>
     <group name="peers**.{{ PEER }}">    
     neighbor {{ PEER }}
-      remote-as {{ remote_as | lookup(aux, asn_details) }}
+      remote-as {{ remote_as | lookup(aux_csv) }}
       description {{ description | chain(caps) }}
       <group name="afi**.{{ AFI }}">
        <group name="Unicast**">
@@ -668,7 +668,7 @@ router bgp {{ bgp_as | record(loca_as) | lookup(aux.ASNs) }}
 
 <!--NXOS "show bgp vrf all all neighbors" parse template-->
 <g name = "peers_state.{{ PEER }}">
-BGP neighbor is {{ PEER }},  remote AS {{ remote_as | lookup(aux, peer_as_details) }}, {{ type }} link, Peer index 2
+BGP neighbor is {{ PEER }},  remote AS {{ remote_as | lookup(aux_csv) }}, {{ type }} link, Peer index 2
   Description: {{ description | chain(caps) }}
   BGP version 4, remote router ID {{ peer_rid }}
   BGP state = {{ state }}, up for {{ time }}

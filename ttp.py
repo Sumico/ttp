@@ -143,7 +143,7 @@ class utils():
                 return data
             except:
                 raise SystemExit("ERROR: Unable to load YAML formatted data\n'{}'".format(text_data))
-                
+
         def load_csv(text_data, kwargs):
             from csv import reader
             key = element.attrib.get('key', None)
@@ -162,7 +162,7 @@ class utils():
                 temp = {headers[index]: i for index, i in enumerate(row)}
                 data[temp.pop(key)] = temp
             return data
-    
+
 
         funcs = {
             'ini'   : load_ini,
@@ -410,9 +410,9 @@ class template_class():
         self.PATHCHAR='.'          # character to separate path items, like ntp.clock.time, '.' is pathChar here
         self.GROUPSTARTED = False
         self.outputs = []
-        self.vars = {}             
-        self.groups = []           
-        self.inputs = {}           
+        self.vars = {}
+        self.groups = []
+        self.inputs = {}
         self.lookups = {}
         self.data_path_prefix = data_path_prefix
         self.utils = utils()
@@ -537,7 +537,7 @@ class template_class():
 
         def invalid(C):
             print("Warning: Invalid tag '{}'".format(C.tag))
-                
+
         def parse_hierarch_tmplt(element):
             # dict to store all top tags sorted parsing as need to
             # parse variablse fist after that all the rest
@@ -946,7 +946,7 @@ class variable_class():
             if len(O) == 2: self.functions.append({N: {'name': O[0], 'add_field': O[1]}})
             elif len(O) == 1: self.functions.append({N: {'name': O[0], 'add_field': False}})
             else: print("ERROR: wrong synaxis '{}', use lookup('name', 'add_field') or lookup(name, add_field)".format(self.LINE))
-            
+
         def extract_rlookup(N, O):
             """extract rlookup options
             """
@@ -957,7 +957,7 @@ class variable_class():
         def extract_strip(N, O):
             if len(O) == 0: self.functions.append({N: ''})
             elif len(O) == 1: self.functions.append({N: O[0]})
-            
+
         extract_funcs = {
         # ACTIONS:
         'upper'         : lambda N, O: self.functions.append({N: ''}),
@@ -1240,6 +1240,12 @@ class variable_class():
                     D=' '.join(d_split[0:t_len])
             return D, None
 
+        def do_actions_record(a,D,P):
+            new_var_name = a['record']
+            P.vars['globals']['vars'].update({new_var_name: DATA})
+            P.update_groups_runs({new_var_name: DATA})
+            return D, None
+
         def do_actions_lookup(a,D,P):
             path = [i.strip() for i in a['lookup']['name'].split('.')]
             add_field = a['lookup']['add_field']
@@ -1247,7 +1253,7 @@ class variable_class():
             # get lookup dictionary/data:
             try:
                 lookup = P.vars['lookups']
-                for i in path: 
+                for i in path:
                     lookup = lookup.get(i,{})
             except KeyError:
                 return D, None
@@ -1269,7 +1275,7 @@ class variable_class():
             # get lookup dictionary/data:
             try:
                 rlookup = P.vars['lookups']
-                for i in path: 
+                for i in path:
                     rlookup = rlookup.get(i,{})
             except KeyError:
                 return D, None
@@ -1287,7 +1293,7 @@ class variable_class():
                 return D, {'lookup': {add_field: found_value}}
             else:
                 return found_value, None
-                
+
         #
         # Conditions Helper Functions:
         #
@@ -1329,7 +1335,7 @@ class variable_class():
         '_start_'       : lambda a, D, P: (D, None),
         'let'           : lambda a, D, P: (D, None),
         'chain'         : lambda a, D, P: (D, None),
-        'record'        : lambda a, D, P: (D, a),
+        'record'        : do_actions_record,
         'set'           : do_actions_set,
         'truncate'      : do_actions_truncate,
         'unrange'       : do_actions_unrange,
@@ -1366,11 +1372,6 @@ class variable_class():
         RESULT = {self.var_name: DATA}
 
         # evaluate post action actions/flags:
-        if 'record' in flags:
-            # save resulted DATA to PARSONJ.vars and update existing data with new values:
-            new_var_name = flags['record']
-            PARSEROBJ.vars['globals']['vars'].update({new_var_name: DATA}) # save DATA in vars using name from flags
-            PARSEROBJ.update_groups_runs({new_var_name: DATA})             # update DEFAULTS based on variables in vars
         # update results with looked up values
         if 'lookup' in flags:
             RESULT.update(flags['lookup'])
