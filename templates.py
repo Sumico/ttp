@@ -614,13 +614,13 @@ caps = "orphrase | upper"
 </vars>
 
 <lookup 
-name="aux1" 
+name="aux" 
 format="ini" 
 include="C:/Users/Denis/YandexDisk/Python/TPG/Text Template Parser/ttp/!USECASES/BGP MAP/aux_data.txt"
 />
 
 <lookup 
-name="aux" 
+name="aux1" 
 format="csv" 
 key='ASN'
 >
@@ -635,7 +635,7 @@ ASN,name,description
 
 <!--NXOS "show run | sec bgp" parse template-->
 <group name="{{ hostname }}.bgp_config.AS_{{ loca_as }}">
-router bgp {{ bgp_as | record(loca_as) | lookup(aux, asn_details) }}
+router bgp {{ bgp_as | record(loca_as) | lookup(aux.ASNs) }}
   router-id {{ rid }}
   <group name="vrfs*.{{ VRF }}">
   vrf {{ VRF }}
