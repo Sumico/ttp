@@ -70,7 +70,7 @@ class utils():
         else:
             return []
 
-    def load_struct(self, element):
+    def load_struct(self, element, **kwargs):
         """Method to load structured data from element text
         or from file(s) given in include attribute
         Args:
@@ -86,7 +86,7 @@ class utils():
             text_data = ''
         result = {}
 
-        def load_ini(text_data):
+        def load_ini(text_data, kwargs):
             import configparser
             data = configparser.ConfigParser()
             # read from ini files first
@@ -106,7 +106,7 @@ class utils():
             # convert configparser object into dictionary
             return {k: dict(data.items(k)) for k in list(data.keys())}
 
-        def load_python(text_data):
+        def load_python(text_data, kwargs):
             data = {}
             if include:
                 files = self.load_files(path=include, extensions=[], filters=[], read=True)
@@ -118,7 +118,7 @@ class utils():
             except:
                 print("ERROR: Unable to load Python formatted data\n'{}'".format(text_data))
 
-        def load_yaml(text_data):
+        def load_yaml(text_data, kwargs):
             from yaml import load
             data = {}
             if include:
@@ -131,9 +131,20 @@ class utils():
             except:
                 raise SystemExit("ERROR: Unable to load YAML formatted data\n'{}'".format(text_data))
 
-        def load_json():
-            pass
-        def load_csv():
+        def load_json(text_data, kwargs):
+            from json import loads
+            data = {}
+            if include:
+                files = self.load_files(path=include, extensions=[], filters=[], read=True)
+                for datum in files:
+                    text_data += "\n" + datum[1]
+            try:
+                data = loads(text_data)
+                return data
+            except:
+                raise SystemExit("ERROR: Unable to load YAML formatted data\n'{}'".format(text_data))
+				
+        def load_csv(text_data, kwargs):
             pass
 
         funcs = {
@@ -144,7 +155,7 @@ class utils():
             'csv'   : load_csv
         }
         # run function to load structured data
-        result = funcs[format](text_data)
+        result = funcs[format](text_data, kwargs)
         return result
 
 

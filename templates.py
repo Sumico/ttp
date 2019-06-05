@@ -447,10 +447,40 @@ IfsNormalize = {
      }
 </v>
 
+<lookup name='locations' format='ini'>
+[SITES]
+-qv1              : Perth WA, 250 St Georges Terrace, WA 6000
+-osb              : Perth WA, 24 Sangiorgio Crt, Osborne Park WA 6017
+-mil              : Perth WA, 4 Millrose Drive, Malaga WA 6090 (NextDC)
+-sub              : Perth WA, 502 Hay St, Subiaco WA
+-per-apt-stg      : Perth WA, 44 St Georges, WA
+-per-pow-stg      : Perth WA, 12 St Georges, WA
+-cam              : Melbourne VIC, 293 Camberwell Rd, VIC
+-gex              : Geelong VIC, Thompson Road, Victoria
+-rex              : Cape Town Africa, 263 Victoria Road, Salt River, South Africa
+-mas              : Sydney NSW, 639 Gardners Road, Mascot NSW 2020
+-syd-gls-har      : Sydney NSW, 400 Harris Street, ULTIMO NSW 2007
+-ult              : Sydney NSW, 400 Harris Street, ULTIMO NSW 2007
+-syd-apt-ros      : Sydney NSW, 30 Ross St, Glebe NSW 2037
+-akl-iin-cit      : Auckland NZ, 7 City Road, New Zealand
+-isa-city         : Auckland NZ, 7 City Road, New Zealand
+-anx              : Canberra ACT, 470 Northbourne Avenue, DICKSON 2602
+-creek            : Brisbane QLD, 127 Creek St, QLD 4000
+-mql              : Mildura VIC, Cnr 10th Street and Orange Avenue, 3500
+-lon              : Adelaide SA, 19-31 London road, Mile End South, SA, 5031
+-fra              : Adelaide SA, 262-280 Franklin Street, SA 5000
+-117kws           : Adelaide SA, 117 King William St
+-150g             : Adelaide SA, 150 Grenfell
+-90kws            : Adelaide SA, 90 King William Street, 5000
+-blt              : Ballarat VIC, Neerim Crescent, Victoria
+gle30             : Glebe, 30 Ross Street, NSW
+syd-sot-ken       : SYD, 201KentStL14
+</lookup>
+
 <g name="{{ Interface }}**.CDP" default="" containsall="Interface">
 -------------------------{{_start_}}
 -----------------------{{_start_}}
-Device ID: {{ CDP_peer_Hostname | replaceall(domainsToStrip) | exclude(SEP) | title }}
+Device ID: {{ CDP_peer_Hostname | replaceall(domainsToStrip) | exclude(SEP) | title | rlookup(locations.SITES, site)}}
   IP address: {{ CDP_peer_ip }}
 Platform: {{ CDP_peer_platform | orphrase | upper }},  Capabilities: {{ CDP_peer_capabilities | orphrase }} 
 Interface: {{ Interface | resuball(IfsNormalize) }},  Port ID (outgoing port): {{ CDP_peer_interface | orphrase | resuball(IfsNormalize) }}
@@ -459,28 +489,24 @@ Interface: {{ Interface | resuball(IfsNormalize) }},  Port ID (outgoing port): {
 <g name="{{ Interface }}**">
 interface {{ Interface | resuball(IfsNormalize) }}
  description {{description | orphrase }}
- no snmp trap link-status
  spanning-tree portfast {{ portfast | set(True) }}
  spanning-tree bpduguard enable {{ bpduguard | set(True) }}
  <g name="cfg.l3">
  ip address {{ ip | default }} {{ mask | default(128)}}
  ipv4 address {{ ip | default }} {{ mask | default(128) | _start_ }}
  ip helper-address {{ helper }}
- no ip redirects
- no ip unreachables
- no ip proxy-arp
  </g>
- {{ sysname | record(hostname) }}
- {{ local_bgp_as | record(bgpAS) }}
+ {{ sysname | let(hostname) }}
+ {{ local_bgp_as | let(bgpAS) }}
 !{{_end_}}
 </g>
 
-<g name="bgp" method="table">
+<g name="bgp">
 router bgp {{ bgp_as | record(bgpAS) }}
-router bgpr {{ bgp_as | record(bgpAS) }}
-##!{{ _end_ }}
 </g>
+"""
 
+sample_our = """
 <o type="jinja" out_folder="./Output/" name="BGP">
 router bgp {{ bgp.bgp_as }}
 !
@@ -588,14 +614,28 @@ caps = "orphrase | upper"
 </vars>
 
 <lookup 
-name="aux" 
+name="aux1" 
 format="ini" 
 include="C:/Users/Denis/YandexDisk/Python/TPG/Text Template Parser/ttp/!USECASES/BGP MAP/aux_data.txt"
 />
 
+<lookup 
+name="aux" 
+format="csv" 
+key='ASN'
+>
+ASN,name,description
+9942,SOUL,Public ASN
+7545,TPG,Public ASN
+2764,AAPT,Public ASN
+4174,AAPT,Public ASN
+4739,INTERNODE,Public ASN
+4817,TPG SG,Public ASN
+</lookup>
+
 <!--NXOS "show run | sec bgp" parse template-->
 <group name="{{ hostname }}.bgp_config.AS_{{ loca_as }}">
-router bgp {{ bgp_as | record(loca_as) | lookup(aux.ASNs, as_name) }}
+router bgp {{ bgp_as | record(loca_as) | lookup(aux, asn_details) }}
   router-id {{ rid }}
   <group name="vrfs*.{{ VRF }}">
   vrf {{ VRF }}
@@ -610,7 +650,7 @@ router bgp {{ bgp_as | record(loca_as) | lookup(aux.ASNs, as_name) }}
     </group>
     <group name="peers**.{{ PEER }}">    
     neighbor {{ PEER }}
-      remote-as {{ remote_as | lookup(aux.ASNs, as_name) }}
+      remote-as {{ remote_as | lookup(aux, asn_details) }}
       description {{ description | chain(caps) }}
       <group name="afi**.{{ AFI }}">
        <group name="Unicast**">
@@ -628,7 +668,7 @@ router bgp {{ bgp_as | record(loca_as) | lookup(aux.ASNs, as_name) }}
 
 <!--NXOS "show bgp vrf all all neighbors" parse template-->
 <g name = "peers_state.{{ PEER }}">
-BGP neighbor is {{ PEER }},  remote AS {{ remote_as | lookup(aux.ASNs, peer_as_name) }}, {{ type }} link, Peer index 2
+BGP neighbor is {{ PEER }},  remote AS {{ remote_as | lookup(aux, peer_as_details) }}, {{ type }} link, Peer index 2
   Description: {{ description | chain(caps) }}
   BGP version 4, remote router ID {{ peer_rid }}
   BGP state = {{ state }}, up for {{ time }}
