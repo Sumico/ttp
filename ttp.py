@@ -143,9 +143,26 @@ class utils():
                 return data
             except:
                 raise SystemExit("ERROR: Unable to load YAML formatted data\n'{}'".format(text_data))
-				
+
         def load_csv(text_data, kwargs):
-            pass
+            from csv import reader
+            key = element.attrib.get('key', None)
+            data = {}
+            headers = []
+            for row in reader(iter(text_data.splitlines())):
+                if not row:
+                    continue
+                if not headers:
+                    headers = row
+                    if not key:
+                        key = headers[0]
+                    elif key and key not in headers:
+                        return data
+                    continue
+                temp = {headers[index]: i for index, i in enumerate(row)}
+                data[temp.pop(key)] = temp
+            return data
+
 
         funcs = {
             'ini'   : load_ini,
@@ -393,9 +410,9 @@ class template_class():
         self.PATHCHAR='.'          # character to separate path items, like ntp.clock.time, '.' is pathChar here
         self.GROUPSTARTED = False
         self.outputs = []
-        self.vars = {}             
-        self.groups = []           
-        self.inputs = {}           
+        self.vars = {}
+        self.groups = []
+        self.inputs = {}
         self.lookups = {}
         self.data_path_prefix = data_path_prefix
         self.utils = utils()
@@ -520,7 +537,7 @@ class template_class():
 
         def invalid(C):
             print("Warning: Invalid tag '{}'".format(C.tag))
-                
+
         def parse_hierarch_tmplt(element):
             # dict to store all top tags sorted parsing as need to
             # parse variablse fist after that all the rest
@@ -843,48 +860,48 @@ class variable_class():
         #
         # Helper functions:
         #
-        def extract__start_(O):
+        def extract__start_(N, O):
             match_line=re.sub('{{([\S\s]+?)}}', '', self.LINE).rstrip()
-            self.functions.append({'_start_': '\n' + match_line})
+            self.functions.append({N: '\n' + match_line})
             self.SAVEACTION='START'
             if self.var_name == '_start_':
                 self.SAVEACTION='STARTEMPTY'
 
-        def extract__end_(O):
+        def extract__end_(N, O):
             match_line=re.sub('{{([\S\s]+?)}}', '', self.LINE).rstrip()
-            self.functions.append({'_end_': '\n' + match_line})
+            self.functions.append({N: '\n' + match_line})
             self.SAVEACTION='END'
 
-        def extract_set(O):
+        def extract_set(N, O):
             # create action item, ege [{'set': ['True', '  Queueing strategy: fifo']}]:
             match_line=re.sub('{{([\S\s]+?)}}', '', self.LINE).rstrip()
-            self.functions.append({'set': [O[0], '\n' + match_line]})
+            self.functions.append({N: [O[0], '\n' + match_line]})
 
-        def extract_unrange(O):
+        def extract_unrange(N, O):
             if len(O) == 2:
-                self.functions.append({'unrange': {'rangechar': O[0], 'joinchar': O[1]}})
+                self.functions.append({N: {'rangechar': O[0], 'joinchar': O[1]}})
             else:
-                self.functions.append({'unrange': {'rangechar': '-', 'joinchar': ','}})
+                self.functions.append({N: {'rangechar': '-', 'joinchar': ','}})
 
-        def extract_replace(O):
-            if len(O) == 2: self.functions.append({'replace': {'old': O[0], 'new': O[1]} })
-            elif len(O) == 1: self.functions.append({'replace': {'old': O[0], 'new': ''} })
+        def extract_replace(N, O):
+            if len(O) == 2: self.functions.append({N: {'old': O[0], 'new': O[1]} })
+            elif len(O) == 1: self.functions.append({N: {'old': O[0], 'new': ''} })
             else: print("ERROR: wrong synaxis '{}', use 'replace('old', 'new')' or 'replace(old, new)".format(self.LINE))
 
-        def extract_resub(O):
-            if len(O) == 2: self.functions.append({'resub': {'old': O[0], 'new': O[1]}})
-            elif len(O) == 1: self.functions.append({'resub': {'old': O[0], 'new': ''}})
+        def extract_resub(N, O):
+            if len(O) == 2: self.functions.append({N: {'old': O[0], 'new': O[1]}})
+            elif len(O) == 1: self.functions.append({N: {'old': O[0], 'new': ''}})
             else: print("ERROR: wrong synaxis '{}', use 'resub('old', 'new')' or 'resub(old, new)".format(self.LINE))
 
-        def extract_replaceall(O):
-            if len(O) == 1: self.functions.append({'replaceall': {"old": O, "new": ''}})
-            else: self.functions.append({'replaceall': {"old": O[1:], "new": O[0]}})
+        def extract_replaceall(N, O):
+            if len(O) == 1: self.functions.append({N: {"old": O, "new": ''}})
+            else: self.functions.append({N: {"old": O[1:], "new": O[0]}})
 
-        def extract_resuball(O):
-            if len(O) == 1: self.functions.append({'resuball': {"old": O, "new": ''}})
-            else: self.functions.append({'resuball': {"old": O[1:], "new": O[0]}})
+        def extract_resuball(N, O):
+            if len(O) == 1: self.functions.append({N: {"old": O, "new": ''}})
+            else: self.functions.append({N: {"old": O[1:], "new": O[0]}})
 
-        def extract_default(O):
+        def extract_default(N, O):
             if len(O) == 1:
                 if self.var_name not in self.skip_defaults:
                     self.group.defaults.update({self.var_name: O[0]})
@@ -892,25 +909,25 @@ class variable_class():
                 if self.var_name not in self.skip_defaults:
                     self.group.defaults.update({self.var_name: "None"})
 
-        def extract_joinmatches(O):
-            if len(O) == 1: self.functions.append({'joinmatches': O[0]})
-            else: self.functions.append({'joinmatches': ','})
+        def extract_joinmatches(N, O):
+            if len(O) == 1: self.functions.append({N: O[0]})
+            else: self.functions.append({N: ','})
             self.SAVEACTION='JOIN'
 
-        def extract__line_(O):
-            self.functions.append({'_line_': '\n'})
+        def extract__line_(N, O):
+            self.functions.append({N: '\n'})
             self.SAVEACTION='JOIN'
             self.IS_LINE=True
 
-        def extract_let(O):
+        def extract_let(N, O):
             self.group.defaults.update({self.var_name: O[0]})
-            self.functions.append({'let': ''})
+            self.functions.append({N: ''})
             self.skip_regex_dict = True
 
-        def extract_ignore(O):
+        def extract_ignore(N, O):
             self.skip_variable_dict = True
 
-        def extract_chain(O):
+        def extract_chain(N, O):
             """add items from chain to variable attributes and functions
             """
             variable_value = self.group.vars.get(O[0], '')
@@ -919,40 +936,40 @@ class variable_class():
                 name, options = list(i.items())[0]
                 name = name.lower()
                 if name in extract_funcs:
-                    extract_funcs[name](options)
+                    extract_funcs[name](name, options)
                 else:
                     self.attributes.append(i)
 
-        def extract_lookup(O):
+        def extract_lookup(N, O):
             """extract lookup options
             """
-            if len(O) == 2: self.functions.append({'lookup': {'name': O[0], 'add_field': O[1]}})
-            elif len(O) == 1: self.functions.append({'lookup': {'name': O[0], 'add_field': False}})
+            if len(O) == 2: self.functions.append({N: {'name': O[0], 'add_field': O[1]}})
+            elif len(O) == 1: self.functions.append({N: {'name': O[0], 'add_field': False}})
             else: print("ERROR: wrong synaxis '{}', use lookup('name', 'add_field') or lookup(name, add_field)".format(self.LINE))
-            
-        def extract_rlookup(O):
+
+        def extract_rlookup(N, O):
             """extract rlookup options
             """
-            if len(O) == 2: self.functions.append({'rlookup': {'name': O[0], 'add_field': O[1]}})
-            elif len(O) == 1: self.functions.append({'rlookup': {'name': O[0], 'add_field': False}})
+            if len(O) == 2: self.functions.append({N: {'name': O[0], 'add_field': O[1]}})
+            elif len(O) == 1: self.functions.append({N: {'name': O[0], 'add_field': False}})
             else: print("ERROR: wrong synaxis '{}', use rlookup('name', 'add_field') or rlookup(name, add_field)".format(self.LINE))
 
-        def extract_strip(O):
-            if len(O) == 0: self.functions.append({'strip': ''})
-            elif len(O) == 1: self.functions.append({'strip': O[0]})
+        def extract_strip(N, O):
+            if len(O) == 0: self.functions.append({N: ''})
+            elif len(O) == 1: self.functions.append({N: O[0]})
 
         extract_funcs = {
         # ACTIONS:
-        'upper'         : lambda O: self.functions.append({'upper': ''}),
-        'lower'         : lambda O: self.functions.append({'lower': ''}),
-        'title'         : lambda O: self.functions.append({'title': ''}),
-        'lstrip'        : lambda O: self.functions.append({'lstrip': O[0]}),
-        'rstrip'        : lambda O: self.functions.append({'rstrip': O[0]}),
-        'record'        : lambda O: self.functions.append({'record': O[0]}),
-        'truncate'      : lambda O: self.functions.append({'truncate': O[0]}),
-        'split'         : lambda O: self.functions.append({'split': O[0]}),
-        'join'          : lambda O: self.functions.append({'join': O[0]}),
-        'append'        : lambda O: self.functions.append({'append': O[0]}),
+        'upper'         : lambda N, O: self.functions.append({N: ''}),
+        'lower'         : lambda N, O: self.functions.append({N: ''}),
+        'title'         : lambda N, O: self.functions.append({N: ''}),
+        'lstrip'        : lambda N, O: self.functions.append({N: O[0]}),
+        'rstrip'        : lambda N, O: self.functions.append({N: O[0]}),
+        'record'        : lambda N, O: self.functions.append({N: O[0]}),
+        'truncate'      : lambda N, O: self.functions.append({N: O[0]}),
+        'split'         : lambda N, O: self.functions.append({N: O[0]}),
+        'join'          : lambda N, O: self.functions.append({N: O[0]}),
+        'append'        : lambda N, O: self.functions.append({N: O[0]}),
         'let'           : extract_let,
         'ignore'        : extract_ignore,
         '_start_'       : extract__start_,
@@ -972,19 +989,19 @@ class variable_class():
         'resub'         : extract_resub,
         'resuball'      : extract_resuball,
         # CONDITIONS:
-        'startswith'    : lambda O: self.functions.append({'startswith': O[0]}),
-        'endswith'      : lambda O: self.functions.append({'endswith': O[0]}),
-        'exclude'       : lambda O: self.functions.append({'exclude': O[0]}),
-        'contains'      : lambda O: self.functions.append({'contains': O[0]}),
-        'notequal'      : lambda O: self.functions.append({'notequal': O[0]}),
-        'equal'         : lambda O: self.functions.append({'equal': O[0]}),
-        'notstartswith' : lambda O: self.functions.append({'notstartswith': O[0]}),
-        'notendswith'   : lambda O: self.functions.append({'notendswith': O[0]}),
-        'isdigit'       : lambda O: self.functions.append({'isdigit': ''}),
-        'notdigit'      : lambda O: self.functions.append({'notdigit': ''}),
-        'notempty'      : lambda O: self.functions.append({'notempty': ''}),
-        '>'             : lambda O: self.functions.append({'>': ''}),
-        '<'             : lambda O: self.functions.append({'<': ''})
+        'startswith'    : lambda N, O: self.functions.append({N: O[0]}),
+        'endswith'      : lambda N, O: self.functions.append({N: O[0]}),
+        'exclude'       : lambda N, O: self.functions.append({N: O[0]}),
+        'contains'      : lambda N, O: self.functions.append({N: O[0]}),
+        'notequal'      : lambda N, O: self.functions.append({N: O[0]}),
+        'equal'         : lambda N, O: self.functions.append({N: O[0]}),
+        'notstartswith' : lambda N, O: self.functions.append({N: O[0]}),
+        'notendswith'   : lambda N, O: self.functions.append({N: O[0]}),
+        'isdigit'       : lambda N, O: self.functions.append({N: ''}),
+        'notdigit'      : lambda N, O: self.functions.append({N: ''}),
+        'notempty'      : lambda N, O: self.functions.append({N: ''}),
+        '>'             : lambda N, O: self.functions.append({N: ''}),
+        '<'             : lambda N, O: self.functions.append({N: ''})
         # 'is_ip'        : to check that data is valid ip address - isip(4) for v4 or isip(6) for v6 or any
         # 'is_mac'       : to check that data is valid  mac-address
         # 'is_word'      : check if no spaces in data - same as notcontains(' ')
@@ -997,7 +1014,7 @@ class variable_class():
                 name=name.lower()
                 # call attribute extract function:
                 if name in extract_funcs:
-                    extract_funcs[name](options)
+                    extract_funcs[name](name, options)
 
 
     def formRegex(self, regex):
@@ -1223,6 +1240,12 @@ class variable_class():
                     D=' '.join(d_split[0:t_len])
             return D, None
 
+        def do_actions_record(a,D,P):
+            new_var_name = a['record']
+            P.vars['globals']['vars'].update({new_var_name: DATA})
+            P.update_groups_runs({new_var_name: DATA})
+            return D, None
+
         def do_actions_lookup(a,D,P):
             path = [i.strip() for i in a['lookup']['name'].split('.')]
             add_field = a['lookup']['add_field']
@@ -1230,7 +1253,7 @@ class variable_class():
             # get lookup dictionary/data:
             try:
                 lookup = P.vars['lookups']
-                for i in path: 
+                for i in path:
                     lookup = lookup.get(i,{})
             except KeyError:
                 return D, None
@@ -1252,7 +1275,7 @@ class variable_class():
             # get lookup dictionary/data:
             try:
                 rlookup = P.vars['lookups']
-                for i in path: 
+                for i in path:
                     rlookup = rlookup.get(i,{})
             except KeyError:
                 return D, None
@@ -1270,7 +1293,7 @@ class variable_class():
                 return D, {'lookup': {add_field: found_value}}
             else:
                 return found_value, None
-                
+
         #
         # Conditions Helper Functions:
         #
@@ -1312,7 +1335,7 @@ class variable_class():
         '_start_'       : lambda a, D, P: (D, None),
         'let'           : lambda a, D, P: (D, None),
         'chain'         : lambda a, D, P: (D, None),
-        'record'        : lambda a, D, P: (D, a),
+        'record'        : do_actions_record,
         'set'           : do_actions_set,
         'truncate'      : do_actions_truncate,
         'unrange'       : do_actions_unrange,
@@ -1349,11 +1372,6 @@ class variable_class():
         RESULT = {self.var_name: DATA}
 
         # evaluate post action actions/flags:
-        if 'record' in flags:
-            # save resulted DATA to PARSONJ.vars and update existing data with new values:
-            new_var_name = flags['record']
-            PARSEROBJ.vars['globals']['vars'].update({new_var_name: DATA}) # save DATA in vars using name from flags
-            PARSEROBJ.update_groups_runs({new_var_name: DATA})             # update DEFAULTS based on variables in vars
         # update results with looked up values
         if 'lookup' in flags:
             RESULT.update(flags['lookup'])
