@@ -18,14 +18,23 @@ from xml.etree import cElementTree as ET
 from multiprocessing import Process, cpu_count, JoinableQueue, Queue
 
 # Initiate global variables:
-ctime = time.ctime().replace(':', '-')
-
+ctime = time.ctime().replace(':', '-').replace(' ', '_')
+t0 = time.perf_counter()
 
 class utils():
     """Class to store various functions for the use along the code
     """
     def __init__(self):
         pass
+
+    def traverse_dict(self, data, path):
+        """Method to traverse dictionary data and return dict element 
+        at given path
+        """
+        result = {}
+        for i in path:
+            result = data.get(i, {})
+        return result        
 
     def load_files(self, path, extensions=[], filters=[], read=False):
         """
@@ -85,7 +94,10 @@ class utils():
         if text_data is None:
             text_data = ''
         result = {}
-
+        
+        def load_text(text_data, kwargs):
+            return text_data
+            
         def load_ini(text_data, kwargs):
             import configparser
             data = configparser.ConfigParser()
@@ -163,13 +175,13 @@ class utils():
                 data[temp.pop(key)] = temp
             return data
 
-
         funcs = {
             'ini'   : load_ini,
             'python': load_python,
             'yaml'  : load_yaml,
             'json'  : load_json,
-            'csv'   : load_csv
+            'csv'   : load_csv,
+            'text'  : load_text
         }
         # run function to load structured data
         result = funcs[format](text_data, kwargs)
@@ -180,11 +192,11 @@ class worker(Process):
     """Class used in multiprocesing to parse data
     """
 
-    def __init__(self, task_queue, result_queue):
+    def __init__(self, task_queue, result_queue, lookups):
         Process.__init__(self)
         self.task_queue = task_queue
         self.result_queue = result_queue
-        self.parser_obj = parser_class()
+        self.parser_obj = parser_class(lookups)
 
     def run(self):
         while True:
@@ -196,8 +208,7 @@ class worker(Process):
             # set parser object parameters
             self.parser_obj.set_data(next_task['data'])
             self.parser_obj.set_groups(next_task['template_groups'])
-            self.parser_obj.set_vars(next_task['template_vars'],
-                                     next_task['template_lookups'])
+            self.parser_obj.set_vars(next_task['template_vars'])
             # parse and get results
             self.parser_obj.parse(next_task['groups_to_run'])
             result = self.parser_obj.RSLTSOBJ.RESULTS
@@ -230,7 +241,7 @@ class ttp():
             self.templates (list): list of template objects
         """
         self.data_size = 0
-        self.multiproc_threshold = 5242880 # 5Mbyte
+        self.multiproc_threshold = -1 # 5Mbyte
         self.data = []
         self.templates = []
         self.results = []
@@ -300,7 +311,7 @@ class ttp():
             tasks = JoinableQueue()
             results = Queue()
 
-            workers = [worker(tasks, results) for i in range(num_processes)]
+            workers = [worker(tasks, results, template.lookups) for i in range(num_processes)]
             [w.start() for w in workers]
 
             for input_name, input_params in template.inputs.items():
@@ -309,8 +320,7 @@ class ttp():
                         'data'            : datum,
                         'groups_to_run'   : input_params['groups'],
                         'template_vars'   : template.vars,
-                        'template_groups' : template.groups,
-                        'template_lookups': template.lookups
+                        'template_groups' : template.groups
                     }
                     tasks.put(task_dict)
                     num_jobs += 1
@@ -329,18 +339,16 @@ class ttp():
         """Method to parse data in bulk by parsing each data item
         against each template and saving results in results list
         """
-
-        parserObj=parser_class()
-
         for template in self.templates:
+            parserObj = parser_class(template.lookups)
             if self.data:
                 template.set_default_input_data(self.data)
-            for in_name, in_params in template.inputs.items():
-                for datum in in_params['data']:
+            for input_name, input_params in template.inputs.items():
+                for datum in input_params['data']:
                     parserObj.set_data(datum)
                     parserObj.set_groups(template.groups)
-                    parserObj.set_vars(template.vars, template.lookups)
-                    parserObj.parse(in_params['groups'])
+                    parserObj.set_vars(template.vars)
+                    parserObj.parse(input_params['groups'])
                     result = parserObj.RSLTSOBJ.RESULTS
                     self.form_results(result)
 
@@ -358,49 +366,34 @@ class ttp():
             self.parse_in_multiprocess()
 
 
-    def output(self):
+    def output(self, **kwargs):
         """Method to run templates' outputters.
+        kwargs:
+            type : supported ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint']
+            destination : supported ['file', 'terminal']
+            url : path where to save files
+            filename : name of the file
         """
-        for result in self.results:
-            for template in self.templates:
-                template.output(dataToDump=result)
+        # run templates outputs
+        for template in self.templates:
+            for output in template.outputs:
+                output.run(self.results, ret=False)
+                
+        # run on demand output to given destination
+        if 'type' in kwargs and 'destination' in kwargs:
+            outputter = outputter_class(**kwargs)
+            outputter.run(self.results, ret=False)    
+        # run on demand output and return results
+        elif 'type' in kwargs and 'destination' not in kwargs:
+            outputter = outputter_class(**kwargs)
+            result = outputter.run(self.results, ret=True)       
+            return result
 
+            
+    def result(self):
+        return self.results
 
-    def raw(self):
-        """Method returns parsing results as python list or dictionary, in that way
-        results can be used by other python modules for further processing.
-        """
-        if self.results:
-            return self.results
-
-    def pprint(self):
-        """Method ti pprint results
-        """
-        from pprint import pprint
-        pprint(self.results)
-
-
-    def yaml(self, display=False):
-        """Method returns parsing results in yaml format.
-        """
-        import yaml
-        if self.results:
-            if display is True:
-                print(yaml.dump(self.raw(), default_flow_style=False))
-            else:
-                return yaml.dump(self.raw(), default_flow_style=False)
-
-
-    def json(self, display=False):
-        """Method returns parsing result in json format.
-        """
-        import json
-        if self.results:
-            if display == True:
-                print(json.dumps(self.raw(), sort_keys=True, indent=4, separators=(',', ': ')))
-            else:
-                return json.dumps(self.raw(), sort_keys=True, indent=4, separators=(',', ': '))
-
+        
 
 class template_class():
     """Template class to hold template data
@@ -473,10 +466,7 @@ class template_class():
                self.vars.update(vars)
 
         def parse_output(element):
-            self.outputs.append({
-                'attributes' : element.attrib,
-                'data'       : element.text
-                })
+            self.outputs.append(outputter_class(element))
 
         def parse_input(element):
             input_data={}
@@ -585,16 +575,6 @@ class template_class():
         parse_template_XML(template_text)
 
 
-    def output(self, dataToDump):
-        outputter_object=outputter_class()
-
-        for output in self.outputs:
-            if output['attributes']['type'].lower() == 'csv':
-                outputter_object.dump_csv(dataToDump=dataToDump, output_data=output)
-            elif output['attributes']['type'].lower() == 'jinja':
-                outputter_object.dump_jinja(dataToDump=dataToDump, output_data=output)
-
-
 class group_class():
     """group class to store template group objects data
     """
@@ -604,7 +584,7 @@ class group_class():
         """Init method
         Attributes:
             element : xml ETree element to parse
-            top (bool): to indicate tat group is a top xml ETree group
+            top (bool): to indicate that group is a top xml ETree group
             path (list): list containing results tree path, have to copy it otherwise
                 it got overriden by recursion
             defaults (dict): contains group variables' default values
@@ -621,7 +601,7 @@ class group_class():
         """
         self.pathchar = pathchar
         self.top      = top
-        self.path     = copy.copy(path)
+        self.path     = path.copy()
         self.defaults = {}
         self.runs     = {}
         self.default  = "_Not_Given_"
@@ -774,7 +754,7 @@ class group_class():
         as values in defaults dictionried can change for 'let'
         function
         """
-        self.runs = copy.copy(self.defaults)
+        self.runs = self.defaults.copy()
         # run reursion for children:
         [child.set_runs() for child in self.children]
 
@@ -1252,7 +1232,7 @@ class variable_class():
             found_value = None
             # get lookup dictionary/data:
             try:
-                lookup = P.vars['lookups']
+                lookup = P.lookups
                 for i in path:
                     lookup = lookup.get(i,{})
             except KeyError:
@@ -1274,7 +1254,7 @@ class variable_class():
             found_value = None
             # get lookup dictionary/data:
             try:
-                rlookup = P.vars['lookups']
+                rlookup = P.lookups
                 for i in path:
                     rlookup = rlookup.get(i,{})
             except KeyError:
@@ -1383,24 +1363,20 @@ class variable_class():
 class parser_class():
     """Parser Object to run parsing of data and constructong resulted dictionary/list
     """
-    def __init__(self, data='', vars='', groups='', lookups=''):
-        if data: self.set_data(data)
-        if vars: self.set_vars(vars, lookups)
-        if groups: self.set_groups(groups)
+    def __init__(self, lookups):
+        self.lookups = lookups
 
     def set_data(self, D):
-        """Method to load data
+        """Method to load data and recreate results object
         Args:
-            D (dict): dict of {dataname: data}
+            D (tuple): dict of (dataname, data_path,)
         """
-        self.raw_results=[]            # initiate raw results dictionary
-        self.RSLTSOBJ=results_class()  # create results object
-
+        self.raw_results = []            # initiate raw results dictionary
+        self.RSLTSOBJ = results_class()  # create results object
         self.DATANAME, self.DATATEXT = self.read_data(D)
 
     def read_data(self, D):
-        """Method to read data from datafile prior to puttin it into the
-        process queue or sending to parser if single process used
+        """Method to read data from datafile
         """
         name = ''
         datatext = '\n\n'
@@ -1416,21 +1392,19 @@ class parser_class():
         elif D[0] is 'text_data':
             datatext = '\n' + D[1] + '\n'
             name = 'text_data'
-
         return (name, datatext,)
 
     def set_groups(self, groups):
         self.groups = groups
 
-    def set_vars(self, vars, lookups):
+    def set_vars(self, vars):
         """Method to load template
         Args:
             T : template object
         """
         self.vars={
-            'lookups': lookups,
             'globals': {
-                'vars' : copy.copy(vars)
+                'vars' : vars.copy()
             }
         }
 
@@ -1485,7 +1459,6 @@ class parser_class():
 
     def parse(self, groups_names):
         # groups_names - list of groups' names to run
-
         unsort_rslts=[] # list of dictionaries - one item per top group, each dictionary
                         # contains unsorted match results for all res within group
 
@@ -1582,7 +1555,7 @@ class parser_class():
         # print(self.raw_results)
 
         # save results:
-        self.RSLTSOBJ.save_results(self.vars['globals']['vars'], self.raw_results)
+        self.RSLTSOBJ.form_results(self.vars['globals']['vars'], self.raw_results)
 
 
 
@@ -1593,8 +1566,8 @@ class results_class():
         self.dyn_path (dict): used to store dynamic path variables
     """
     def __init__(self):
-        self.RESULTS   ={}
-        self.GRPLOCK   ={'LOCK': False, 'GROUP': ()} # GROUP - path tuple of locked group
+        self.RESULTS = {}
+        self.GRPLOCK = {'LOCK': False, 'GROUP': ()} # GROUP - path tuple of locked group
         self.record={
             'RESULT'     : {},
             'PATH'       : [],
@@ -1602,7 +1575,7 @@ class results_class():
         }
         self.dyn_path={}
 
-    def save_results(self, vars, results):
+    def form_results(self, vars, results):
 
         self.vars=vars
 
@@ -1632,7 +1605,7 @@ class results_class():
                             result_data=item[1]
                             break
 
-                group=re['GROUP']
+                group = re['GROUP']
 
                 # check if result is false, lock the group if so:
                 if result_data == False:
@@ -1656,7 +1629,7 @@ class results_class():
                 # Save results:
                 saveFuncs[re['ACTION']](
                     RESULT     = result_data,
-                    PATH       = group.path,
+                    PATH       = group.path.copy(),
                     DEFAULTS   = group.runs,
                     CONDITIONS = group.funcs,
                     REDICT     = re
@@ -1665,7 +1638,7 @@ class results_class():
         # check the last group:
         if self.record['RESULT'] and self.PROCESSGRP() is not False:
             self.SAVE_CURELEMENTS()
-
+			
 
     def value_to_list(self, DATA, PATH, RESULT):
         """recursive function to get value at given PATH and transform it into the list
@@ -1765,10 +1738,10 @@ class results_class():
         if self.record['RESULT'] and self.PROCESSGRP() != False:
             self.SAVE_CURELEMENTS()
         self.record = {
-            'RESULT'     : copy.copy(DEFAULTS),
+            'RESULT'     : DEFAULTS.copy(),
             'DEFAULTS'   : DEFAULTS,
-            'PATH'       : copy.copy(PATH),
-            'CONDITIONS' : copy.copy(CONDITIONS)
+            'PATH'       : PATH,
+            'CONDITIONS' : copy.deepcopy(CONDITIONS)
         }
         self.record['RESULT'].update(RESULT)
 
@@ -1777,10 +1750,10 @@ class results_class():
         if self.record['RESULT'] and self.PROCESSGRP() != False:
             self.SAVE_CURELEMENTS()
         self.record = {
-            'RESULT'     : copy.copy(DEFAULTS),
+            'RESULT'     : DEFAULTS.copy(),
             'DEFAULTS'   : DEFAULTS,
-            'PATH'       : copy.copy(PATH),
-            'CONDITIONS' : copy.copy(CONDITIONS)
+            'PATH'       : PATH,
+            'CONDITIONS' : copy.deepcopy(CONDITIONS)
         }
 
 
@@ -1828,7 +1801,7 @@ class results_class():
     def END(self, RESULT, PATH, DEFAULTS={}, CONDITIONS=[], REDICT=''):
         # action to end current group by locking it
         self.GRPLOCK['LOCK'] = True
-        self.GRPLOCK['GROUP'] = copy.copy(PATH)
+        self.GRPLOCK['GROUP'] = PATH.copy()
 
 
     def form_path(self, path):
@@ -1901,10 +1874,81 @@ class results_class():
 class outputter_class():
     """Class to serve excel, yaml, json, xml etc. dumping functions
     """
-    def __init__(self):
-        pass
+    def __init__(self, element=None, **kwargs):
+        self.utils = utils()
+        self.attributes = {
+            'destination' : 'file',
+            'type'        : 'json',
+            'url'         : './Output/',
+            'filename'    : 'output_{}.txt'.format(ctime),
+            'method'      : 'a'
+        }
+        self.supported_types = ['raw', 'yaml', 'json', 
+                                'csv', 'jinja2', 'pprint']
+        self.supported_destinations = ['file', 'terminal']
+        if element is not None:
+            self.element = element
+            self.attributes.update(element.attrib)
+        else:
+            self.element = None
+            self.attributes.update(kwargs)
 
-    def dump_csv(self, dataToDump, output_data):
+    def run(self, data, ret):
+        result = []
+        type = self.attributes['type']
+        destination = self.attributes['destination']
+        if type not in self.supported_types:
+            raise SystemExit("Error: Unsupported output type '{}', Supported: {}. Exiting".format(
+                              type, str(self.supported_types)))
+        # construct results:
+        for datum in data:
+            result.append(getattr(self, 'dump_' + type)(datum))
+        # decide what to do with results:
+        if ret:
+            return result
+        elif destination in self.supported_destinations:
+            getattr(self, 'return_to_' + destination)(result)
+        else:
+            raise SystemExit("Error: Unsupported output destination '{}'. Supported: {}. Exiting".format(
+                             destination, self.supported_destinations))
+            
+    def return_to_file(self, D):
+        url = self.attributes['url']
+        filename = self.attributes['filename']
+        method = self.attributes['method']
+        if not os.path.exists(url):
+            os.mkdir(url)
+        with open(url + filename, method) as f:
+            for datum in D:
+                f.write(datum)
+    
+    def return_to_terminal(self, D):
+        [print(datum) for datum in D]
+                
+    def dump_raw(self, data):
+        """Method returns parsing results as python list or dictionary.
+        """
+        return data
+
+    def dump_pprint(self, data):
+        """Method to pprint format results
+        """
+        from pprint import pformat
+        return pformat(data, indent=4)
+
+    def dump_yaml(self, data):
+        """Method returns parsing results in yaml format.
+        """
+        from yaml import dump
+        return dump(data, default_flow_style=False)
+
+    def dump_json(self, data):
+        """Method returns parsing result in json format.
+        """
+        from json import dumps
+        return dumps(data, sort_keys=True, indent=4, separators=(',', ': '))               
+
+    def dump_csv(self, data):
         """
         Method to dump list of dictionaries to csv spreadsheet.
         Args:
@@ -1918,72 +1962,22 @@ class outputter_class():
             </outputs>
         """
         import csv
+        pass
 
-        def get_data_by_path(path, D):
-            data=''
-            for i in path:
-                if i in D:
-                    data = D[i]
-            return data
-
-        outputter_data = {}
-        out_folder = './Output/'
-        out_file = '{}_{}.csv'.format(ctime, output_data['attributes']['name'])
-        output_format = output_data['attributes'].get('format', 'python').lower()
-
-        # if data is python formatted - exec it to get all the variables
-        if output_format == 'python':
-            functions={"__builtins__" : None}
-            exec(compile(output_data['data'], '<string>', 'exec'), functions, outputter_data)
-        elif output_format == 'yaml':
-            pass
-        elif output_format == 'json':
-            pass
-
-        with open(out_folder + out_file, 'a', newline='') as f:
-            if "headers" in outputter_data:
-                writer = csv.DictWriter(f, fieldnames=outputter_data['headers'], extrasaction="ignore")
-            else:
-                writer = csv.DictWriter(f, fieldnames=[], extrasaction="ignore")
-
-            if "group" in outputter_data:
-                data = get_data_by_path(path=outputter_data['group'], D=dataToDump)
-            elif isinstance(dataToDump, list):
-                data = dataToDump
-            else:
-                return
-
-            if data and isinstance(data, list):
-                # file.tell returns 0 if file is empty:
-                if f.tell() == 0:
-                    writer.writeheader()
-                for item in data:
-                    writer.writerow(item)
-
-    def dump_jinja(self, dataToDump, output_data):
+    def dump_jinja(self, data):
+        """Method to render output template using results data.
+        """
         # load Jinja2:
         try:
-            import jinja2
+            from jinja2 import Environment
         except ImportError:
-            print("No 'Jinja2' module installed. Install: 'python -m pip install jinja2'; Exiting")
-            sys.exit()
-
-        # create output folder:
-        if 'out_folder' in output_data['attributes']:
-            out_folder= output_data['attributes']['out_folder']
-        else:
-            out_folder="./Output/"
-        if not os.path.exists(out_folder):
-            os.mkdir(out_folder)
-
+            raise SystemExit("Jinja2 not installed, install: 'python -m pip install jinja2', exiting")
         # load template:
-        templateObj=jinja2.Environment(loader='BaseLoader', trim_blocks=True, lstrip_blocks=True).from_string(output_data['data'])
+        template_obj = Environment(loader='BaseLoader', trim_blocks=True, 
+                                   lstrip_blocks=True).from_string(self.element.text)
         # render data:
-        result=templateObj.render(dataToDump)
-        # save results:
-        out_file=ctime + '_' + output_data['attributes']['name'] + '_RESULTS.txt'
-        with open(out_folder + out_file, 'a') as f:
-            f.write(result)
+        result = template_obj.render(data)
+        return result
 
 
 if __name__ == '__main__':
@@ -2040,18 +2034,22 @@ if __name__ == '__main__':
     parser_Obj.parse(one=ONE)
     timing("Data parsing finished")
 
+    parser_Obj.output()
+    timing("Data output done")
+    
     if output.lower() == 'yaml':
-        parser_Obj.yaml(display=True)
+        parser_Obj.output(type='yaml', destination='terminal')
         timing("YAML dumped")
     elif output.lower() == 'raw':
-        print(parser_Obj.raw())
+        parser_Obj.output(type='raw', destination='terminal')
         timing("RAW dumped")
     elif output.lower() == 'json':
-        parser_Obj.json(display=True)
+        parser_Obj.output(type='json', destination='terminal')
         timing("JSON dumped")
     elif output.lower() == 'pprint':
-        parser_Obj.pprint()
+        parser_Obj.output(type='pprint', destination='terminal')
         timing("RAW pprint dumped")
+    else:
+        print("Error: Unsuported output type '{}', supported [yaml, json, raw, pprint]".format(output.lower()))
 
-    parser_Obj.output()
     timing("Done")

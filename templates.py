@@ -504,9 +504,7 @@ interface {{ Interface | resuball(IfsNormalize) }}
 <g name="bgp">
 router bgp {{ bgp_as | record(bgpAS) }}
 </g>
-"""
 
-sample_our = """
 <o type="jinja" out_folder="./Output/" name="BGP">
 router bgp {{ bgp.bgp_as }}
 !
@@ -624,13 +622,13 @@ name="aux_csv"
 format="csv" 
 key='ASN'
 >
-ASN,as_name,as_description
-9942,SOUL,Public ASN
-7545,TPG,Public ASN
-2764,AAPT,Public ASN
-4174,AAPT,Public ASN
-4739,INTERNODE,Public ASN
-4817,TPG SG,Public ASN
+ASN,as_name,as_description,as_number
+9942,SOUL,Public ASN,9942
+7545,TPG,Public ASN,7545
+2764,AAPT,Public ASN,2764
+4174,AAPT,Public ASN,4174
+4739,INTERNODE,Public ASN,4739
+4817,TPG SG,Public ASN,4817
 </lookup>
 
 <!--NXOS "show run | sec bgp" parse template-->
@@ -668,7 +666,7 @@ router bgp {{ bgp_as | record(loca_as) | lookup(aux_csv) }}
 
 <!--NXOS "show bgp vrf all all neighbors" parse template-->
 <g name = "peers_state.{{ PEER }}">
-BGP neighbor is {{ PEER }},  remote AS {{ remote_as | lookup(aux_csv) }}, {{ type }} link, Peer index 2
+BGP neighbor is {{ PEER }},  remote AS {{ remote_as | lookup(aux_csv, asn_details) }}, {{ type }} link, Peer index 2
   Description: {{ description | chain(caps) }}
   BGP version 4, remote router ID {{ peer_rid }}
   BGP state = {{ state }}, up for {{ time }}
@@ -689,4 +687,10 @@ BGP neighbor is {{ PEER }},  remote AS {{ remote_as | lookup(aux_csv) }}, {{ typ
   
   Local host: {{ source_ip }}, Local port: {{ source_port }}
 </g>
+
+<out
+name="bgp_peers_configured_and_state"
+type="json"
+destination="file"
+/>
 """
