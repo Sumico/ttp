@@ -191,11 +191,11 @@ class worker(Process):
     """Class used in multiprocesing to parse data
     """
 
-    def __init__(self, task_queue, result_queue, lookups):
+    def __init__(self, task_queue, result_queue, lookups, vars, groups):
         Process.__init__(self)
         self.task_queue = task_queue
         self.result_queue = result_queue
-        self.parser_obj = parser_class(lookups)
+        self.parser_obj = parser_class(lookups, vars, groups)
 
     def run(self):
         while True:
@@ -206,8 +206,6 @@ class worker(Process):
                 break
             # set parser object parameters
             self.parser_obj.set_data(next_task['data'])
-            self.parser_obj.set_groups(next_task['template_groups'])
-            self.parser_obj.set_vars(next_task['template_vars'])
             # parse and get results
             self.parser_obj.parse(next_task['groups_to_run'])
             result = self.parser_obj.RSLTSOBJ.RESULTS
@@ -294,8 +292,8 @@ class ttp():
             self.parse_in_one_process()
         else:
             self.parse_in_multiprocess()
-			
-			
+            
+            
     def parse_in_multiprocess(self):
         """Method to parse data in bulk by parsing each data item
         against each template and saving results in results list
@@ -311,16 +309,16 @@ class ttp():
             tasks = JoinableQueue()
             results = Queue()
 
-            workers = [worker(tasks, results, template.lookups) for i in range(num_processes)]
+            workers = [worker(tasks, results, lookups=template.lookups, 
+                              vars=template.vars, groups=template.groups) 
+                       for i in range(num_processes)]
             [w.start() for w in workers]
 
             for input_name, input_params in template.inputs.items():
                 for datum in input_params['data']:
                     task_dict = {
                         'data'            : datum,
-                        'groups_to_run'   : input_params['groups'],
-                        'template_vars'   : template.vars,
-                        'template_groups' : template.groups
+                        'groups_to_run'   : input_params['groups']
                     }
                     tasks.put(task_dict)
                     num_jobs += 1
@@ -340,19 +338,19 @@ class ttp():
         against each template and saving results in results list
         """
         for template in self.templates:
-            parserObj = parser_class(template.lookups)
+            parserObj = parser_class(lookups=template.lookups, 
+                                     vars=template.vars,
+                                     groups=template.groups)
             if self.data:
                 template.set_input(self.data)
             for input_name, input_params in template.inputs.items():
                 for datum in input_params['data']:
                     parserObj.set_data(datum)
-                    parserObj.set_groups(template.groups)
-                    parserObj.set_vars(template.vars)
                     parserObj.parse(input_params['groups'])
                     result = parserObj.RSLTSOBJ.RESULTS
                     self.form_results(result)
 
-					
+                    
     def form_results(self, result):
         """Method to add results into self.results
         """
@@ -365,7 +363,7 @@ class ttp():
                 self.results += [result['non_hierarch_tmplt']]
         else:
             self.results.append(result)
-			
+            
 
     def output(self, **kwargs):
         """Method to run templates' outputters.
@@ -1372,9 +1370,12 @@ class variable_class():
 class parser_class():
     """Parser Object to run parsing of data and constructong resulted dictionary/list
     """
-    def __init__(self, lookups):
+    def __init__(self, lookups, vars, groups):
         self.lookups = lookups
-
+        self.groups = groups
+        self.set_vars(vars)
+        
+        
     def set_data(self, D):
         """Method to load data and recreate results object
         Args:
@@ -1383,7 +1384,13 @@ class parser_class():
         self.raw_results = []            # initiate raw results dictionary
         self.RSLTSOBJ = results_class()  # create results object
         self.DATANAME, self.DATATEXT = self.read_data(D)
-
+        # run macro functions to update vars
+        self.run_functions()
+        # update groups' runs dictionaries to hold defaults updated with var values
+        self.set_groups_runs()
+        self.update_groups_runs(self.vars['globals']['vars'])
+        
+        
     def read_data(self, D):
         """Method to read data from datafile
         """
@@ -1411,11 +1418,8 @@ class parser_class():
             'text_data': load_text
         }
         read_funcs[D[0]](D)
-        
         return (name, datatext,)
 
-    def set_groups(self, groups):
-        self.groups = groups
 
     def set_vars(self, vars):
         """Method to load template
@@ -1429,13 +1433,6 @@ class parser_class():
                 'vars' : vars.copy()
             }
         }
-
-        # run macro functions to update vars
-        self.run_functions()
-
-        # update groups' runs dictionaries to hold defaults updated with var values
-        self.set_groups_runs()
-        self.update_groups_runs(self.vars['globals']['vars'])
 
     def set_groups_runs(self):
         [G.set_runs() for G in self.groups]
