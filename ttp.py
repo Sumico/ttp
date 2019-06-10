@@ -19,7 +19,6 @@ from multiprocessing import Process, cpu_count, JoinableQueue, Queue
 
 # Initiate global variables:
 ctime = time.ctime().replace(':', '-').replace(' ', '_')
-t0 = time.perf_counter()
 
 class utils():
     """Class to store various functions for the use along the code
@@ -256,19 +255,21 @@ class ttp():
         # check if template given, if so - load it
         if template is not '':
             self.load_template(data=template)
-
-
+    
+    
     def load_data(self, data):
         """Method to load data
         """
         # get a list of (type, url|text,) tuples or empty list []
-        items = self.utils.load_files(path=data, read=False)
-        for i in items:
-            # check and get data size
+        self.data += self.utils.load_files(path=data, read=False)
+        # get data size
+        if self.data_size > self.multiproc_threshold:
+            return
+        for i in self.data:
             if self.data_size < self.multiproc_threshold:
                 self.data_size += os.path.getsize(i[1])
-            # form a list of (type, url|text,) tuples
-            self.data.append(i)
+            else:
+                break
 
 
     def load_template(self, data):
@@ -282,20 +283,19 @@ class ttp():
           for i in items ]
 
 
-    def form_results(self, result):
-        """Method to add results into self.results
+    def parse(self, one=False):
+        """Method to decise how to run parsing.
+        - if overall data size is less then 5Mbyte, use single process
+        - if more then 5Mbytes use multiprocess
         """
-        if not result:
-            return
-        elif 'non_hierarch_tmplt' in result:
-            if isinstance(result['non_hierarch_tmplt'], list):
-                self.results += result['non_hierarch_tmplt']
-            else:
-                self.results += [result['non_hierarch_tmplt']]
+        if self.data_size <= self.multiproc_threshold:
+            self.parse_in_one_process()
+        elif one is True:
+            self.parse_in_one_process()
         else:
-            self.results.append(result)
-
-
+            self.parse_in_multiprocess()
+			
+			
     def parse_in_multiprocess(self):
         """Method to parse data in bulk by parsing each data item
         against each template and saving results in results list
@@ -306,7 +306,7 @@ class ttp():
             num_jobs = 0
 
             if self.data:
-                template.set_default_input_data(self.data)
+                template.set_input(self.data)
 
             tasks = JoinableQueue()
             results = Queue()
@@ -342,7 +342,7 @@ class ttp():
         for template in self.templates:
             parserObj = parser_class(template.lookups)
             if self.data:
-                template.set_default_input_data(self.data)
+                template.set_input(self.data)
             for input_name, input_params in template.inputs.items():
                 for datum in input_params['data']:
                     parserObj.set_data(datum)
@@ -352,19 +352,20 @@ class ttp():
                     result = parserObj.RSLTSOBJ.RESULTS
                     self.form_results(result)
 
-
-    def parse(self, one=False):
-        """Method to decise how to run parsing.
-        - if overall data size is less then 5Mbyte, use single process
-        - if more then 5Mbytes use multiprocess
+					
+    def form_results(self, result):
+        """Method to add results into self.results
         """
-        if self.data_size <= self.multiproc_threshold:
-            self.parse_in_one_process()
-        elif one is True:
-            self.parse_in_one_process()
+        if not result:
+            return
+        elif 'non_hierarch_tmplt' in result:
+            if isinstance(result['non_hierarch_tmplt'], list):
+                self.results += result['non_hierarch_tmplt']
+            else:
+                self.results += [result['non_hierarch_tmplt']]
         else:
-            self.parse_in_multiprocess()
-
+            self.results.append(result)
+			
 
     def output(self, **kwargs):
         """Method to run templates' outputters.
@@ -425,13 +426,20 @@ class template_class():
             print('self.lookups: \n', self.lookups)
 
 
-    def set_default_input_data(self, data):
+    def set_input(self, data, name='Default_Input', groups=['all']):
         """
         Method to set data for default input
         Args:
-            data (list): list of {dataName: data} dictionaries
+            data (list): list of (data_name, data_path,) tuples
+            name (str): name of the input
+            groups (list): list of groups to use for that input
         """
-        self.inputs['Default_Input']={'data': data, 'groups': ['all']}
+        if name not in self.inputs:
+            if isinstance(groups, str): groups = [groups]
+            self.inputs[name]={'data': data, 'groups': groups}
+        else:
+            self.inputs[name]['data'] += data
+            self.inputs[name]['groups'] += groups
 
 
     def update_inputs_with_groups(self):
@@ -476,6 +484,7 @@ class template_class():
             input_data = self.utils.load_struct(element)
 
             # get parameters:
+            name = element.attrib['name']
             extensions = input_data.get('extensions', [])
             filters = input_data.get('filters', [])
             urls = input_data.get('url', [])
@@ -483,7 +492,7 @@ class template_class():
 
             # run checks:
             if not urls:
-                raise SystemExit("ERROR: Input '{}', no 'url' parametr given".format(element.attrib['name']))
+                raise SystemExit("ERROR: Input '{}', no 'url' parametr given".format(name))
             if isinstance(extensions, str): extensions=[extensions]
             if isinstance(filters, str): filters=[filters]
             if isinstance(urls, str): urls=[urls]
@@ -494,7 +503,7 @@ class template_class():
                 url=self.data_path_prefix + url.lstrip('.')
                 file_names += self.utils.load_files(url, extensions, filters, read=False)
 
-            self.inputs[element.attrib['name']]={
+            self.inputs[name]={
                 'data'   : file_names,
                 'groups' : groups
             }
@@ -1380,7 +1389,9 @@ class parser_class():
         """
         name = ''
         datatext = '\n\n'
-        if D[0] == 'file_name':
+
+        def load_file(D):
+            nonlocal name, datatext
             try:
                 f = open(D[1], 'r', encoding='utf-8')
                 name = f.name
@@ -1389,9 +1400,18 @@ class parser_class():
                 print('Warning: Unicode read error, file {}'.format(name))
             finally:
                 f.close()
-        elif D[0] is 'text_data':
+                
+        def load_text(D):
+            nonlocal name, datatext
             datatext = '\n' + D[1] + '\n'
             name = 'text_data'
+            
+        read_funcs = {
+            'file_name': load_file,
+            'text_data': load_text
+        }
+        read_funcs[D[0]](D)
+        
         return (name, datatext,)
 
     def set_groups(self, groups):
@@ -1400,10 +1420,12 @@ class parser_class():
     def set_vars(self, vars):
         """Method to load template
         Args:
-            T : template object
+            vars (dict): template variables dictionary 
         """
         self.vars={
             'globals': {
+                # need to copy as additional var can be recorded,
+                # that can lead to change of original vars dictionary
                 'vars' : vars.copy()
             }
         }
@@ -1540,7 +1562,7 @@ class parser_class():
             [run_re(child_group, results, start, end) for child_group in group.children]
 
             return results
-
+            
         [unsort_rslts.append(run_re(group, results={})) for group in self.groups
          if group.name in groups_names or 'all' in groups_names]
 
@@ -1556,7 +1578,6 @@ class parser_class():
 
         # save results:
         self.RSLTSOBJ.form_results(self.vars['globals']['vars'], self.raw_results)
-
 
 
 class results_class():
@@ -1638,7 +1659,7 @@ class results_class():
         # check the last group:
         if self.record['RESULT'] and self.PROCESSGRP() is not False:
             self.SAVE_CURELEMENTS()
-			
+            
 
     def value_to_list(self, DATA, PATH, RESULT):
         """recursive function to get value at given PATH and transform it into the list
@@ -2049,7 +2070,7 @@ if __name__ == '__main__':
     elif output.lower() == 'pprint':
         parser_Obj.output(type='pprint', destination='terminal')
         timing("RAW pprint dumped")
-    else:
+    elif output:
         print("Error: Unsuported output type '{}', supported [yaml, json, raw, pprint]".format(output.lower()))
 
     timing("Done")
