@@ -238,7 +238,7 @@ class ttp():
             self.templates (list): list of template objects
         """
         self.data_size = 0
-        self.multiproc_threshold = -1 # 5Mbyte
+        self.multiproc_threshold = 5242880 # 5Mbyte
         self.data = []
         self.templates = []
         self.results = []
@@ -1372,8 +1372,8 @@ class parser_class():
     """
     def __init__(self, lookups, vars, groups):
         self.lookups = lookups
+        self.original_vars = vars
         self.groups = groups
-        self.set_vars(vars)
         
         
     def set_data(self, D):
@@ -1384,11 +1384,8 @@ class parser_class():
         self.raw_results = []            # initiate raw results dictionary
         self.RSLTSOBJ = results_class()  # create results object
         self.DATANAME, self.DATATEXT = self.read_data(D)
-        # run macro functions to update vars
-        self.run_functions()
-        # update groups' runs dictionaries to hold defaults updated with var values
-        self.set_groups_runs()
-        self.update_groups_runs(self.vars['globals']['vars'])
+        # set vars to original vars and update them based on DATATEXT:
+        self.set_vars()
         
         
     def read_data(self, D):
@@ -1421,7 +1418,7 @@ class parser_class():
         return (name, datatext,)
 
 
-    def set_vars(self, vars):
+    def set_vars(self):
         """Method to load template
         Args:
             vars (dict): template variables dictionary 
@@ -1430,14 +1427,20 @@ class parser_class():
             'globals': {
                 # need to copy as additional var can be recorded,
                 # that can lead to change of original vars dictionary
-                'vars' : vars.copy()
+                'vars' : self.original_vars.copy()
             }
         }
-
-    def set_groups_runs(self):
+        # run macro functions to update vars with functions results:
+        self.run_functions()
+        # update groups' runs dictionaries to hold defaults updated with var values
         [G.set_runs() for G in self.groups]
+        self.update_groups_runs(self.vars['globals']['vars'])
+        
 
-    def update_groups_runs(self, D):
+    def update_groups_runs(self, D): 
+        """Method to update groups runs dictionaries with new values deirved 
+        during parsing, can be called from 'record' variable functions
+        """
         [G.update_runs(D) for G in self.groups]
 
     def run_functions(self):
