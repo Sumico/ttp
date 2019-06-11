@@ -255,15 +255,19 @@ class ttp():
             self.load_template(data=template)
     
     
-    def load_data(self, data):
+    def load_data(self, data, input_name='Default_Input', groups=['all']):
         """Method to load data
         """
-        # get a list of (type, url|text,) tuples or empty list []
-        self.data += self.utils.load_files(path=data, read=False)
+        # form a list of ((type, url|text,), input_name, groups,) tuples
+        data_items = self.utils.load_files(path=data, read=False)
+        if data_items:
+            self.data.append((data_items, input_name, groups,))
+        else:
+            return
         # get data size
         if self.data_size > self.multiproc_threshold:
             return
-        for i in self.data:
+        for i in data_items:
             if self.data_size < self.multiproc_threshold:
                 self.data_size += os.path.getsize(i[1])
             else:
@@ -281,14 +285,18 @@ class ttp():
           for i in items ]
 
 
-    def parse(self, one=False):
-        """Method to decise how to run parsing.
+    def parse(self, one=False, multi=False):
+        """Method to decide how to run parsing.
         - if overall data size is less then 5Mbyte, use single process
         - if more then 5Mbytes use multiprocess
         """
-        if self.data_size <= self.multiproc_threshold:
-            self.parse_in_one_process()
+        if one is True and multi is True:
+            raise SystemExit("ERROR: choose one or multiprocess parsing.")
         elif one is True:
+            self.parse_in_one_process()
+        elif multi is True:
+            self.parse_in_multiprocess()
+        elif self.data_size <= self.multiproc_threshold:
             self.parse_in_one_process()
         else:
             self.parse_in_multiprocess()
@@ -304,7 +312,8 @@ class ttp():
             num_jobs = 0
 
             if self.data:
-                template.set_input(self.data)
+                [template.set_input(data=i[0], input_name=i[1], groups=i[2])
+                 for i in self.data]
 
             tasks = JoinableQueue()
             results = Queue()
@@ -342,7 +351,8 @@ class ttp():
                                      vars=template.vars,
                                      groups=template.groups)
             if self.data:
-                template.set_input(self.data)
+                [template.set_input(data=i[0], input_name=i[1], groups=i[2])
+                 for i in self.data]
             for input_name, input_params in template.inputs.items():
                 for datum in input_params['data']:
                     parserObj.set_data(datum)
@@ -424,20 +434,24 @@ class template_class():
             print('self.lookups: \n', self.lookups)
 
 
-    def set_input(self, data, name='Default_Input', groups=['all']):
+    def set_input(self, data, input_name='Default_Input', groups=['all']):
         """
         Method to set data for default input
         Args:
             data (list): list of (data_name, data_path,) tuples
-            name (str): name of the input
+            input_name (str): name of the input
             groups (list): list of groups to use for that input
         """
-        if name not in self.inputs:
-            if isinstance(groups, str): groups = [groups]
-            self.inputs[name]={'data': data, 'groups': groups}
+        if isinstance(groups, str): 
+            groups = [groups]
+        if input_name not in self.inputs:
+            self.inputs[input_name]={'data': data, 'groups': groups}
         else:
-            self.inputs[name]['data'] += data
-            self.inputs[name]['groups'] += groups
+            self.inputs[input_name]['data'] += data
+            # do not add 'all' to input groups if input was defined already
+            # that is needed to allow groups to match based on input attribute
+            if groups is not ['all']:
+                self.inputs[input_name]['groups'] += groups
 
 
     def update_inputs_with_groups(self):
@@ -451,16 +465,15 @@ class template_class():
                 if input_name in self.inputs:
                     self.inputs[input_name]['groups'].append(G.name)
                 else:
-                    input_name=self.data_path_prefix + input_name.lstrip('.')
-                    file_names=self.utils.load_files(path=input_name,extensions=[],
-                                                     filters=[], read=False)
-                    if file_names is not []:
-                        self.inputs[input_name]={
-                            'data'   : file_names,
-                            'groups' : G.name
-                        }
-                    else:
-                        print("Warning: input '{}' no files found".format(input_name))
+                    input_name = self.data_path_prefix + input_name.lstrip('.')
+                    data_items = self.utils.load_files(path=input_name, extensions=[],
+                                                       filters=[], read=False)
+                    # skip 'text_data' from data as it does not make sense here
+                    data = [i for i in data_items if 'text_data' not in i[0]]
+                    self.inputs[input_name]={
+                        'data'   : data,
+                        'groups' : [G.name]
+                    }
 
 
     def load_template_xml(self, template_text):
@@ -698,7 +711,7 @@ class group_class():
                     variables[variableObj.var_name]=variableObj
 
                 # form regex:
-                regex=variableObj.formRegex(regex)
+                regex=variableObj.form_regex(regex)
 
                 # check if IS_LINE:
                 if is_line == False:
@@ -1004,7 +1017,7 @@ class variable_class():
                     extract_funcs[name](name, options)
 
 
-    def formRegex(self, regex):
+    def form_regex(self, regex):
         """Method to form regular expression for template line.
 
         **Regex Formatters**
@@ -1039,7 +1052,7 @@ class variable_class():
         if regex == '':
             regex=esc_line
             regex=self.indent * ' ' + regex       # reconstruct indent
-            regex='\\n' + regex + '(?=\\n)'      # use lookahead assertion for end of line
+            regex='\\n' + regex + ' *(?=\\n)'     # use lookahead assertion for end of line and mathc any number of leading spaces
         # create REs holding interim list:
         var_res=[]
 
@@ -1894,6 +1907,12 @@ class results_class():
 
 class outputter_class():
     """Class to serve excel, yaml, json, xml etc. dumping functions
+    Args:
+        destination (str): if 'file' will save data to file, 
+            if 'terminal' will print data to terinal
+        type (str): output type indicator on how to format data
+        url (str): path to where to save data to e.g. OS path
+        filename (str): name of hte file
     """
     def __init__(self, element=None, **kwargs):
         self.utils = utils()
@@ -1901,8 +1920,7 @@ class outputter_class():
             'destination' : 'file',
             'type'        : 'json',
             'url'         : './Output/',
-            'filename'    : 'output_{}.txt'.format(ctime),
-            'method'      : 'a'
+            'filename'    : 'output_{}.txt'.format(ctime)
         }
         self.supported_types = ['raw', 'yaml', 'json', 
                                 'csv', 'jinja2', 'pprint']
@@ -1913,6 +1931,10 @@ class outputter_class():
         else:
             self.element = None
             self.attributes.update(kwargs)
+        self.name = self.attributes.get('name', None)
+        if self.name:
+            self.attributes['filename'] = self.name+'_'+self.attributes['filename']
+            
 
     def run(self, data, ret):
         result = []
@@ -1921,9 +1943,8 @@ class outputter_class():
         if type not in self.supported_types:
             raise SystemExit("Error: Unsupported output type '{}', Supported: {}. Exiting".format(
                               type, str(self.supported_types)))
-        # construct results:
-        for datum in data:
-            result.append(getattr(self, 'dump_' + type)(datum))
+        # construct results on a per-file basis:
+        [result.append(getattr(self, 'dump_' + type)(datum)) for datum in data]
         # decide what to do with results:
         if ret:
             return result
@@ -1936,12 +1957,12 @@ class outputter_class():
     def return_to_file(self, D):
         url = self.attributes['url']
         filename = self.attributes['filename']
-        method = self.attributes['method']
         if not os.path.exists(url):
             os.mkdir(url)
-        with open(url + filename, method) as f:
+        with open(url + filename, 'a') as f:
             for datum in D:
                 f.write(datum)
+                    
     
     def return_to_terminal(self, D):
         [print(datum) for datum in D]
@@ -2015,6 +2036,7 @@ if __name__ == '__main__':
     argparser.add_argument('-T', '--Timing', action='store_true', dest='TIMING', default=False, help='Print timing')
     argparser.add_argument('-debug', action='store_true', dest='DEBUG', default=False, help='Print debug information')
     argparser.add_argument('--one', action='store_true', dest='ONE', default=False, help='Parse all in single process')
+    argparser.add_argument('--multi', action='store_true', dest='MULTI', default=False, help='Parse multiprocess')
     run_options=argparser.add_argument_group(
         title='run options',
         description='''-d, --data      url        Data files location
@@ -2036,6 +2058,7 @@ if __name__ == '__main__':
     TIMING = args.TIMING         # string, set output destination and format
     DP = args.data_prefix        # string, to add to templates' inputs' urls
     ONE = args.ONE               # boolean to indicate if run in single process
+    MULTI = args.MULTI           # boolean to indicate if run in multi process
 
     def timing(message):
         if TIMING:
@@ -2052,7 +2075,7 @@ if __name__ == '__main__':
         parser_Obj = ttp(data=DATA, template=TEMPLATE, DEBUG=DEBUG, data_path_prefix=DP)
     timing("Template and data descriptors loaded")
 
-    parser_Obj.parse(one=ONE)
+    parser_Obj.parse(one=ONE, multi=MULTI)
     timing("Data parsing finished")
 
     parser_Obj.output()

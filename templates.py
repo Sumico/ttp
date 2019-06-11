@@ -577,10 +577,6 @@ interface {{ Interface | resuball(IfsNormalize) }}
 {{_end_}}
 </g>
 
-<OUT name="IPAM" type="csv">
-group = ["interfaces"]
-headers = ["hostname", "Interface", "vrf", "ip", "mask", "description"]
-</OUT>
 """
 
 Intfs_ios_XML_simple = """
