@@ -20,7 +20,7 @@ from multiprocessing import Process, cpu_count, JoinableQueue, Queue
 # Initiate global variables:
 ctime = time.ctime().replace(':', '-').replace(' ', '_')
 
-class utils():
+class ttp_utils():
     """Class to store various functions for the use along the code
     """
     def __init__(self):
@@ -244,7 +244,7 @@ class ttp():
         self.results = []
         self.DEBUG = DEBUG
         self.data_path_prefix = data_path_prefix
-        self.utils = utils()  # initialise utils class object
+        self.utils = ttp_utils()  # initialise utils class object
 
         # check if data given, if so - load it:
         if data is not '':
@@ -417,7 +417,7 @@ class template_class():
         self.inputs = {}
         self.lookups = {}
         self.data_path_prefix = data_path_prefix
-        self.utils = utils()
+        self.utils = ttp_utils()
 
         # load template from string:
         self.load_template_xml(template_text)
@@ -902,12 +902,12 @@ class variable_class():
             else: self.functions.append({N: {"old": O[1:], "new": O[0]}})
 
         def extract_default(N, O):
+            if self.var_name in self.skip_defaults:
+                return
             if len(O) == 1:
-                if self.var_name not in self.skip_defaults:
-                    self.group.defaults.update({self.var_name: O[0]})
+                self.group.defaults.update({self.var_name: O[0]})
             else:
-                if self.var_name not in self.skip_defaults:
-                    self.group.defaults.update({self.var_name: "None"})
+                self.group.defaults.update({self.var_name: "None"})
 
         def extract_joinmatches(N, O):
             if len(O) == 1: self.functions.append({N: O[0]})
@@ -1915,7 +1915,7 @@ class outputter_class():
         filename (str): name of hte file
     """
     def __init__(self, element=None, **kwargs):
-        self.utils = utils()
+        self.utils = ttp_utils()
         self.attributes = {
             'destination' : 'file',
             'type'        : 'json',

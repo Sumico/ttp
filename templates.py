@@ -577,6 +577,11 @@ interface {{ Interface | resuball(IfsNormalize) }}
 {{_end_}}
 </g>
 
+<out
+name="Intfs_ips_XML"
+type="json"
+destination="file"
+/>
 """
 
 Intfs_ios_XML_simple = """
