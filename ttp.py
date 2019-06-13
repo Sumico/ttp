@@ -20,6 +20,204 @@ from multiprocessing import Process, cpu_count, JoinableQueue, Queue
 # Initiate global variables:
 ctime = time.ctime().replace(':', '-').replace(' ', '_')
 
+class ttp_functions():
+    """Class to store ttp built in functions used for parsing results
+    Notes:
+        functions to implement
+        # 'wrap'        : add \n at given position to wrap long text
+        # 'is_ip'        : to check that data is valid ip address - isip(4) for v4 or isip(6) for v6 or any
+        # 'is_mac'       : to check that data is valid  mac-address
+        # 'is_word'      : check if no spaces in data - same as notcontains(' ')
+        # 'is_phrase'    : check if we have spaces in data - same as contains(' ')
+        # 'to_ip'        : convert to IP object to do something with it like prefix matching, e.g. check if 1.1.1.1 is part of 1.1.0.0/16
+    """
+    def __init__(self, parser_obj=None):
+        self.pobj = parser_obj
+        # Functions:
+        self.var_funcs = {
+        # D - Data
+        # Actions functions:
+        'resub'            : lambda D, old, new: (re.sub(old, new, D, count=1), None),
+        'join'             : lambda D, char: (char.join(D), None) if isinstance(D, list) else (D, None),
+        'append'           : lambda D, char: (D + char, None) if isinstance(D, str) else (D, None),
+        'record'           : self.do_actions_record,
+        'set'              : self.do_actions_set,
+        'truncate'         : self.do_actions_truncate,
+        'unrange'          : self.do_actions_unrange,
+        'replaceall'       : self.do_actions_replaceall,
+        'resuball'         : self.do_actions_resuball,
+        'lookup'           : self.do_actions_lookup,
+        'rlookup'          : self.do_actions_rlookup,
+        # Conditions checks Functions:
+        'startswith_re'    : lambda D, pattern: (D, True) if re.search('^{}'.format(pattern), D) else (D, False),
+        'endsswith_re'     : lambda D, pattern: (D, True) if re.search('{}$'.format(pattern), D) else (D, False),
+        'contains_re'      : lambda D, pattern: (D, True) if re.search(pattern, D) else (D, False),
+        'notstartswith_re' : lambda D, pattern: (D, True) if not re.search('^{}'.format(pattern), D) else (D, False),
+        'notendswith_re'   : lambda D, pattern: (D, True) if not re.search('{}$'.format(pattern), D) else (D, False),
+        'exclude_re'       : lambda D, pattern: (D, True) if not re.search(pattern, D) else (D, False),
+        'equal'            : lambda D, value: (D, True) if D == value else (D, False),
+        'notequal'         : lambda D, value: (D, True) if D != value else (D, False),
+        'isdigit'          : lambda D: (D, True) if D.strip().isdigit() else (D, False),
+        'notempty'         : lambda D: (D, True) if D.strip() != '' else (D, False),
+        'notdigit'         : lambda D: (D, True) if not D.strip().isdigit() else (D, False),
+        '>'                : self.check_greaterthan,
+        '<'                : self.check_lessthan
+        }
+    
+        
+    def invalid(self):
+        pass
+
+    def do_actions_unrange(self, D, rangechar, joinchar):
+        """
+        D - string, e.g. '8,10-13,20'
+        rangechar - e.g. '-' for above string
+        joinchar - e.g.',' for above string
+        returns - e.g. '8,10,11,12,13,20 string
+        """
+        result=[]
+        # check if range char actually in D:
+        if not rangechar in D: return D, None
+
+        for item in D.split(rangechar):
+            # form split list checking that i is not empty
+            item_split=[i for i in item.split(joinchar) if i]
+            if result:
+                start_int=int(result[-1])
+                end_int=int(item_split[0])
+                list_of_ints_range=[str(i) for i in list(range(start_int,end_int))]
+                result += list_of_ints_range[1:] + item_split
+            else:
+                result=item_split
+        D=joinchar.join(result)
+        return D, None
+
+    def do_actions_set(self, data, value, match_line):
+        # rstrip D to match saved line:
+        if data.rstrip() == match_line:
+            return value, None
+        else:
+            return data, False
+
+    def do_actions_replaceall(self, data, old, new=''):
+        vars = self.pobj.vars['globals']['vars']
+        for oldValue in old:
+            if oldValue in vars:
+                if isinstance(vars[oldValue], list):
+                    for oldVal in vars[oldValue]:
+                        if isinstance(oldVal, str):
+                            data = data.replace(oldVal, new)
+                elif isinstance(vars[oldValue], dict):
+                    for newVal, oldVal in vars[oldValue].items():
+                        if isinstance(oldVal, list):
+                            for i in oldVal:
+                                if isinstance(i, str):
+                                    data = data.replace(i, newVal)
+                        elif isinstance(oldVal, str) and ',' in oldVal:
+                            for i in oldVal.split(','):
+                                data = data.replace(i.strip(), newVal)
+                        elif isinstance(oldVal, str):
+                            data = data.replace(oldVal, newVal)
+            else:
+                data = data.replace(oldValue, new)
+        return data, None
+
+    def do_actions_resuball(self, data, old, new=''):
+        vars = self.pobj.vars['globals']['vars']
+        for oldValue in old:
+            if oldValue in vars:
+                if isinstance(vars[oldValue], list):
+                    for oldVal in vars[oldValue]:
+                        if isinstance(oldVal, str):
+                            data = re.sub(oldVal, new, data)
+                elif isinstance(vars[oldValue], dict):
+                    for newVal, oldVal in vars[oldValue].items():
+                        if isinstance(oldVal, list):
+                            for i in oldVal:
+                                if isinstance(i, str):
+                                    data = re.sub(i, newVal, data)
+                        elif isinstance(oldVal, str) and ',' in oldVal:
+                            for i in oldVal.split(','):
+                                data = re.sub(i.strip(), newVal, data)
+                        elif isinstance(oldVal, str):
+                            data = re.sub(oldVal, newVal, data)
+            else:
+                data = re.sub(oldValue, new, data)
+        return data, None
+
+    def do_actions_truncate(self, data, truncate):
+        d_split=data.split(' ')
+        if len(truncate) == 1:
+            t_len=int(truncate[0])
+            if len(d_split) >= t_len:
+                data = ' '.join(d_split[0:t_len])
+        return data, None
+
+    def do_actions_record(self, data, record):
+        self.pobj.vars['globals']['vars'].update({record: data})
+        self.pobj.update_groups_runs({record: data})
+        return data, None
+
+    def do_actions_lookup(self, data, name, add_field=False):
+        path = [i.strip() for i in name.split('.')]
+        found_value = None
+        # get lookup dictionary/data:
+        try:
+            lookup = self.pobj.lookups
+            for i in path:
+                lookup = lookup.get(i,{})
+        except KeyError:
+            return D, None
+        # perfrom lookup:
+        try:
+            found_value = lookup[data]
+        except KeyError:
+            return data, None
+        # decide to replace match result or add new field:
+        if add_field is not False:
+            return data, {'lookup': {add_field: found_value}}
+        else:
+            return found_value, None
+
+    def do_actions_rlookup(self, data, name, add_field=False):
+        path = [i.strip() for i in name.split('.')]
+        found_value = None
+        # get lookup dictionary/data:
+        try:
+            rlookup = self.pobj.lookups
+            for i in path:
+                rlookup = rlookup.get(i,{})
+        except KeyError:
+            return data, None
+        # perfrom rlookup:
+        if isinstance(rlookup, dict) is False:
+            return data, None
+        for key in rlookup.keys():
+            if key in data:
+                found_value = rlookup[key]
+                break
+        # decide to replace match result or add new field:
+        if found_value is None:
+            return data, None
+        elif add_field is not False:
+            return data, {'lookup': {add_field: found_value}}
+        else:
+            return found_value, None
+
+    def check_greaterthan(self, data, value):
+        if data.strip().isdigit() and value.strip().isdigit():
+            if int(data.strip()) > int(value.strip()):
+                return data, True
+        return data, False
+
+    def check_lessthan(self, data, value):
+        if data.strip().isdigit() and value.strip().isdigit():
+            if int(data.strip()) < int(value.strip()):
+                return data, True
+        return data, False
+       
+        
+
 class ttp_utils():
     """Class to store various functions for the use along the code
     """
@@ -814,8 +1012,9 @@ class variable_class():
 
         # form attributes list of dictionaries e.g.:
         self.attributes = self.get_attributes(variable)
-        self.var_name = list(self.attributes[0].keys())[0]
-
+        self.var_dict = self.attributes.pop(0)
+        self.var_name = self.var_dict['name']
+        
         # add defaults
         # list of variables names that should not have dafaults:
         self.skip_defaults = ["_end_", "_line_", "ignore", "_start_"]
@@ -839,19 +1038,26 @@ class variable_class():
         RESULT=[]
         ATTRIBUTES=[i.strip() for i in line.split('|')]
         for item in ATTRIBUTES:
-            if not item: # skip empty items like {{ bla | | bla2 }}
+            opts = {'args': [], 'kwargs': {}, 'name': ''}
+            if not item.strip(): # skip empty items like {{ bla | | bla2 }}
                 continue
             # re search attributes like set(), upper, joinchar(',','-') etc.
-            itemDict=re.search('^(?P<name>\S+?)\s?(\((?P<options>.*)\))?$', item).groupdict()
-            name=itemDict['name']
-            options=itemDict['options']
+            itemDict = re.search('^(?P<name>\S+?)\s?(\((?P<options>.*)\))?$', item).groupdict()
+            opts['name'] = itemDict['name']
+            options = itemDict['options']
             # create options list from options string, e.g. 'Vlan, SVI' -> ['Vlan', 'SVI']:
             if options:
-                if options.count('"') >= 2 or options.count("'") >= 2:
-                    options=re.findall('[\'\"](.+?)[\"\']', options)
-                else: options=[i.strip() for i in options.split(',')]
-            else: options=[]
-            RESULT.append({name: options})
+                options = [i for i in options.split(',')]
+            else: 
+                options = []
+            for opt in options:
+                if '=' in opt:
+                    opt_key = opt.split('=')[0].strip()
+                    opt_value = opt.split('=')[1].strip().strip('"').strip("'")
+                    opts['kwargs'][opt_key] = opt_value
+                else:
+                    opts['args'].append(opt.strip().strip('"').strip("'"))
+            RESULT.append(opts)
         return RESULT
 
     def extract_functions(self):
@@ -860,161 +1066,76 @@ class variable_class():
         #
         # Helper functions:
         #
-        def extract__start_(N, O):
-            match_line=re.sub('{{([\S\s]+?)}}', '', self.LINE).rstrip()
-            self.functions.append({N: '\n' + match_line})
+        def extract__start_(data):
+            self.functions.append(data)
             self.SAVEACTION='START'
             if self.var_name == '_start_':
                 self.SAVEACTION='STARTEMPTY'
 
-        def extract__end_(N, O):
-            match_line=re.sub('{{([\S\s]+?)}}', '', self.LINE).rstrip()
-            self.functions.append({N: '\n' + match_line})
+        def extract__end_(data):
+            self.functions.append(data)
             self.SAVEACTION='END'
 
-        def extract_set(N, O):
-            # create action item, ege [{'set': ['True', '  Queueing strategy: fifo']}]:
+        def extract_set(data):
             match_line=re.sub('{{([\S\s]+?)}}', '', self.LINE).rstrip()
-            self.functions.append({N: [O[0], '\n' + match_line]})
+            data['kwargs']['match_line'] = '\n' + match_line
+            self.functions.append(data)
 
-        def extract_unrange(N, O):
-            if len(O) == 2:
-                self.functions.append({N: {'rangechar': O[0], 'joinchar': O[1]}})
-            else:
-                self.functions.append({N: {'rangechar': '-', 'joinchar': ','}})
-
-        def extract_replace(N, O):
-            if len(O) == 2: self.functions.append({N: {'old': O[0], 'new': O[1]} })
-            elif len(O) == 1: self.functions.append({N: {'old': O[0], 'new': ''} })
-            else: print("ERROR: wrong synaxis '{}', use 'replace('old', 'new')' or 'replace(old, new)".format(self.LINE))
-
-        def extract_resub(N, O):
-            if len(O) == 2: self.functions.append({N: {'old': O[0], 'new': O[1]}})
-            elif len(O) == 1: self.functions.append({N: {'old': O[0], 'new': ''}})
-            else: print("ERROR: wrong synaxis '{}', use 'resub('old', 'new')' or 'resub(old, new)".format(self.LINE))
-
-        def extract_replaceall(N, O):
-            if len(O) == 1: self.functions.append({N: {"old": O, "new": ''}})
-            else: self.functions.append({N: {"old": O[1:], "new": O[0]}})
-
-        def extract_resuball(N, O):
-            if len(O) == 1: self.functions.append({N: {"old": O, "new": ''}})
-            else: self.functions.append({N: {"old": O[1:], "new": O[0]}})
-
-        def extract_default(N, O):
+        def extract_default(data):
             if self.var_name in self.skip_defaults:
                 return
-            if len(O) == 1:
-                self.group.defaults.update({self.var_name: O[0]})
+            if len(data['args']) == 1:
+                self.group.defaults.update({self.var_name: data['args'][0]})
             else:
                 self.group.defaults.update({self.var_name: "None"})
 
-        def extract_joinmatches(N, O):
-            if len(O) == 1: self.functions.append({N: O[0]})
-            else: self.functions.append({N: ','})
+        def extract_joinmatches(data):
+            self.functions.append(data)
             self.SAVEACTION='JOIN'
 
-        def extract__line_(N, O):
-            self.functions.append({N: '\n'})
+        def extract__line_(data):
+            self.functions.append(data)
             self.SAVEACTION='JOIN'
             self.IS_LINE=True
 
-        def extract_let(N, O):
-            self.group.defaults.update({self.var_name: O[0]})
-            self.functions.append({N: ''})
+        def extract_let(data):
+            self.group.defaults.update({self.var_name: data['args'][0]})
             self.skip_regex_dict = True
 
-        def extract_ignore(N, O):
+        def extract_ignore(data):
             self.skip_variable_dict = True
 
-        def extract_chain(N, O):
+        def extract_chain(data):
             """add items from chain to variable attributes and functions
             """
-            variable_value = self.group.vars.get(O[0], '')
+            variable_value = self.group.vars.get(data['args'][0], '')
             attributes =  self.get_attributes(variable_value)
             for i in attributes:
-                name, options = list(i.items())[0]
-                name = name.lower()
+                name = i['name']
                 if name in extract_funcs:
-                    extract_funcs[name](name, options)
+                    extract_funcs[name](i)
                 else:
-                    self.attributes.append(i)
-
-        def extract_lookup(N, O):
-            """extract lookup options
-            """
-            if len(O) == 2: self.functions.append({N: {'name': O[0], 'add_field': O[1]}})
-            elif len(O) == 1: self.functions.append({N: {'name': O[0], 'add_field': False}})
-            else: print("ERROR: wrong synaxis '{}', use lookup('name', 'add_field') or lookup(name, add_field)".format(self.LINE))
-
-        def extract_rlookup(N, O):
-            """extract rlookup options
-            """
-            if len(O) == 2: self.functions.append({N: {'name': O[0], 'add_field': O[1]}})
-            elif len(O) == 1: self.functions.append({N: {'name': O[0], 'add_field': False}})
-            else: print("ERROR: wrong synaxis '{}', use rlookup('name', 'add_field') or rlookup(name, add_field)".format(self.LINE))
-
-        def extract_strip(N, O):
-            if len(O) == 0: self.functions.append({N: ''})
-            elif len(O) == 1: self.functions.append({N: O[0]})
-
+                    self.functions.append(i)    
+        
         extract_funcs = {
-        # ACTIONS:
-        'upper'         : lambda N, O: self.functions.append({N: ''}),
-        'lower'         : lambda N, O: self.functions.append({N: ''}),
-        'title'         : lambda N, O: self.functions.append({N: ''}),
-        'lstrip'        : lambda N, O: self.functions.append({N: O[0]}),
-        'rstrip'        : lambda N, O: self.functions.append({N: O[0]}),
-        'record'        : lambda N, O: self.functions.append({N: O[0]}),
-        'truncate'      : lambda N, O: self.functions.append({N: O[0]}),
-        'split'         : lambda N, O: self.functions.append({N: O[0]}),
-        'join'          : lambda N, O: self.functions.append({N: O[0]}),
-        'append'        : lambda N, O: self.functions.append({N: O[0]}),
         'let'           : extract_let,
         'ignore'        : extract_ignore,
         '_start_'       : extract__start_,
         '_end_'         : extract__end_,
         '_line_'        : extract__line_,
-        'strip'         : extract_strip,
-        # 'wrap'        : add \n ad given position to wrap too long text
         'chain'         : extract_chain,
-        'lookup'        : extract_lookup,
-        'rlookup'       : extract_rlookup,
         'set'           : extract_set,
-        'unrange'       : extract_unrange,
-        'replace'       : extract_replace,
-        'replaceall'    : extract_replaceall,
         'default'       : extract_default,
         'joinmatches'   : extract_joinmatches,
-        'resub'         : extract_resub,
-        'resuball'      : extract_resuball,
-        # CONDITIONS:
-        'startswith'    : lambda N, O: self.functions.append({N: O[0]}),
-        'endswith'      : lambda N, O: self.functions.append({N: O[0]}),
-        'exclude'       : lambda N, O: self.functions.append({N: O[0]}),
-        'contains'      : lambda N, O: self.functions.append({N: O[0]}),
-        'notequal'      : lambda N, O: self.functions.append({N: O[0]}),
-        'equal'         : lambda N, O: self.functions.append({N: O[0]}),
-        'notstartswith' : lambda N, O: self.functions.append({N: O[0]}),
-        'notendswith'   : lambda N, O: self.functions.append({N: O[0]}),
-        'isdigit'       : lambda N, O: self.functions.append({N: ''}),
-        'notdigit'      : lambda N, O: self.functions.append({N: ''}),
-        'notempty'      : lambda N, O: self.functions.append({N: ''}),
-        '>'             : lambda N, O: self.functions.append({N: ''}),
-        '<'             : lambda N, O: self.functions.append({N: ''})
-        # 'is_ip'        : to check that data is valid ip address - isip(4) for v4 or isip(6) for v6 or any
-        # 'is_mac'       : to check that data is valid  mac-address
-        # 'is_word'      : check if no spaces in data - same as notcontains(' ')
-        # 'is_phrase'    : check if we have spaces in data - same as contains(' ')
-        # 'to_ip'        : convert to IP object to do something with it like prefix matching, e.g. check if 1.1.1.1 is part of 1.1.0.0/16
         }
 
-        for ATTRIBUTE in self.attributes:
-            for name, options in ATTRIBUTE.items():
-                name=name.lower()
-                # call attribute extract function:
-                if name in extract_funcs:
-                    extract_funcs[name](name, options)
+        for i in self.attributes:
+            name = i['name']
+            # call attribute extract function:
+            if name in extract_funcs:
+                extract_funcs[name](i)
+            else:
+                self.functions.append(i)
 
 
     def form_regex(self, regex):
@@ -1059,14 +1180,14 @@ class variable_class():
         #
         # Helper Functions:
         #
-        def regex_ignore(O):
+        def regex_ignore(data):
             nonlocal regex
-            if len(O) == 0:
+            if len(data['args']) == 0:
                 regex=regex.replace(esc_var, '\S+', 1)
-            elif len(O) == 1:
-                regex=regex.replace(esc_var, O[0], 1)
+            elif len(data['args']) == 1:
+                regex=regex.replace(esc_var, data['args'][0], 1)
 
-        def regex_deleteVar(O):
+        def regex_deleteVar(data):
             nonlocal regex
             # delete variable from line:
             regex=regex.replace(esc_var, '', 1)
@@ -1100,41 +1221,37 @@ class variable_class():
 
         # for the rest of regex formatters:
         regexFuncs={
-        're'       : lambda O: var_res.append(O[0]),
-        'phrase'   : lambda O: var_res.append(REs['phrase']),
-        'orphrase' : lambda O: var_res.append(REs['orphrase']),
-        'digit'    : lambda O: var_res.append(REs['digit']),
-        'ip'       : lambda O: var_res.append(REs['ip']),
-        'prefix'   : lambda O: var_res.append(REs['prefix']),
-        'ipv6'     : lambda O: var_res.append(REs['ipv6']),
-        'prefixv6' : lambda O: var_res.append(REs['prefixv6']),
-        'mac'      : lambda O: var_res.append(REs['mac']),
-        'word'     : lambda O: var_res.append(REs['word']),
-        '_line_'   : lambda O: var_res.append(REs['_line_']),
+        're'       : lambda data: var_res.append(data['args'][0]),
+        'phrase'   : lambda data: var_res.append(REs['phrase']),
+        'orphrase' : lambda data: var_res.append(REs['orphrase']),
+        'digit'    : lambda data: var_res.append(REs['digit']),
+        'ip'       : lambda data: var_res.append(REs['ip']),
+        'prefix'   : lambda data: var_res.append(REs['prefix']),
+        'ipv6'     : lambda data: var_res.append(REs['ipv6']),
+        'prefixv6' : lambda data: var_res.append(REs['prefixv6']),
+        'mac'      : lambda data: var_res.append(REs['mac']),
+        'word'     : lambda data: var_res.append(REs['word']),
+        '_line_'   : lambda data: var_res.append(REs['_line_']),
         'set'      : regex_deleteVar
         # 'exact'   : to use exact string without substituting digits with \d or spaces with ' '+
         }
 
+        if self.var_name in regexFuncsVar:
+            regexFuncsVar[self.var_name](self.var_dict)        
+        
         # go over all keywords to form regex:
-        for index, ATTRIBUTE in enumerate(self.attributes):
-            for name, options in ATTRIBUTE.items():
-                name=name.lower()
-                # for variables like {{ _line_ }} or {{ ignore() }}:
-                if index == 0 and name in regexFuncsVar:
-                    regexFuncsVar[name](options)
-                    break
-
-                # for the rest of variables:
-                elif index != 0 and name in regexFuncs:
-                    regexFuncs[name](options)
+        for i in self.functions:
+            name = i['name']
+            if name in regexFuncs:
+                regexFuncs[name](i)
 
         # assign default re if variable without regex formatters:
         if var_res == []: regexFuncs['word'](None)
 
         # form variable regex by replacing escaped variable, if it is still in regex:
-        regex=regex.replace(esc_var,
-                            '(?P<{}>(?:{}))'.format(self.var_name, ')|(?:'.join(var_res),
-                            1))
+        regex = regex.replace(esc_var,
+                              '(?P<{}>(?:{}))'.format(self.var_name, ')|(?:'.join(var_res),
+                              1))
 
         # after regexes formed we can delete unneccesary variables:
         if self.DEBUG == False:
@@ -1145,238 +1262,9 @@ class variable_class():
             del self.LINE
             del self.skip_defaults
             del self.indent
+            del self.var_dict
 
         return regex
-
-
-    def processMatch(self, DATA, PARSEROBJ=None):
-        #
-        # Actions Helper Functions:
-        #
-        def do_actions_unrange(a, D, P=''):
-            """
-            D - string, e.g. '8,10-13,20'
-            rangechar - e.g. '-' for above string
-            joinchar - e.g.',' for above string
-            returns - e.g. '8,10,11,12,13,20 string
-            """
-            rangechar=a["unrange"]["rangechar"]
-            joinchar=a["unrange"]["joinchar"]
-            result=[]
-            # check if range char actually in D:
-            if not rangechar in D: return D, None
-
-            for item in D.split(rangechar):
-                # form split list checking that i is not empty
-                item_split=[i for i in item.split(joinchar) if i]
-                if result:
-                    start_int=int(result[-1])
-                    end_int=int(item_split[0])
-                    list_of_ints_range=[str(i) for i in list(range(start_int,end_int))]
-                    result += list_of_ints_range[1:] + item_split
-                else:
-                    result=item_split
-            D=joinchar.join(result)
-            return D, None
-
-        def do_actions_set(a, D, P=''):
-            # rstrip D to match saved line:
-            if D.rstrip() == a['set'][1]:
-                return a['set'][0], None
-            else:
-                return D, False
-
-        def do_actions_replaceall(a, D, P=''):
-            vars = P.vars['globals']['vars']
-            for oldValue in a["replaceall"]["old"]:
-                if oldValue in vars:
-                    if isinstance(vars[oldValue], list):
-                        for oldVal in vars[oldValue]:
-                            if isinstance(oldVal, str):
-                                D = D.replace(oldVal, a["replaceall"]["new"])
-                    elif isinstance(vars[oldValue], dict):
-                        for newVal, oldVal in vars[oldValue].items():
-                            if isinstance(oldVal, list):
-                                for i in oldVal:
-                                    if isinstance(i, str):
-                                        D = D.replace(i, newVal)
-                            elif isinstance(oldVal, str) and ',' in oldVal:
-                                for i in oldVal.split(','):
-                                    D = D.replace(i.strip(), newVal)
-                            elif isinstance(oldVal, str):
-                                D = D.replace(oldVal, newVal)
-                else:
-                    D = D.replace(oldValue, a["replaceall"]["new"])
-            return D, None
-
-        def do_actions_resuball(a, D, P=''):
-            vars = P.vars['globals']['vars']
-            for oldValue in a["resuball"]["old"]:
-                if oldValue in vars:
-                    if isinstance(vars[oldValue], list):
-                        for oldVal in vars[oldValue]:
-                            if isinstance(oldVal, str):
-                                D = re.sub(oldVal, a["resuball"]["new"], D)
-                    elif isinstance(vars[oldValue], dict):
-                        for newVal, oldVal in vars[oldValue].items():
-                            if isinstance(oldVal, list):
-                                for i in oldVal:
-                                    if isinstance(i, str):
-                                        D = re.sub(i, newVal, D)
-                            elif isinstance(oldVal, str) and ',' in oldVal:
-                                for i in oldVal.split(','):
-                                    D = re.sub(i.strip(), newVal, D)
-                            elif isinstance(oldVal, str):
-                                D = re.sub(oldVal, newVal, D)
-                else:
-                    D = re.sub(oldValue, a["resuball"]["new"], D)
-            return D, None
-
-        def do_actions_truncate(a,D,P):
-            d_split=D.split(' ')
-            if len(a['truncate']) == 1:
-                t_len=int(a['truncate'][0])
-                if len(d_split) >= t_len:
-                    D=' '.join(d_split[0:t_len])
-            return D, None
-
-        def do_actions_record(a,D,P):
-            new_var_name = a['record']
-            P.vars['globals']['vars'].update({new_var_name: DATA})
-            P.update_groups_runs({new_var_name: DATA})
-            return D, None
-
-        def do_actions_lookup(a,D,P):
-            path = [i.strip() for i in a['lookup']['name'].split('.')]
-            add_field = a['lookup']['add_field']
-            found_value = None
-            # get lookup dictionary/data:
-            try:
-                lookup = P.lookups
-                for i in path:
-                    lookup = lookup.get(i,{})
-            except KeyError:
-                return D, None
-            # perfrom lookup:
-            try:
-                found_value = lookup[D]
-            except KeyError:
-                return D, None
-            # decide to replace match result or add new field:
-            if add_field is not False:
-                return D, {'lookup': {add_field: found_value}}
-            else:
-                return found_value, None
-
-        def do_actions_rlookup(a,D,P):
-            path = [i.strip() for i in a['rlookup']['name'].split('.')]
-            add_field = a['rlookup']['add_field']
-            found_value = None
-            # get lookup dictionary/data:
-            try:
-                rlookup = P.lookups
-                for i in path:
-                    rlookup = rlookup.get(i,{})
-            except KeyError:
-                return D, None
-            # perfrom rlookup:
-            if isinstance(rlookup, dict) is False:
-                return D, None
-            for key in rlookup.keys():
-                if key in D:
-                    found_value = rlookup[key]
-                    break
-            # decide to replace match result or add new field:
-            if found_value is None:
-                return D, None
-            elif add_field is not False:
-                return D, {'lookup': {add_field: found_value}}
-            else:
-                return found_value, None
-
-        #
-        # Conditions Helper Functions:
-        #
-        def check_greaterthan(C, D, P):
-            if D.strip().isdigit() and C['>'].strip().isdigit():
-                if int(D.strip()) > int(C['>'].strip()):
-                    return D, True
-            return (D, False)
-
-        def check_lessthan(C, D, P):
-            if D.strip().isdigit() and C['<'].strip().isdigit():
-                if int(D.strip()) < int(C['<'].strip()):
-                    return D, True
-            return (D, False)
-
-        #
-        # Main block of code:
-        #
-        flags = {}
-
-        # Functions:
-        ACFuncs = {
-        # a=Item, D - Data, P - PARSER Object
-        # Actions functions:
-        'replace'       : lambda a, D, P: (D.replace(a['replace']['old'], a['replace']['new']), None),
-        'resub'         : lambda a, D, P: (re.sub(a['resub']['old'], a['resub']['new'], D, count=1), None),
-        'strip'         : lambda a, D, P: (D.strip(a['strip']), None) if a['strip'] != '' else (D.strip(), None),
-        'join'          : lambda a, D, P: (a['join'].join(D), None) if isinstance(D, list) else (D, None),
-        'append'        : lambda a, D, P: (D + rstrip(a['append']), None) if isinstance(D, str) else (D, None),
-        'lstrip'        : lambda a, D, P: (D.lstrip(a['lstrip']), None),
-        'rstrip'        : lambda a, D, P: (D.rstrip(a['rstrip']), None),
-        'split'         : lambda a, D, P: (D.split(a['split']), None),
-        'upper'         : lambda a, D, P: (D.upper(), None),
-        'lower'         : lambda a, D, P: (D.lower(), None),
-        'title'         : lambda a, D, P: (D.title(), None),
-        '_end_'         : lambda a, D, P: (D, None),
-        'joinmatches'   : lambda a, D, P: (D, None),
-        '_line_'        : lambda a, D, P: (D, None),
-        '_start_'       : lambda a, D, P: (D, None),
-        'let'           : lambda a, D, P: (D, None),
-        'chain'         : lambda a, D, P: (D, None),
-        'record'        : do_actions_record,
-        'set'           : do_actions_set,
-        'truncate'      : do_actions_truncate,
-        'unrange'       : do_actions_unrange,
-        'replaceall'    : do_actions_replaceall,
-        'resuball'      : do_actions_resuball,
-        'lookup'        : do_actions_lookup,
-        'rlookup'       : do_actions_rlookup,
-        # Conditions checks Functions:
-        'startswith'    : lambda a, D, P: (D, True) if re.search('^{}'.format(a['startswith']), D) else (D, False),
-        'endsswith'     : lambda a, D, P: (D, True) if re.search('{}$'.format(a['endswith']), D) else (D, False),
-        'contains'      : lambda a, D, P: (D, True) if re.search('{}'.format(a['contains']), D) else (D, False),
-        'notstartswith' : lambda a, D, P: (D, True) if not re.search('^{}'.format(a['notstartswith']), D) else (D, False),
-        'notendswith'   : lambda a, D, P: (D, True) if not re.search('{}$'.format(a['notendswith']), D) else (D, False),
-        'exclude'       : lambda a, D, P: (D, True) if not re.search('{}'.format(a['exclude']), D) else (D, False),
-        'equal'         : lambda a, D, P: (D, True) if D == a['equal'] else (D, False),
-        'notequal'      : lambda a, D, P: (D, True) if D != a['notequal'] else (D, False),
-        'isdigit'       : lambda a, D, P: (D, True) if D.strip().isdigit() else (D, False),
-        'notempty'      : lambda a, D, P: (D, True) if D.strip() != '' else (D, False),
-        'notdigit'      : lambda a, D, P: (D, True) if not D.strip().isdigit() else (D, False),
-        '>'             : check_greaterthan,
-        '<'             : check_lessthan
-        }
-
-        for item in self.functions:
-            name, options = list(item.items())[0]
-            DATA, flag = ACFuncs[name](a=item, D=DATA, P=PARSEROBJ)
-            if flag is False:
-                return False # if flag False - checks produced negative result
-            elif flag is True:
-                continue    # if checks been successful
-            elif flag:
-                flags.update(flag)
-
-        RESULT = {self.var_name: DATA}
-
-        # evaluate post action actions/flags:
-        # update results with looked up values
-        if 'lookup' in flags:
-            RESULT.update(flags['lookup'])
-
-        return RESULT
 
 
 
@@ -1387,6 +1275,7 @@ class parser_class():
         self.lookups = lookups
         self.original_vars = vars
         self.groups = groups
+        self.functions = ttp_functions(parser_obj=self)
         
         
     def set_data(self, D):
@@ -1510,8 +1399,31 @@ class parser_class():
                     temp = {key: match.group() for key in regex['VARIABLES'].keys()}
 
                 # process matched values
-                for name, VALUE in temp.items():
-                    processed = regex['VARIABLES'][name].processMatch(DATA=VALUE, PARSEROBJ=self)
+                for var_name, data in temp.items():
+                    flags = {}
+                    processed = None
+                    var_obj = regex['VARIABLES'][var_name]
+                    for item in var_obj.functions:
+                        func_name = item['name']
+                        args = item['args']
+                        kwargs = item['kwargs']
+                        data, flag = self.functions.var_funcs[func_name](data, *args, **kwargs)
+
+                            
+                        if flag is False:
+                            processed = False # if flag False - checks produced negative result
+                        elif flag is True:
+                            continue    # if checks been successful
+                        elif flag:
+                            flags.update(flag)
+                    
+                    processed = {var_name: data}
+                    
+                    # evaluate post action actions/flags:
+                    # update results with looked up values
+                    if 'lookup' in flags:
+                        processed.update(flags['lookup'])    
+                    
                     if processed is False:
                         result = False
                         break

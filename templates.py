@@ -634,7 +634,7 @@ ASN,as_name,as_description,as_number
 
 <!--NXOS "show run | sec bgp" parse template-->
 <group name="{{ hostname }}.bgp_config.AS_{{ loca_as }}">
-router bgp {{ bgp_as | record(loca_as) | lookup(aux_csv) }}
+router bgp {{ bgp_as | record(loca_as) | lookup(name="aux_csv", add_field='asn_details') }}
   router-id {{ rid }}
   <group name="vrfs*.{{ VRF }}">
   vrf {{ VRF }}
