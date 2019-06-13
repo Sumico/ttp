@@ -33,8 +33,9 @@ class ttp_functions():
     """
     def __init__(self, parser_obj=None):
         self.pobj = parser_obj
-        # Functions:
-        self.var_funcs = {
+        
+        # Variable Functions scope
+        self.variable = {
         # D - Data
         # Actions functions:
         'resub'            : lambda D, old, new: (re.sub(old, new, D, count=1), None),
@@ -48,6 +49,7 @@ class ttp_functions():
         'resuball'         : self.do_actions_resuball,
         'lookup'           : self.do_actions_lookup,
         'rlookup'          : self.do_actions_rlookup,
+        'joinmathes'       : lambda D: (D, None),
         # Conditions checks Functions:
         'startswith_re'    : lambda D, pattern: (D, True) if re.search('^{}'.format(pattern), D) else (D, False),
         'endsswith_re'     : lambda D, pattern: (D, True) if re.search('{}$'.format(pattern), D) else (D, False),
@@ -65,8 +67,12 @@ class ttp_functions():
         }
     
         
-    def invalid(self):
-        pass
+    def invalid(self, name, scope, skip=True):
+        if skip == True:
+            print("Error: {} function '{}' not found".format(scope, name))
+        else:
+            print("Error: {} function '{}' not found, valid functions are: \n{}".format(scope, name, getattr(self, scope).keys() ))
+            
 
     def do_actions_unrange(self, D, rangechar, joinchar):
         """
@@ -1240,10 +1246,11 @@ class variable_class():
             regexFuncsVar[self.var_name](self.var_dict)        
         
         # go over all keywords to form regex:
-        for i in self.functions:
+        for index, i in enumerate(self.functions):
             name = i['name']
             if name in regexFuncs:
                 regexFuncs[name](i)
+                self.functions.pop(index)
 
         # assign default re if variable without regex formatters:
         if var_res == []: regexFuncs['word'](None)
@@ -1401,34 +1408,36 @@ class parser_class():
                 # process matched values
                 for var_name, data in temp.items():
                     flags = {}
-                    processed = None
                     var_obj = regex['VARIABLES'][var_name]
                     for item in var_obj.functions:
                         func_name = item['name']
                         args = item['args']
                         kwargs = item['kwargs']
-                        data, flag = self.functions.var_funcs[func_name](data, *args, **kwargs)
-
+                        try:
+                            data, flag = self.functions.variable[func_name](data, *args, **kwargs)
+                        except KeyError:
+                            try:
+                                data = getattr(data, func_name)(*args, **kwargs)
+                                flag = True
+                            except AttributeError as e:
+                                flag = False
+                                self.functions.invalid(func_name, scope='variable', skip=True)
                             
                         if flag is False:
-                            processed = False # if flag False - checks produced negative result
+                            result = False # if flag False - checks produced negative result
+                            break
                         elif flag is True:
                             continue    # if checks been successful
                         elif flag:
                             flags.update(flag)
                     
-                    processed = {var_name: data}
-                    
-                    # evaluate post action actions/flags:
-                    # update results with looked up values
-                    if 'lookup' in flags:
-                        processed.update(flags['lookup'])    
-                    
-                    if processed is False:
-                        result = False
+                    if result is False:
                         break
-                    else:
-                        result.update(processed)
+                        
+                    result.update({var_name: data})
+
+                    if 'lookup' in flags:
+                        result.update(flags['lookup'])    
 
                 # skip not start regexes that evaluated to False
                 if result is False and not regex['ACTION'].startswith('START'):
