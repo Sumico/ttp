@@ -20,6 +20,225 @@ from multiprocessing import Process, cpu_count, JoinableQueue, Queue
 # Initiate global variables:
 ctime = time.ctime().replace(':', '-').replace(' ', '_')
 
+
+class ttp():
+    """
+    Template Text Parser class used to load data and templates as well as
+    dispatch data to parser object, construct final results and run outputs
+
+    Args:
+        data : text, file object of python open method or a string with
+            OS path to either text file or a directory which contains
+            .txt, .log or .conf files
+        template : text, file object of python open method or a string which is OS
+            path to text file
+        DEBUG (bool): if True will print debug data to the terminal
+        data_path_prefix (str): Contains path prefix to load data from for template inputs
+        self.multiproc_threshold (int): overall data size in ytes beyond which to use
+            multiple processes
+    """
+    def __init__(self, data='', template='', DEBUG=False, data_path_prefix=''):
+        """
+        Args:
+            self.data (list): list of dictionaries, each dict key is file name, value - data/text
+            self.templates (list): list of template objects
+        """
+        self.data_size = 0
+        self.multiproc_threshold = 5242880 # 5Mbyte
+        self.data = []
+        self.templates = []
+        self.results = []
+        self.DEBUG = DEBUG
+        self.data_path_prefix = data_path_prefix
+        self.utils = ttp_utils()  # initialise utils class object
+
+        # check if data given, if so - load it:
+        if data is not '':
+            self.load_data(data=data)
+
+        # check if template given, if so - load it
+        if template is not '':
+            self.load_template(data=template)
+
+
+    def load_data(self, data, input_name='Default_Input', groups=['all']):
+        """Method to load data
+        """
+        # form a list of ((type, url|text,), input_name, groups,) tuples
+        data_items = self.utils.load_files(path=data, read=False)
+        if data_items:
+            self.data.append((data_items, input_name, groups,))
+        else:
+            return
+        # get data size
+        if self.data_size > self.multiproc_threshold:
+            return
+        for i in data_items:
+            if self.data_size < self.multiproc_threshold:
+                self.data_size += os.path.getsize(i[1])
+            else:
+                break
+
+
+    def load_template(self, data):
+        """Method to load templates
+        """
+        # get a list of [(type, text,)] tuples or empty list []
+        items = self.utils.load_files(path=data, read=True)
+        [ self.templates.append(template_class(template_text=i[1],
+                                DEBUG=self.DEBUG,
+                                data_path_prefix=self.data_path_prefix))
+          for i in items ]
+
+
+    def parse(self, one=False, multi=False):
+        """Method to decide how to run parsing.
+        - if overall data size is less then 5Mbyte, use single process
+        - if more then 5Mbytes use multiprocess
+        """
+        if one is True and multi is True:
+            raise SystemExit("ERROR: choose one or multiprocess parsing.")
+        elif one is True:
+            self.parse_in_one_process()
+        elif multi is True:
+            self.parse_in_multiprocess()
+        elif self.data_size <= self.multiproc_threshold:
+            self.parse_in_one_process()
+        else:
+            self.parse_in_multiprocess()
+
+
+    def parse_in_multiprocess(self):
+        """Method to parse data in bulk by parsing each data item
+        against each template and saving results in results list
+        """
+        num_processes = cpu_count()
+
+        for template in self.templates:
+            num_jobs = 0
+
+            if self.data:
+                [template.set_input(data=i[0], input_name=i[1], groups=i[2])
+                 for i in self.data]
+
+            tasks = JoinableQueue()
+            results = Queue()
+
+            workers = [worker(tasks, results, lookups=template.lookups,
+                              vars=template.vars, groups=template.groups)
+                       for i in range(num_processes)]
+            [w.start() for w in workers]
+
+            for input_name, input_params in template.inputs.items():
+                for datum in input_params['data']:
+                    task_dict = {
+                        'data'            : datum,
+                        'groups_to_run'   : input_params['groups']
+                    }
+                    tasks.put(task_dict)
+                    num_jobs += 1
+
+            [tasks.put(None) for i in range(num_processes)]
+
+            # wait fo all taksk to complete
+            tasks.join()
+
+            for i in range(num_jobs):
+                result = results.get()
+                self.form_results(result)
+
+
+    def parse_in_one_process(self):
+        """Method to parse data in bulk by parsing each data item
+        against each template and saving results in results list
+        """
+        for template in self.templates:
+            parserObj = parser_class(lookups=template.lookups,
+                                     vars=template.vars,
+                                     groups=template.groups)
+            if self.data:
+                [template.set_input(data=i[0], input_name=i[1], groups=i[2])
+                 for i in self.data]
+            for input_name, input_params in template.inputs.items():
+                for datum in input_params['data']:
+                    parserObj.set_data(datum)
+                    parserObj.parse(input_params['groups'])
+                    result = parserObj.RSLTSOBJ.RESULTS
+                    self.form_results(result)
+
+
+    def form_results(self, result):
+        """Method to add results into self.results
+        """
+        if not result:
+            return
+        elif 'non_hierarch_tmplt' in result:
+            if isinstance(result['non_hierarch_tmplt'], list):
+                self.results += result['non_hierarch_tmplt']
+            else:
+                self.results += [result['non_hierarch_tmplt']]
+        else:
+            self.results.append(result)
+
+
+    def output(self, **kwargs):
+        """Method to run templates' outputters.
+        kwargs:
+            type : supported ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint']
+            destination : supported ['file', 'terminal']
+            url : path where to save files
+            filename : name of the file
+        """
+        # run templates outputs
+        for template in self.templates:
+            for output in template.outputs:
+                output.run(self.results, ret=False)
+
+        # run on demand output to given destination
+        if 'type' in kwargs and 'destination' in kwargs:
+            outputter = outputter_class(**kwargs)
+            outputter.run(self.results, ret=False)
+        # run on demand output and return results
+        elif 'type' in kwargs and 'destination' not in kwargs:
+            outputter = outputter_class(**kwargs)
+            result = outputter.run(self.results, ret=True)
+            return result
+
+
+    def result(self):
+        return self.results
+
+
+
+class worker(Process):
+    """Class used in multiprocesing to parse data
+    """
+
+    def __init__(self, task_queue, result_queue, lookups, vars, groups):
+        Process.__init__(self)
+        self.task_queue = task_queue
+        self.result_queue = result_queue
+        self.parser_obj = parser_class(lookups, vars, groups)
+
+    def run(self):
+        while True:
+            next_task = self.task_queue.get()
+            # check for dead pill to stop process
+            if next_task is None:
+                self.task_queue.task_done()
+                break
+            # set parser object parameters
+            self.parser_obj.set_data(next_task['data'])
+            # parse and get results
+            self.parser_obj.parse(next_task['groups_to_run'])
+            result = self.parser_obj.RSLTSOBJ.RESULTS
+            # put results in the queue and finish task
+            self.task_queue.task_done()
+            self.result_queue.put(result)
+        return
+
+
+
 class ttp_functions():
     """Class to store ttp built in functions used for parsing results
     Notes:
@@ -31,8 +250,9 @@ class ttp_functions():
         # 'variable_is_phrase'    : check if we have spaces in data - same as contains(' ')
         # 'variable_to_ip'        : convert to IP object to do something with it like prefix matching, e.g. check if 1.1.1.1 is part of 1.1.0.0/16
     """
-    def __init__(self, parser_obj=None):
+    def __init__(self, parser_obj=None, results_obj=None):
         self.pobj = parser_obj
+        self.robj = results_obj
 
     def invalid(self, name, scope, skip=True):
         if skip == True:
@@ -40,92 +260,114 @@ class ttp_functions():
         else:
             print("Error: {} function '{}' not found, valid functions are: \n{}".format(scope, name, getattr(self, scope).keys() ))
 
-    def variable_startswith_re(self, data, pattern):
+    def group_containsall(self, data, *args):
+        # args = ('v4address', 'v4mask',)
+        for VarToCheck in args:
+            if VarToCheck in data:
+                if VarToCheck in self.robj.record['DEFAULTS']:
+                    if self.robj.record['DEFAULTS'][VarToCheck] == data[VarToCheck]:
+                        return data, False
+                return data, True
+            else:
+                return data, False
+
+    def group_containsany(self, data, *args):
+        # args = ('v4address', 'v4mask',)
+        for VarToCheck in args:
+            if VarToCheck in data:
+                if VarToCheck in self.robj.record['DEFAULTS']:
+                    if self.robj.record['DEFAULTS'][VarToCheck] != data[VarToCheck]:
+                        return data, None
+                else:
+                    return data, None
+        return data, False
+
+    def match_startswith_re(self, data, pattern):
         if re.search('^{}'.format(pattern), data):
             return data, True
         return data, False
 
-    def variable_endswith_re(self, data, pattern):
+    def match_endswith_re(self, data, pattern):
         if re.search('{}$'.format(pattern), data):
             return data, True
         return data, False
 
-    def variable_contains_re(self, data, pattern):
+    def match_contains_re(self, data, pattern):
         if re.search(pattern, data):
             return data, True
         return data, False
 
-    def variable_contains(self, data, pattern):
+    def match_contains(self, data, pattern):
         if pattern in data:
             return data, True
         return data, False
 
-    def variable_notstartswith_re(self, data, pattern):
+    def match_notstartswith_re(self, data, pattern):
         if not re.search('^{}'.format(pattern), data):
             return data, True
         return data, False
 
-    def variable_notendswith_re(self, data, pattern):
+    def match_notendswith_re(self, data, pattern):
         if not re.search('{}$'.format(pattern), data):
             return data, True
         return data, False
 
-    def variable_exclude_re(self, data, pattern):
+    def match_exclude_re(self, data, pattern):
         if not re.search(pattern, data):
             return data, True
         return data, False
 
-    def variable_exclude(self, data, pattern):
+    def match_exclude(self, data, pattern):
         if not pattern in data:
             return data, True
         return data, False
 
-    def variable_equal(self, data, value):
+    def match_equal(self, data, value):
         if data == value:
             return data, True
         return data, False
 
-    def variable_notequal(self, data, value):
+    def match_notequal(self, data, value):
         if data != value:
             return data, True
         return data, False
 
-    def variable_notdigit(self, data):
+    def match_notdigit(self, data):
         if not data.strip().isdigit():
             return data, True
         return data, False
 
-    def variable_greaterthan(self, data, value):
+    def match_greaterthan(self, data, value):
         if data.strip().isdigit() and value.strip().isdigit():
             if int(data.strip()) > int(value.strip()):
                 return data, True
         return data, False
 
-    def variable_lessthan(self, data, value):
+    def match_lessthan(self, data, value):
         if data.strip().isdigit() and value.strip().isdigit():
             if int(data.strip()) < int(value.strip()):
                 return data, True
         return data, False
 
-    def variable_resub(self, data, old, new):
+    def match_resub(self, data, old, new):
         return re.sub(old, new, data, count=1), None
 
-    def variable_join(self, data, char):
+    def match_join(self, data, char):
         if isinstance(data, list):
             return char.join(data), None
         else:
             return data, None
 
-    def variable_append(self, data, char):
+    def match_append(self, data, char):
         if isinstance(data, str):
             return (data + char), None
         else:
             return data, None
 
-    def variable_joinmathes(self, data):
+    def match_joinmathes(self, data):
         return data, None
 
-    def variable_unrange(self, D, rangechar, joinchar):
+    def match_unrange(self, D, rangechar, joinchar):
         """
         D - string, e.g. '8,10-13,20'
         rangechar - e.g. '-' for above string
@@ -149,15 +391,17 @@ class ttp_functions():
         D=joinchar.join(result)
         return D, None
 
-    def variable_set(self, data, value, match_line):
+    def match_set(self, data, value, match_line):
         if data.rstrip() == match_line:
             return value, None
         else:
             return data, False
 
-    def variable_replaceall(self, data, old, new=''):
+    def match_replaceall(self, data, *args):
         vars = self.pobj.vars['globals']['vars']
-        for oldValue in old:
+        args = list(args)
+        if len(args) > 1: new = args.pop(0)
+        for oldValue in args:
             if oldValue in vars:
                 if isinstance(vars[oldValue], list):
                     for oldVal in vars[oldValue]:
@@ -178,9 +422,11 @@ class ttp_functions():
                 data = data.replace(oldValue, new)
         return data, None
 
-    def variable_resuball(self, data, new='', *args):
+    def match_resuball(self, data, *args):
         vars = self.pobj.vars['globals']['vars']
-        print(new, args)
+        args = list(args)
+        new = None
+        if len(args) > 1: new = args.pop(0)
         for oldValue in args:
             if oldValue in vars:
                 if isinstance(vars[oldValue], list):
@@ -198,11 +444,11 @@ class ttp_functions():
                                 data = re.sub(i.strip(), newVal, data)
                         elif isinstance(oldVal, str):
                             data = re.sub(oldVal, newVal, data)
-            else:
+            elif new:
                 data = re.sub(oldValue, new, data)
         return data, None
 
-    def variable_truncate(self, data, truncate):
+    def match_truncate(self, data, truncate):
         d_split=data.split(' ')
         if len(truncate) == 1:
             t_len=int(truncate[0])
@@ -210,12 +456,12 @@ class ttp_functions():
                 data = ' '.join(d_split[0:t_len])
         return data, None
 
-    def variable_record(self, data, record):
+    def match_record(self, data, record):
         self.pobj.vars['globals']['vars'].update({record: data})
         self.pobj.update_groups_runs({record: data})
         return data, None
 
-    def variable_lookup(self, data, name, add_field=False):
+    def match_lookup(self, data, name, add_field=False):
         path = [i.strip() for i in name.split('.')]
         found_value = None
         # get lookup dictionary/data:
@@ -236,7 +482,7 @@ class ttp_functions():
         else:
             return found_value, None
 
-    def variable_rlookup(self, data, name, add_field=False):
+    def match_rlookup(self, data, name, add_field=False):
         path = [i.strip() for i in name.split('.')]
         found_value = None
         # get lookup dictionary/data:
@@ -428,222 +674,6 @@ class ttp_utils():
         # run function to load structured data
         result = funcs[format](text_data, kwargs)
         return result
-
-
-class worker(Process):
-    """Class used in multiprocesing to parse data
-    """
-
-    def __init__(self, task_queue, result_queue, lookups, vars, groups):
-        Process.__init__(self)
-        self.task_queue = task_queue
-        self.result_queue = result_queue
-        self.parser_obj = parser_class(lookups, vars, groups)
-
-    def run(self):
-        while True:
-            next_task = self.task_queue.get()
-            # check for dead pill to stop process
-            if next_task is None:
-                self.task_queue.task_done()
-                break
-            # set parser object parameters
-            self.parser_obj.set_data(next_task['data'])
-            # parse and get results
-            self.parser_obj.parse(next_task['groups_to_run'])
-            result = self.parser_obj.RSLTSOBJ.RESULTS
-            # put results in the queue and finish task
-            self.task_queue.task_done()
-            self.result_queue.put(result)
-        return
-
-
-class ttp():
-    """
-    Template Text Parser class used to load data and templates as well as
-    dispatch data to parser object, construct final results and run outputs
-
-    Args:
-        data : text, file object of python open method or a string with
-            OS path to either text file or a directory which contains
-            .txt, .log or .conf files
-        template : text, file object of python open method or a string which is OS
-            path to text file
-        DEBUG (bool): if True will print debug data to the terminal
-        data_path_prefix (str): Contains path prefix to load data from for template inputs
-        self.multiproc_threshold (int): overall data size in ytes beyond which to use
-            multiple processes
-    """
-    def __init__(self, data='', template='', DEBUG=False, data_path_prefix=''):
-        """
-        Args:
-            self.data (list): list of dictionaries, each dict key is file name, value - data/text
-            self.templates (list): list of template objects
-        """
-        self.data_size = 0
-        self.multiproc_threshold = 5242880 # 5Mbyte
-        self.data = []
-        self.templates = []
-        self.results = []
-        self.DEBUG = DEBUG
-        self.data_path_prefix = data_path_prefix
-        self.utils = ttp_utils()  # initialise utils class object
-
-        # check if data given, if so - load it:
-        if data is not '':
-            self.load_data(data=data)
-
-        # check if template given, if so - load it
-        if template is not '':
-            self.load_template(data=template)
-
-
-    def load_data(self, data, input_name='Default_Input', groups=['all']):
-        """Method to load data
-        """
-        # form a list of ((type, url|text,), input_name, groups,) tuples
-        data_items = self.utils.load_files(path=data, read=False)
-        if data_items:
-            self.data.append((data_items, input_name, groups,))
-        else:
-            return
-        # get data size
-        if self.data_size > self.multiproc_threshold:
-            return
-        for i in data_items:
-            if self.data_size < self.multiproc_threshold:
-                self.data_size += os.path.getsize(i[1])
-            else:
-                break
-
-
-    def load_template(self, data):
-        """Method to load templates
-        """
-        # get a list of [(type, text,)] tuples or empty list []
-        items = self.utils.load_files(path=data, read=True)
-        [ self.templates.append(template_class(template_text=i[1],
-                                DEBUG=self.DEBUG,
-                                data_path_prefix=self.data_path_prefix))
-          for i in items ]
-
-
-    def parse(self, one=False, multi=False):
-        """Method to decide how to run parsing.
-        - if overall data size is less then 5Mbyte, use single process
-        - if more then 5Mbytes use multiprocess
-        """
-        if one is True and multi is True:
-            raise SystemExit("ERROR: choose one or multiprocess parsing.")
-        elif one is True:
-            self.parse_in_one_process()
-        elif multi is True:
-            self.parse_in_multiprocess()
-        elif self.data_size <= self.multiproc_threshold:
-            self.parse_in_one_process()
-        else:
-            self.parse_in_multiprocess()
-
-
-    def parse_in_multiprocess(self):
-        """Method to parse data in bulk by parsing each data item
-        against each template and saving results in results list
-        """
-        num_processes = cpu_count()
-
-        for template in self.templates:
-            num_jobs = 0
-
-            if self.data:
-                [template.set_input(data=i[0], input_name=i[1], groups=i[2])
-                 for i in self.data]
-
-            tasks = JoinableQueue()
-            results = Queue()
-
-            workers = [worker(tasks, results, lookups=template.lookups,
-                              vars=template.vars, groups=template.groups)
-                       for i in range(num_processes)]
-            [w.start() for w in workers]
-
-            for input_name, input_params in template.inputs.items():
-                for datum in input_params['data']:
-                    task_dict = {
-                        'data'            : datum,
-                        'groups_to_run'   : input_params['groups']
-                    }
-                    tasks.put(task_dict)
-                    num_jobs += 1
-
-            [tasks.put(None) for i in range(num_processes)]
-
-            # wait fo all taksk to complete
-            tasks.join()
-
-            for i in range(num_jobs):
-                result = results.get()
-                self.form_results(result)
-
-
-    def parse_in_one_process(self):
-        """Method to parse data in bulk by parsing each data item
-        against each template and saving results in results list
-        """
-        for template in self.templates:
-            parserObj = parser_class(lookups=template.lookups,
-                                     vars=template.vars,
-                                     groups=template.groups)
-            if self.data:
-                [template.set_input(data=i[0], input_name=i[1], groups=i[2])
-                 for i in self.data]
-            for input_name, input_params in template.inputs.items():
-                for datum in input_params['data']:
-                    parserObj.set_data(datum)
-                    parserObj.parse(input_params['groups'])
-                    result = parserObj.RSLTSOBJ.RESULTS
-                    self.form_results(result)
-
-
-    def form_results(self, result):
-        """Method to add results into self.results
-        """
-        if not result:
-            return
-        elif 'non_hierarch_tmplt' in result:
-            if isinstance(result['non_hierarch_tmplt'], list):
-                self.results += result['non_hierarch_tmplt']
-            else:
-                self.results += [result['non_hierarch_tmplt']]
-        else:
-            self.results.append(result)
-
-
-    def output(self, **kwargs):
-        """Method to run templates' outputters.
-        kwargs:
-            type : supported ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint']
-            destination : supported ['file', 'terminal']
-            url : path where to save files
-            filename : name of the file
-        """
-        # run templates outputs
-        for template in self.templates:
-            for output in template.outputs:
-                output.run(self.results, ret=False)
-
-        # run on demand output to given destination
-        if 'type' in kwargs and 'destination' in kwargs:
-            outputter = outputter_class(**kwargs)
-            outputter.run(self.results, ret=False)
-        # run on demand output and return results
-        elif 'type' in kwargs and 'destination' not in kwargs:
-            outputter = outputter_class(**kwargs)
-            result = outputter.run(self.results, ret=True)
-            return result
-
-
-    def result(self):
-        return self.results
 
 
 
@@ -879,7 +909,7 @@ class group_class():
         self.debug    = debug
         self.name     = ''
         self.vars     = vars
-
+        # extract data:
         self.get_attributes(element.attrib)
         self.get_regexes(element.text)
         self.get_children(list(element))
@@ -903,10 +933,22 @@ class group_class():
             self.path=self.path + O.split(self.pathchar)
             self.name='.'.join(self.path)
 
+        def extract_containsany(O):
+            self.funcs.append({
+                'name': 'containsany',
+                'args': [i.strip() for i in O.split(',')]
+            })
+
+        def extract_containsall(O):
+            self.funcs.append({
+                'name': 'containsall',
+                'args': [i.strip() for i in O.split(',')]
+            })
+
         # group attributes extract functions dictionary:
         opt_funcs={
-        'containsany' : lambda O: self.funcs.append({'containsany': [i.strip() for i in O.split(',')]}),
-        'containsall' : lambda O: self.funcs.append({'containsall': [i.strip() for i in O.split(',')]}),
+        'containsany' : extract_containsany,
+        'containsall' : extract_containsall,
         'method'      : extract_method,
         'input'       : extract_input,
         'output'      : extract_output,
@@ -1000,12 +1042,13 @@ class group_class():
         by iterating over all children.
         """
         for g in child_groups:
-            self.children.append(group_class(element=g,
-                                             top=False,
-                                             path=self.path,
-                                             pathchar=self.pathchar,
-                                             debug=self.debug,
-                                             vars=self.vars))
+            self.children.append(group_class(
+                element=g,
+                top=False,
+                path=self.path,
+                pathchar=self.pathchar,
+                debug=self.debug,
+                vars=self.vars))
             # get regexes from tail
             if g.tail.strip():
                 self.get_regexes(data=g.tail, tail=True)
@@ -1046,7 +1089,7 @@ class variable_class():
         self.variable = variable
         self.LINE = line                             # original line from template
         self.indent = len(line) - len(line.lstrip()) # variable to store line indentation
-        self.functions = []                              # actions and conditions list
+        self.functions = []                          # actions and conditions list
         self.DEBUG = DEBUG                           # to control debug behaviuor
 
         self.SAVEACTION = 'ADD'                      # to store actioan to do with results during saving
@@ -1054,8 +1097,23 @@ class variable_class():
         self.IS_LINE = False                         # to indicate that variable is _line_ regex
         self.skip_variable_dict = False              # will be set to true for 'ignore'
         self.skip_regex_dict = False                 # will be set to true for 'let'
+        self.var_res = []                            # list of variable regexes
 
-        # form attributes list of dictionaries e.g.:
+        # regex formatters:
+        self.REs={
+        'phrase'   : '(\S+ {1})+?\S+',
+        'orphrase' : '\S+|(\S+ {1})+?\S+',
+        'digit'    : '\d+',
+        'ip'       : '(?:[0-9]{1,3}\.){3}[0-9]{1,3}',
+        'prefix'   : '(?:[0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}',
+        'ipv6'     : '(?:[a-fA-F0-9]{1,4}:|:){1,7}(?:[a-fA-F0-9]{1,4}|:?)',
+        'prefixv6' : '(?:[a-fA-F0-9]{1,4}:|:){1,7}(?:[a-fA-F0-9]{1,4}|:?)/[0-9]{1,3}',
+        '_line_'   : '.+',
+        'word'     : '\S+',
+        'mac'      : '(?:[0-9a-fA-F]{2}(:|\.)){5}([0-9a-fA-F]{2})|(?:[0-9a-fA-F]{4}(:|\.)){2}([0-9a-fA-F]{4})'
+        }
+
+        # form attributes - list of dictionaries:
         self.attributes = self.get_attributes(variable)
         self.var_dict = self.attributes.pop(0)
         self.var_name = self.var_dict['name']
@@ -1086,7 +1144,7 @@ class variable_class():
             opts = {'args': [], 'kwargs': {}, 'name': ''}
             if not item.strip(): # skip empty items like {{ bla | | bla2 }}
                 continue
-            # re search attributes like set(), upper, joinchar(',','-') etc.
+            # re search attributes like set(), upper, joinchar(',','-')
             itemDict = re.search('^(?P<name>\S+?)\s?(\((?P<options>.*)\))?$', item).groupdict()
             opts['name'] = itemDict['name']
             options = itemDict['options']
@@ -1112,13 +1170,11 @@ class variable_class():
         # Helper functions:
         #
         def extract__start_(data):
-            self.functions.append(data)
             self.SAVEACTION='START'
             if self.var_name == '_start_':
                 self.SAVEACTION='STARTEMPTY'
 
         def extract__end_(data):
-            self.functions.append(data)
             self.SAVEACTION='END'
 
         def extract_set(data):
@@ -1172,35 +1228,29 @@ class variable_class():
         'set'           : extract_set,
         'default'       : extract_default,
         'joinmatches'   : extract_joinmatches,
+        # regex formatters:
+        're'       : lambda data: self.var_res.append(data['args'][0]),
+        'phrase'   : lambda data: self.var_res.append(self.REs['phrase']),
+        'orphrase' : lambda data: self.var_res.append(self.REs['orphrase']),
+        'digit'    : lambda data: self.var_res.append(self.REs['digit']),
+        'ip'       : lambda data: self.var_res.append(self.REs['ip']),
+        'prefix'   : lambda data: self.var_res.append(self.REs['prefix']),
+        'ipv6'     : lambda data: self.var_res.append(self.REs['ipv6']),
+        'prefixv6' : lambda data: self.var_res.append(self.REs['prefixv6']),
+        'mac'      : lambda data: self.var_res.append(self.REs['mac']),
+        'word'     : lambda data: self.var_res.append(self.REs['word']),
+        '_line_'   : lambda data: self.var_res.append(self.REs['_line_']),
         }
 
-        for i in self.attributes:
-            name = i['name']
-            # call attribute extract function:
-            if name in extract_funcs:
-                extract_funcs[name](i)
-            else:
-                self.functions.append(i)
+        if self.var_name in extract_funcs:
+            extract_funcs[self.var_name](self.var_dict)
+        # go over attribute extract function:
+        [ extract_funcs[i['name']](i) if i['name'] in extract_funcs
+          else self.functions.append(i) for i in self.attributes ]
 
 
     def form_regex(self, regex):
         """Method to form regular expression for template line.
-
-        **Regex Formatters**
-            * **phrase** matches phrase structures - "word word word" - sequences of
-              words devided by *one* space character
-            * **orphrase** matches single word or phrase, e.g. "word word word" or
-              "word" will be matches
-            * **digit** - matches whole digits like "1234", but not "1.234" or "1,234"
-            * **ip** matches IPv4 address, e.g. "192.168.34.21". Regex does not paerform
-              validation checks on address and will match "999.99.555.77" as well
-            * **prefix** matches IPv4 prefix, e.g "192.168.34.21/24". Regex oes not perform
-              validation of prefix and will macth "192.168.34.21/99" as well
-            * **ipv6**
-            * **prefixv6**
-            * **_line_** matches any line, use with caution
-            * **word**
-            * **mac** matches matches 11:22:33:44:55:66 or 1111:2222:3333 or 11.22.33.44.55.66 or 1111.2222.3333
         """
         # form escapedVariable:
         esc_var='\\{\\{' + re.escape(self.variable) + '\\}\\}' # escape all special chars in variable like (){}[].* etc.
@@ -1219,8 +1269,6 @@ class variable_class():
             regex=esc_line
             regex=self.indent * ' ' + regex       # reconstruct indent
             regex='\\n' + regex + ' *(?=\\n)'     # use lookahead assertion for end of line and mathc any number of leading spaces
-        # create REs holding interim list:
-        var_res=[]
 
         #
         # Helper Functions:
@@ -1228,87 +1276,52 @@ class variable_class():
         def regex_ignore(data):
             nonlocal regex
             if len(data['args']) == 0:
-                regex=regex.replace(esc_var, '\S+', 1)
+                regex = regex.replace(esc_var, '\S+', 1)
             elif len(data['args']) == 1:
-                regex=regex.replace(esc_var, data['args'][0], 1)
+                regex = regex.replace(esc_var, data['args'][0], 1)
 
         def regex_deleteVar(data):
             nonlocal regex
             # delete variable from line:
-            regex=regex.replace(esc_var, '', 1)
-            # rstrip ' '+(?=\\n) from end of line and add (?=\\n) back:
-            result=re.sub('(\\\\ \+)*\(\?=\\\\n\)', '', regex) + '(?=\\n)'
-            if result == '(?=\\n)':
-                result='\\n' + result
-            regex=result
-
-        # regex formatters:
-        REs={
-        'phrase'   : '(\S+ {1})+?\S+',
-        'orphrase' : '\S+|(\S+ {1})+?\S+',
-        'digit'    : '\d+',
-        'ip'       : '(?:[0-9]{1,3}\.){3}[0-9]{1,3}',
-        'prefix'   : '(?:[0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}',
-        'ipv6'     : '(?:[a-fA-F0-9]{1,4}:|:){1,7}(?:[a-fA-F0-9]{1,4}|:?)',
-        'prefixv6' : '(?:[a-fA-F0-9]{1,4}:|:){1,7}(?:[a-fA-F0-9]{1,4}|:?)/[0-9]{1,3}',
-        '_line_'   : '.+',
-        'word'     : '\S+',
-        'mac'      : '(?:[0-9a-fA-F]{2}(:|\.)){5}([0-9a-fA-F]{2})|(?:[0-9a-fA-F]{4}(:|\.)){2}([0-9a-fA-F]{4})'
-        }
+            regex = regex.replace(esc_var, '', 1)
+            # delete "\ + *(?=\n)" from end of line and add " *(?=\\n)" back:
+            result = re.sub('(\\\\ \+ \*)*\(\?=\\\\n\)', '', regex) + ' *(?=\\n)'
+            #
+            # if result == ' *(?=\\n)':
+            #     result = '\\n' + result
+            regex = result
 
         # for variables like {{ _line_ }} or {{ ignore() }}
         regexFuncsVar={
         'ignore'   : regex_ignore,
         '_start_'  : regex_deleteVar,
-        '_end_'    : regex_deleteVar,
-        '_line_'   : lambda O: [REs['_line_']]
+        '_end_'    : regex_deleteVar
         }
-
-        # for the rest of regex formatters:
+        # for the rest of functions:
         regexFuncs={
-        're'       : lambda data: var_res.append(data['args'][0]),
-        'phrase'   : lambda data: var_res.append(REs['phrase']),
-        'orphrase' : lambda data: var_res.append(REs['orphrase']),
-        'digit'    : lambda data: var_res.append(REs['digit']),
-        'ip'       : lambda data: var_res.append(REs['ip']),
-        'prefix'   : lambda data: var_res.append(REs['prefix']),
-        'ipv6'     : lambda data: var_res.append(REs['ipv6']),
-        'prefixv6' : lambda data: var_res.append(REs['prefixv6']),
-        'mac'      : lambda data: var_res.append(REs['mac']),
-        'word'     : lambda data: var_res.append(REs['word']),
-        '_line_'   : lambda data: var_res.append(REs['_line_']),
         'set'      : regex_deleteVar
-        # 'exact'   : to use exact string without substituting digits with \d or spaces with ' '+
         }
 
         if self.var_name in regexFuncsVar:
             regexFuncsVar[self.var_name](self.var_dict)
 
         # go over all keywords to form regex:
-        for index, i in enumerate(self.functions):
-            name = i['name']
-            if name in regexFuncs:
-                regexFuncs[name](i)
-                self.functions.pop(index)
+        [regexFuncs[i['name']](i)
+         for i in self.functions if i['name'] in regexFuncs]
 
         # assign default re if variable without regex formatters:
-        if var_res == []: regexFuncs['word'](None)
+        if self.var_res == []: self.var_res.append(self.REs['word'])
 
         # form variable regex by replacing escaped variable, if it is still in regex:
         regex = regex.replace(esc_var,
-                              '(?P<{}>(?:{}))'.format(self.var_name, ')|(?:'.join(var_res),
-                              1))
+            '(?P<{}>(?:{}))'.format(self.var_name, ')|(?:'.join(self.var_res),1)
+        )
 
         # after regexes formed we can delete unneccesary variables:
         if self.DEBUG == False:
-            del self.attributes
-            del esc_var
-            del esc_line
-            del self.DEBUG
-            del self.LINE
-            del self.skip_defaults
-            del self.indent
-            del self.var_dict
+            del self.attributes, esc_var, esc_line, self.DEBUG
+            del self.LINE, self.skip_defaults, self.indent
+            del self.var_dict, self.REs, self.var_res
 
         return regex
 
@@ -1447,15 +1460,14 @@ class parser_class():
                 # process matched values
                 for var_name, data in temp.items():
                     flags = {}
-                    var_obj = regex['VARIABLES'][var_name]
-                    for item in var_obj.functions:
+                    for item in regex['VARIABLES'][var_name].functions:
                         func_name = item['name']
                         args = item['args']
                         kwargs = item['kwargs']
-                        try:
-                            data, flag = getattr(self.functions, 'variable_' + func_name)(data, *args, **kwargs)
+                        try: # try variable function
+                            data, flag = getattr(self.functions, 'match_' + func_name)(data, *args, **kwargs)
                         except AttributeError:
-                            try:
+                            try: # try data bilt-in finction. e.g. if data is string, can run data.upper()
                                 data = getattr(data, func_name)(*args, **kwargs)
                                 flag = True
                             except AttributeError as e:
@@ -1547,7 +1559,8 @@ class parser_class():
 
         # import yaml
         # print(yaml.dump(self.raw_results, default_flow_style=False))
-        # print(self.raw_results)
+        # import pprint
+        # pprint.pprint(self.raw_results)
 
         # save results:
         self.RSLTSOBJ.form_results(self.vars['globals']['vars'], self.raw_results)
@@ -1568,6 +1581,7 @@ class results_class():
             'CONDITIONS' : []
         }
         self.dyn_path={}
+        self.functions = ttp_functions(results_obj=self)
 
     def form_results(self, vars, results):
 
@@ -1584,9 +1598,11 @@ class results_class():
         if results: self.RESULTS.update({'vars': vars})
 
         for group_results in results:
+            # clear LOCK between groups as LOCK has intra group significanse only:
+            self.GRPLOCK['LOCK'] = False
+            self.GRPLOCK['GROUP'] = ()
 
             for result in group_results:
-
                 # if result been matched by one regex only
                 if len(result) == 1:
                     re=result[0][0]
@@ -1613,7 +1629,7 @@ class results_class():
                     # it means that this is a children and we need to skip it except for the case when RSULTHPATH is the same:
                     if group.path[:len(locked_group_path)] == locked_group_path and group.path != locked_group_path:
                         continue
-                    # evaluate same level or parents.
+                    # evaluate same level or parents - RSULTHPATH is the same
                     elif re['ACTION'].startswith('START') and result_data is not False:
                         self.GRPLOCK['LOCK'] = False
                         self.GRPLOCK['GROUP'] = ()
@@ -1774,15 +1790,10 @@ class results_class():
         joinchar = '\n'
         for varname, varvalue in RESULT.items():
             for item in REDICT['VARIABLES'][varname].functions:
-                if item['args']:
-                    joinchar = item['args'][0]
-                    break
-                elif 'char' in item['kwargs']:
-                    joinchar = item['kwargs'][char]
-                    break                    
-                elif '_line_' in item:
-                    joinchar = item['args'][0]
-                    break
+                if item['name'] == 'joinmatches':
+                    if item['args']:
+                        joinchar = item['args'][0]
+                        break
         # join results:
         for k in RESULT.keys():
             if k in self.record['RESULT']:                           # if we already have results
@@ -1826,35 +1837,13 @@ class results_class():
     def PROCESSGRP(self):
         """Method to process group results
         """
-        def check_containsall(C, D):
-            # e.g.: C=['v4address', 'v4mask']
-            for VarToCheck in C:
-                if VarToCheck in D:
-                    if VarToCheck in self.record['DEFAULTS']:
-                        if self.record['DEFAULTS'][VarToCheck] == D[VarToCheck]:
-                            return D, False
-                    return D, True
-                else:
-                    return D, False
-
-        def check_containsany(C, D):
-            for VarToCheck in C:
-                if VarToCheck in D:
-                    if VarToCheck in self.record['DEFAULTS']:
-                        if self.record['DEFAULTS'][VarToCheck] != D[VarToCheck]:
-                            return D, None
-                    else:
-                        return D, None
-            return D, False
-
-        checkFuncs={
-            'containsall' : check_containsall,
-            'containsany' : check_containsany
-        }
-
         for item in self.record['CONDITIONS']:
-            name, options = list(item.items())[0]
-            self.record['RESULT'], flags = checkFuncs[name](C=options, D=self.record['RESULT'])
+            func_name = item['name']
+            args = item['args']
+            try: # try group function
+                self.record['RESULT'], flags = getattr(self.functions, 'group_' + func_name)(self.record['RESULT'], *args)
+            except AttributeError:
+                flags = False
             # if conditions check been false, return False:
             if flags == False:
                 return False
@@ -1897,7 +1886,6 @@ class outputter_class():
         self.name = self.attributes.get('name', None)
         if self.name:
             self.attributes['filename'] = self.name+'_'+self.attributes['filename']
-
 
     def run(self, data, ret):
         result = []
