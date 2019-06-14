@@ -38,8 +38,8 @@ class ttp_functions():
         self.variable = {
         # D - Data
         # Actions functions:
-        'resub'            : lambda D, old, new: (re.sub(old, new, D, count=1), None),
-        'join'             : lambda D, char: (char.join(D), None) if isinstance(D, list) else (D, None),
+        'resub'            : do_actions_resub,
+        'join'             : do_actions_join,
         'append'           : lambda D, char: (D + char, None) if isinstance(D, str) else (D, None),
         'record'           : self.do_actions_record,
         'set'              : self.do_actions_set,
@@ -73,7 +73,15 @@ class ttp_functions():
         else:
             print("Error: {} function '{}' not found, valid functions are: \n{}".format(scope, name, getattr(self, scope).keys() ))
             
-
+    def do_actions_resub(self, data, old, new):
+        return re.sub(old, new, data, count=1), None
+		
+	def do_actions_join(self, data, char):
+		if isinstance(data, list):
+			return char.join(data), None 
+		else:
+			return data, None
+	
     def do_actions_unrange(self, D, rangechar, joinchar):
         """
         D - string, e.g. '8,10-13,20'
