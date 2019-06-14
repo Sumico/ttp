@@ -491,6 +491,12 @@ interface {{ Interface | resuball(IfsNormalize) }}
  description {{description | orphrase }}
  spanning-tree portfast {{ portfast | set(True) }}
  spanning-tree bpduguard enable {{ bpduguard | set(True) }}
+ switchport access vlan {{ AccessVlan }}
+ switchport mode access {{ mode | set(access) }}
+ switchport voice vlan {{voiceVlan }}
+ switchport trunk allowed vlan {{ trunkVlans | joinmatches | unrange('-',',') }}
+ switchport trunk allowed vlan add {{ trunkVlans | joinmatches | unrange('-',',') }}
+ switchport mode trunk {{ mode | set(trunk) }}  {{ Vlans | set(all) }}
  <g name="cfg.l3">
  ip address {{ ip | default }} {{ mask | default(128)}}
  ipv4 address {{ ip | default }} {{ mask | default(128) | _start_ }}
