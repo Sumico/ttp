@@ -282,6 +282,9 @@ class ttp_functions():
                     return data, None
         return data, False
 
+    def match_joinmatches(self, data, *args, **kwargs):
+        return data, None
+		
     def match_startswith_re(self, data, pattern):
         if re.search('^{}'.format(pattern), data):
             return data, True
@@ -367,18 +370,18 @@ class ttp_functions():
     def match_joinmathes(self, data):
         return data, None
 
-    def match_unrange(self, D, rangechar, joinchar):
+    def match_unrange(self, data, rangechar, joinchar):
         """
-        D - string, e.g. '8,10-13,20'
+        data - string, e.g. '8,10-13,20'
         rangechar - e.g. '-' for above string
         joinchar - e.g.',' for above string
         returns - e.g. '8,10,11,12,13,20 string
         """
         result=[]
-        # check if range char actually in D:
-        if not rangechar in D: return D, None
+        # check if range char actually in data:
+        if not rangechar in data: return data, None
 
-        for item in D.split(rangechar):
+        for item in data.split(rangechar):
             # form split list checking that i is not empty
             item_split=[i for i in item.split(joinchar) if i]
             if result:
@@ -388,8 +391,8 @@ class ttp_functions():
                 result += list_of_ints_range[1:] + item_split
             else:
                 result=item_split
-        D=joinchar.join(result)
-        return D, None
+        data = joinchar.join(result)
+        return data, None
 
     def match_set(self, data, value, match_line):
         if data.rstrip() == match_line:
@@ -400,6 +403,7 @@ class ttp_functions():
     def match_replaceall(self, data, *args):
         vars = self.pobj.vars['globals']['vars']
         args = list(args)
+        new = ''
         if len(args) > 1: new = args.pop(0)
         for oldValue in args:
             if oldValue in vars:
@@ -425,13 +429,13 @@ class ttp_functions():
     def match_resuball(self, data, *args):
         vars = self.pobj.vars['globals']['vars']
         args = list(args)
-        new = None
+        new = ''
         if len(args) > 1: new = args.pop(0)
         for oldValue in args:
             if oldValue in vars:
                 if isinstance(vars[oldValue], list):
                     for oldVal in vars[oldValue]:
-                        if isinstance(oldVal, str):
+                        if isinstance(oldVal, str) and new:
                             data = re.sub(oldVal, new, data)
                 elif isinstance(vars[oldValue], dict):
                     for newVal, oldVal in vars[oldValue].items():
@@ -444,7 +448,7 @@ class ttp_functions():
                                 data = re.sub(i.strip(), newVal, data)
                         elif isinstance(oldVal, str):
                             data = re.sub(oldVal, newVal, data)
-            elif new:
+            else:
                 data = re.sub(oldValue, new, data)
         return data, None
 
