@@ -24,65 +24,108 @@ class ttp_functions():
     """Class to store ttp built in functions used for parsing results
     Notes:
         functions to implement
-        # 'wrap'        : add \n at given position to wrap long text
-        # 'is_ip'        : to check that data is valid ip address - isip(4) for v4 or isip(6) for v6 or any
-        # 'is_mac'       : to check that data is valid  mac-address
-        # 'is_word'      : check if no spaces in data - same as notcontains(' ')
-        # 'is_phrase'    : check if we have spaces in data - same as contains(' ')
-        # 'to_ip'        : convert to IP object to do something with it like prefix matching, e.g. check if 1.1.1.1 is part of 1.1.0.0/16
+        # 'variable_wrap'        : add \n at given position to wrap long text
+        # 'variable_is_ip'        : to check that data is valid ip address - isip(4) for v4 or isip(6) for v6 or any
+        # 'variable_is_mac'       : to check that data is valid  mac-address
+        # 'variable_is_word'      : check if no spaces in data - same as notcontains(' ')
+        # 'variable_is_phrase'    : check if we have spaces in data - same as contains(' ')
+        # 'variable_to_ip'        : convert to IP object to do something with it like prefix matching, e.g. check if 1.1.1.1 is part of 1.1.0.0/16
     """
     def __init__(self, parser_obj=None):
         self.pobj = parser_obj
-        
-        # Variable Functions scope
-        self.variable = {
-        # D - Data
-        # Actions functions:
-        'resub'            : do_actions_resub,
-        'join'             : do_actions_join,
-        'append'           : lambda D, char: (D + char, None) if isinstance(D, str) else (D, None),
-        'record'           : self.do_actions_record,
-        'set'              : self.do_actions_set,
-        'truncate'         : self.do_actions_truncate,
-        'unrange'          : self.do_actions_unrange,
-        'replaceall'       : self.do_actions_replaceall,
-        'resuball'         : self.do_actions_resuball,
-        'lookup'           : self.do_actions_lookup,
-        'rlookup'          : self.do_actions_rlookup,
-        'joinmathes'       : lambda D: (D, None),
-        # Conditions checks Functions:
-        'startswith_re'    : lambda D, pattern: (D, True) if re.search('^{}'.format(pattern), D) else (D, False),
-        'endsswith_re'     : lambda D, pattern: (D, True) if re.search('{}$'.format(pattern), D) else (D, False),
-        'contains_re'      : lambda D, pattern: (D, True) if re.search(pattern, D) else (D, False),
-        'notstartswith_re' : lambda D, pattern: (D, True) if not re.search('^{}'.format(pattern), D) else (D, False),
-        'notendswith_re'   : lambda D, pattern: (D, True) if not re.search('{}$'.format(pattern), D) else (D, False),
-        'exclude_re'       : lambda D, pattern: (D, True) if not re.search(pattern, D) else (D, False),
-        'equal'            : lambda D, value: (D, True) if D == value else (D, False),
-        'notequal'         : lambda D, value: (D, True) if D != value else (D, False),
-        'isdigit'          : lambda D: (D, True) if D.strip().isdigit() else (D, False),
-        'notempty'         : lambda D: (D, True) if D.strip() != '' else (D, False),
-        'notdigit'         : lambda D: (D, True) if not D.strip().isdigit() else (D, False),
-        '>'                : self.check_greaterthan,
-        '<'                : self.check_lessthan
-        }
-    
-        
+
     def invalid(self, name, scope, skip=True):
         if skip == True:
             print("Error: {} function '{}' not found".format(scope, name))
         else:
             print("Error: {} function '{}' not found, valid functions are: \n{}".format(scope, name, getattr(self, scope).keys() ))
-            
-    def do_actions_resub(self, data, old, new):
+
+    def variable_startswith_re(self, data, pattern):
+        if re.search('^{}'.format(pattern), data):
+            return data, True
+        return data, False
+
+    def variable_endswith_re(self, data, pattern):
+        if re.search('{}$'.format(pattern), data):
+            return data, True
+        return data, False
+
+    def variable_contains_re(self, data, pattern):
+        if re.search(pattern, data):
+            return data, True
+        return data, False
+
+    def variable_contains(self, data, pattern):
+        if pattern in data:
+            return data, True
+        return data, False
+
+    def variable_notstartswith_re(self, data, pattern):
+        if not re.search('^{}'.format(pattern), data):
+            return data, True
+        return data, False
+
+    def variable_notendswith_re(self, data, pattern):
+        if not re.search('{}$'.format(pattern), data):
+            return data, True
+        return data, False
+
+    def variable_exclude_re(self, data, pattern):
+        if not re.search(pattern, data):
+            return data, True
+        return data, False
+
+    def variable_exclude(self, data, pattern):
+        if not pattern in data:
+            return data, True
+        return data, False
+
+    def variable_equal(self, data, value):
+        if data == value:
+            return data, True
+        return data, False
+
+    def variable_notequal(self, data, value):
+        if data != value:
+            return data, True
+        return data, False
+
+    def variable_notdigit(self, data):
+        if not data.strip().isdigit():
+            return data, True
+        return data, False
+
+    def variable_greaterthan(self, data, value):
+        if data.strip().isdigit() and value.strip().isdigit():
+            if int(data.strip()) > int(value.strip()):
+                return data, True
+        return data, False
+
+    def variable_lessthan(self, data, value):
+        if data.strip().isdigit() and value.strip().isdigit():
+            if int(data.strip()) < int(value.strip()):
+                return data, True
+        return data, False
+
+    def variable_resub(self, data, old, new):
         return re.sub(old, new, data, count=1), None
-		
-	def do_actions_join(self, data, char):
-		if isinstance(data, list):
-			return char.join(data), None 
-		else:
-			return data, None
-	
-    def do_actions_unrange(self, D, rangechar, joinchar):
+
+    def variable_join(self, data, char):
+        if isinstance(data, list):
+            return char.join(data), None
+        else:
+            return data, None
+
+    def variable_append(self, data, char):
+        if isinstance(data, str):
+            return (data + char), None
+        else:
+            return data, None
+
+    def variable_joinmathes(self, data):
+        return data, None
+
+    def variable_unrange(self, D, rangechar, joinchar):
         """
         D - string, e.g. '8,10-13,20'
         rangechar - e.g. '-' for above string
@@ -106,14 +149,13 @@ class ttp_functions():
         D=joinchar.join(result)
         return D, None
 
-    def do_actions_set(self, data, value, match_line):
-        # rstrip D to match saved line:
+    def variable_set(self, data, value, match_line):
         if data.rstrip() == match_line:
             return value, None
         else:
             return data, False
 
-    def do_actions_replaceall(self, data, old, new=''):
+    def variable_replaceall(self, data, old, new=''):
         vars = self.pobj.vars['globals']['vars']
         for oldValue in old:
             if oldValue in vars:
@@ -136,9 +178,10 @@ class ttp_functions():
                 data = data.replace(oldValue, new)
         return data, None
 
-    def do_actions_resuball(self, data, old, new=''):
+    def variable_resuball(self, data, new='', *args):
         vars = self.pobj.vars['globals']['vars']
-        for oldValue in old:
+        print(new, args)
+        for oldValue in args:
             if oldValue in vars:
                 if isinstance(vars[oldValue], list):
                     for oldVal in vars[oldValue]:
@@ -159,7 +202,7 @@ class ttp_functions():
                 data = re.sub(oldValue, new, data)
         return data, None
 
-    def do_actions_truncate(self, data, truncate):
+    def variable_truncate(self, data, truncate):
         d_split=data.split(' ')
         if len(truncate) == 1:
             t_len=int(truncate[0])
@@ -167,12 +210,12 @@ class ttp_functions():
                 data = ' '.join(d_split[0:t_len])
         return data, None
 
-    def do_actions_record(self, data, record):
+    def variable_record(self, data, record):
         self.pobj.vars['globals']['vars'].update({record: data})
         self.pobj.update_groups_runs({record: data})
         return data, None
 
-    def do_actions_lookup(self, data, name, add_field=False):
+    def variable_lookup(self, data, name, add_field=False):
         path = [i.strip() for i in name.split('.')]
         found_value = None
         # get lookup dictionary/data:
@@ -193,7 +236,7 @@ class ttp_functions():
         else:
             return found_value, None
 
-    def do_actions_rlookup(self, data, name, add_field=False):
+    def variable_rlookup(self, data, name, add_field=False):
         path = [i.strip() for i in name.split('.')]
         found_value = None
         # get lookup dictionary/data:
@@ -218,19 +261,7 @@ class ttp_functions():
         else:
             return found_value, None
 
-    def check_greaterthan(self, data, value):
-        if data.strip().isdigit() and value.strip().isdigit():
-            if int(data.strip()) > int(value.strip()):
-                return data, True
-        return data, False
 
-    def check_lessthan(self, data, value):
-        if data.strip().isdigit() and value.strip().isdigit():
-            if int(data.strip()) < int(value.strip()):
-                return data, True
-        return data, False
-       
-        
 
 class ttp_utils():
     """Class to store various functions for the use along the code
@@ -239,13 +270,13 @@ class ttp_utils():
         pass
 
     def traverse_dict(self, data, path):
-        """Method to traverse dictionary data and return dict element 
+        """Method to traverse dictionary data and return dict element
         at given path
         """
         result = {}
         for i in path:
             result = data.get(i, {})
-        return result        
+        return result
 
     def load_files(self, path, extensions=[], filters=[], read=False):
         """
@@ -305,10 +336,10 @@ class ttp_utils():
         if text_data is None:
             text_data = ''
         result = {}
-        
+
         def load_text(text_data, kwargs):
             return text_data
-            
+
         def load_ini(text_data, kwargs):
             import configparser
             data = configparser.ConfigParser()
@@ -465,8 +496,8 @@ class ttp():
         # check if template given, if so - load it
         if template is not '':
             self.load_template(data=template)
-    
-    
+
+
     def load_data(self, data, input_name='Default_Input', groups=['all']):
         """Method to load data
         """
@@ -512,8 +543,8 @@ class ttp():
             self.parse_in_one_process()
         else:
             self.parse_in_multiprocess()
-            
-            
+
+
     def parse_in_multiprocess(self):
         """Method to parse data in bulk by parsing each data item
         against each template and saving results in results list
@@ -530,8 +561,8 @@ class ttp():
             tasks = JoinableQueue()
             results = Queue()
 
-            workers = [worker(tasks, results, lookups=template.lookups, 
-                              vars=template.vars, groups=template.groups) 
+            workers = [worker(tasks, results, lookups=template.lookups,
+                              vars=template.vars, groups=template.groups)
                        for i in range(num_processes)]
             [w.start() for w in workers]
 
@@ -559,7 +590,7 @@ class ttp():
         against each template and saving results in results list
         """
         for template in self.templates:
-            parserObj = parser_class(lookups=template.lookups, 
+            parserObj = parser_class(lookups=template.lookups,
                                      vars=template.vars,
                                      groups=template.groups)
             if self.data:
@@ -572,7 +603,7 @@ class ttp():
                     result = parserObj.RSLTSOBJ.RESULTS
                     self.form_results(result)
 
-                    
+
     def form_results(self, result):
         """Method to add results into self.results
         """
@@ -585,7 +616,7 @@ class ttp():
                 self.results += [result['non_hierarch_tmplt']]
         else:
             self.results.append(result)
-            
+
 
     def output(self, **kwargs):
         """Method to run templates' outputters.
@@ -599,22 +630,22 @@ class ttp():
         for template in self.templates:
             for output in template.outputs:
                 output.run(self.results, ret=False)
-                
+
         # run on demand output to given destination
         if 'type' in kwargs and 'destination' in kwargs:
             outputter = outputter_class(**kwargs)
-            outputter.run(self.results, ret=False)    
+            outputter.run(self.results, ret=False)
         # run on demand output and return results
         elif 'type' in kwargs and 'destination' not in kwargs:
             outputter = outputter_class(**kwargs)
-            result = outputter.run(self.results, ret=True)       
+            result = outputter.run(self.results, ret=True)
             return result
 
-            
+
     def result(self):
         return self.results
 
-        
+
 
 class template_class():
     """Template class to hold template data
@@ -654,7 +685,7 @@ class template_class():
             input_name (str): name of the input
             groups (list): list of groups to use for that input
         """
-        if isinstance(groups, str): 
+        if isinstance(groups, str):
             groups = [groups]
         if input_name not in self.inputs:
             self.inputs[input_name]={'data': data, 'groups': groups}
@@ -1028,7 +1059,7 @@ class variable_class():
         self.attributes = self.get_attributes(variable)
         self.var_dict = self.attributes.pop(0)
         self.var_name = self.var_dict['name']
-        
+
         # add defaults
         # list of variables names that should not have dafaults:
         self.skip_defaults = ["_end_", "_line_", "ignore", "_start_"]
@@ -1062,7 +1093,7 @@ class variable_class():
             # create options list from options string, e.g. 'Vlan, SVI' -> ['Vlan', 'SVI']:
             if options:
                 options = [i for i in options.split(',')]
-            else: 
+            else:
                 options = []
             for opt in options:
                 if '=' in opt:
@@ -1129,8 +1160,8 @@ class variable_class():
                 if name in extract_funcs:
                     extract_funcs[name](i)
                 else:
-                    self.functions.append(i)    
-        
+                    self.functions.append(i)
+
         extract_funcs = {
         'let'           : extract_let,
         'ignore'        : extract_ignore,
@@ -1251,8 +1282,8 @@ class variable_class():
         }
 
         if self.var_name in regexFuncsVar:
-            regexFuncsVar[self.var_name](self.var_dict)        
-        
+            regexFuncsVar[self.var_name](self.var_dict)
+
         # go over all keywords to form regex:
         for index, i in enumerate(self.functions):
             name = i['name']
@@ -1291,8 +1322,8 @@ class parser_class():
         self.original_vars = vars
         self.groups = groups
         self.functions = ttp_functions(parser_obj=self)
-        
-        
+
+
     def set_data(self, D):
         """Method to load data and recreate results object
         Args:
@@ -1303,8 +1334,8 @@ class parser_class():
         self.DATANAME, self.DATATEXT = self.read_data(D)
         # set vars to original vars and update them based on DATATEXT:
         self.set_vars()
-        
-        
+
+
     def read_data(self, D):
         """Method to read data from datafile
         """
@@ -1321,12 +1352,12 @@ class parser_class():
                 print('Warning: Unicode read error, file {}'.format(name))
             finally:
                 f.close()
-                
+
         def load_text(D):
             nonlocal name, datatext
             datatext = '\n' + D[1] + '\n'
             name = 'text_data'
-            
+
         read_funcs = {
             'file_name': load_file,
             'text_data': load_text
@@ -1338,7 +1369,7 @@ class parser_class():
     def set_vars(self):
         """Method to load template
         Args:
-            vars (dict): template variables dictionary 
+            vars (dict): template variables dictionary
         """
         self.vars={
             'globals': {
@@ -1352,10 +1383,10 @@ class parser_class():
         # update groups' runs dictionaries to hold defaults updated with var values
         [G.set_runs() for G in self.groups]
         self.update_groups_runs(self.vars['globals']['vars'])
-        
 
-    def update_groups_runs(self, D): 
-        """Method to update groups runs dictionaries with new values deirved 
+
+    def update_groups_runs(self, D):
+        """Method to update groups runs dictionaries with new values deirved
         during parsing, can be called from 'record' variable functions
         """
         [G.update_runs(D) for G in self.groups]
@@ -1422,15 +1453,15 @@ class parser_class():
                         args = item['args']
                         kwargs = item['kwargs']
                         try:
-                            data, flag = self.functions.variable[func_name](data, *args, **kwargs)
-                        except KeyError:
+                            data, flag = getattr(self.functions, 'variable_' + func_name)(data, *args, **kwargs)
+                        except AttributeError:
                             try:
                                 data = getattr(data, func_name)(*args, **kwargs)
                                 flag = True
                             except AttributeError as e:
                                 flag = False
                                 self.functions.invalid(func_name, scope='variable', skip=True)
-                            
+
                         if flag is False:
                             result = False # if flag False - checks produced negative result
                             break
@@ -1438,14 +1469,14 @@ class parser_class():
                             continue    # if checks been successful
                         elif flag:
                             flags.update(flag)
-                    
+
                     if result is False:
                         break
-                        
+
                     result.update({var_name: data})
 
                     if 'lookup' in flags:
-                        result.update(flags['lookup'])    
+                        result.update(flags['lookup'])
 
                 # skip not start regexes that evaluated to False
                 if result is False and not regex['ACTION'].startswith('START'):
@@ -1504,7 +1535,7 @@ class parser_class():
             [run_re(child_group, results, start, end) for child_group in group.children]
 
             return results
-            
+
         [unsort_rslts.append(run_re(group, results={})) for group in self.groups
          if group.name in groups_names or 'all' in groups_names]
 
@@ -1601,7 +1632,7 @@ class results_class():
         # check the last group:
         if self.record['RESULT'] and self.PROCESSGRP() is not False:
             self.SAVE_CURELEMENTS()
-            
+
 
     def value_to_list(self, DATA, PATH, RESULT):
         """recursive function to get value at given PATH and transform it into the list
@@ -1740,14 +1771,17 @@ class results_class():
 
 
     def JOIN(self, RESULT, PATH, DEFAULTS={}, CONDITIONS=[], REDICT=''):
-        # get joinchar:
+        joinchar = '\n'
         for varname, varvalue in RESULT.items():
             for item in REDICT['VARIABLES'][varname].functions:
-                if 'joinmatches' in item:
-                    joinchar = item['joinmatches']
+                if item['args']:
+                    joinchar = item['args'][0]
                     break
+                elif 'char' in item['kwargs']:
+                    joinchar = item['kwargs'][char]
+                    break                    
                 elif '_line_' in item:
-                    joinchar = item['_line_']
+                    joinchar = item['args'][0]
                     break
         # join results:
         for k in RESULT.keys():
@@ -1837,7 +1871,7 @@ class results_class():
 class outputter_class():
     """Class to serve excel, yaml, json, xml etc. dumping functions
     Args:
-        destination (str): if 'file' will save data to file, 
+        destination (str): if 'file' will save data to file,
             if 'terminal' will print data to terinal
         type (str): output type indicator on how to format data
         url (str): path to where to save data to e.g. OS path
@@ -1851,7 +1885,7 @@ class outputter_class():
             'url'         : './Output/',
             'filename'    : 'output_{}.txt'.format(ctime)
         }
-        self.supported_types = ['raw', 'yaml', 'json', 
+        self.supported_types = ['raw', 'yaml', 'json',
                                 'csv', 'jinja2', 'pprint']
         self.supported_destinations = ['file', 'terminal']
         if element is not None:
@@ -1863,7 +1897,7 @@ class outputter_class():
         self.name = self.attributes.get('name', None)
         if self.name:
             self.attributes['filename'] = self.name+'_'+self.attributes['filename']
-            
+
 
     def run(self, data, ret):
         result = []
@@ -1882,7 +1916,7 @@ class outputter_class():
         else:
             raise SystemExit("Error: Unsupported output destination '{}'. Supported: {}. Exiting".format(
                              destination, self.supported_destinations))
-            
+
     def return_to_file(self, D):
         url = self.attributes['url']
         filename = self.attributes['filename']
@@ -1891,11 +1925,11 @@ class outputter_class():
         with open(url + filename, 'a') as f:
             for datum in D:
                 f.write(datum)
-                    
-    
+
+
     def return_to_terminal(self, D):
         [print(datum) for datum in D]
-                
+
     def dump_raw(self, data):
         """Method returns parsing results as python list or dictionary.
         """
@@ -1917,7 +1951,7 @@ class outputter_class():
         """Method returns parsing result in json format.
         """
         from json import dumps
-        return dumps(data, sort_keys=True, indent=4, separators=(',', ': '))               
+        return dumps(data, sort_keys=True, indent=4, separators=(',', ': '))
 
     def dump_csv(self, data):
         """
@@ -1944,7 +1978,7 @@ class outputter_class():
         except ImportError:
             raise SystemExit("Jinja2 not installed, install: 'python -m pip install jinja2', exiting")
         # load template:
-        template_obj = Environment(loader='BaseLoader', trim_blocks=True, 
+        template_obj = Environment(loader='BaseLoader', trim_blocks=True,
                                    lstrip_blocks=True).from_string(self.element.text)
         # render data:
         result = template_obj.render(data)
@@ -2009,7 +2043,7 @@ if __name__ == '__main__':
 
     parser_Obj.output()
     timing("Data output done")
-    
+
     if output.lower() == 'yaml':
         parser_Obj.output(type='yaml', destination='terminal')
         timing("YAML dumped")
