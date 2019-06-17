@@ -10,10 +10,15 @@ Template Text Parser
    :caption: Contents:
    
    Usage
-   Group Attributes
-   Variables Functions
-   Example Templates
-   API Reference
+   Inputs
+   Variables
+   Lookups
+   Groups
+   Group attributes
+   Group functions
+   Match functions
+   Outputs
+   Templates library
 
 Indices and tables
 ==================

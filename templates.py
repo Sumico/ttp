@@ -480,41 +480,47 @@ syd-sot-ken       : SYD, 201KentStL14
 <g name="{{ Interface }}**.CDP" default="" containsall="Interface">
 -------------------------{{_start_}}
 -----------------------{{_start_}}
-Device ID: {{ CDP_peer_Hostname | replaceall(domainsToStrip) | exclude(SEP) | title | rlookup(locations.SITES, site)}}
+Device ID: {{ CDP_peer_Hostname | replaceall('domainsToStrip') | exclude('SEP') | title | rlookup('locations.SITES', 'site') }}
   IP address: {{ CDP_peer_ip }}
 Platform: {{ CDP_peer_platform | orphrase | upper }},  Capabilities: {{ CDP_peer_capabilities | orphrase }} 
-Interface: {{ Interface | resuball(IfsNormalize) }},  Port ID (outgoing port): {{ CDP_peer_interface | orphrase | resuball(IfsNormalize) }}
+Interface: {{ Interface | resuball('IfsNormalize') }},  Port ID (outgoing port): {{ CDP_peer_interface | orphrase | resuball('IfsNormalize') }}
 </g>
 
 <g name="{{ Interface }}**">
-interface {{ Interface | resuball(IfsNormalize) }}
+interface {{ Interface | resuball('IfsNormalize') }}
  description {{description | orphrase }}
  spanning-tree portfast {{ portfast | set(True) }}
  spanning-tree bpduguard enable {{ bpduguard | set(True) }}
  switchport access vlan {{ AccessVlan }}
- switchport mode access {{ mode | set(access) }}
+ switchport mode access {{ mode | set('access') }}
  switchport voice vlan {{voiceVlan }}
- switchport trunk allowed vlan {{ trunkVlans | joinmatches | unrange('-',',') }}
- switchport trunk allowed vlan add {{ trunkVlans | joinmatches | unrange('-',',') }}
- switchport mode trunk {{ mode | set(trunk) }}  {{ Vlans | set(all) }}
+ switchport trunk allowed vlan {{ trunkVlans | joinmatches(char = ',') | unrange(rangechar = '-' , joinchar=',') | split(',')}}
+ switchport trunk allowed vlan add {{ trunkVlans | joinmatches(',') | unrange('-',',') | split(',') }}
+ switchport mode trunk {{ mode | set('trunk') }}  {{ Vlans | set('all') }}
  <g name="cfg.l3">
  ip address {{ ip | default }} {{ mask | default(128)}}
  ipv4 address {{ ip | default }} {{ mask | default(128) | _start_ }}
  ip helper-address {{ helper }}
  </g>
- {{ sysname | let(hostname) }}
- {{ local_bgp_as | let(bgpAS) }}
+ {{ sysname | let('hostname') }}
+ {{ local_bgp_as | let('bgpAS') }}
 !{{_end_}}
 </g>
 
 <g name="bgp">
-router bgp {{ bgp_as | record(bgpAS) }}
+router bgp {{ bgp_as | record('bgpAS') }}
 </g>
 
-<o type="jinja" out_folder="./Output/" name="BGP">
-router bgp {{ bgp.bgp_as }}
-!
-</o>
+<out
+name="Intfs_ips_XML"
+format="jinja2"
+returner="terminal"
+>
+hostname,interface,description
+{% for key, value in _data.items() %}
+{{ value.sysname }},{{ key }},{{ value.description }}
+{% endfor %}
+</out>
 """
 
 
