@@ -403,7 +403,7 @@ class ttp_functions():
             return (data + char), None
         else:
             return data, None
-			
+            
     def match_print(self, data):
         print(data)
         return data, None
@@ -1353,13 +1353,15 @@ class variable_class():
 
         def regex_deleteVar(data):
             nonlocal regex
-            # delete variable from line:
-            regex = regex.replace(esc_var, '', 1)
-            # delete "\ + *(?=\n)" from end of line and add " *(?=\\n)" back:
-            result = re.sub('(\\\\ \+ \*)*\(\?=\\\\n\)', '', regex) + ' *(?=\\n)'
-            # if result == ' *(?=\\n)':
-            #     result = '\\n' + result
-            regex = result
+            result = None
+            if esc_var in regex:
+                index = regex.find(esc_var)
+                # slice regex string before esc_var start:
+                result = regex[:index] 
+                # delete "\ +" from end of line and add " *(?=\\n)":
+                result = re.sub('(\\\\ \+)$', '', result) + ' *(?=\\n)'
+            if result:
+                regex = result
 
         # for variables like {{ _line_ }} or {{ ignore() }}
         regexFuncsVar={
