@@ -525,15 +525,15 @@ hostname,interface,description
 
 
 Intfs_ips_XML = """
-<vars include="./vars/vars.txt" format="python"/>
+<vars include="./vars/vars.txt" load="python"/>
 
-<input name="Cisco_IOS" format="python">
+<input name="Cisco_IOS" load="python">
 url = "./IOS/"
 extensions = ['txt', 'log']
 filters = [".*"]
 </input>
 
-<input name="Cisco_IOS-XR" format="yaml">
+<input name="Cisco_IOS-XR" load="yaml">
 url: ["./IOS-XR/"]
 extensions: 'txt'
 filters: "running_config_IOSXR"
@@ -545,45 +545,45 @@ filters = ["cns11-gc", "intfs"]
 </input>
 
 <g name = "BGP">
-router bgp {{ bgp_as | record(bgpAS) | default(ABC) }}
+router bgp {{ bgp_as | record('bgpAS') | default('ABC') }}
 </g>
 
 <g name="{{ hostname }}.interfaces.{{ Interface }}" containsall="ip" default="None" input="Cisco_IOS" output="IPAM">
 ##====================CISCO IOS====================
-interface {{ Interface | resuball(IfsNormalize) }}
+interface {{ Interface | resuball('IfsNormalize') }}
  description {{description | orphrase }}
  ip address {{ ip }} {{ mask }}
- vrf forwarding {{ vrf | default(Default) }}
- {{ hostname | let(hostname) }}
- {{ bgp_as | let(bgpAS) }}
+ vrf forwarding {{ vrf | default('Default') }}
+ {{ hostname | let('hostname') }}
+ {{ bgp_as | let('bgpAS') }}
 !{{_end_}}
 </g>
 
 <g name="{{ hostname }}.interfaces.{{ Interface }}" containsall="ip" default="None" output="IPAM" input="Cisco_IOS-XR">
 ##====================CISCO IOS-XR==================
-interface {{ Interface | resuball(IfsNormalize) }}
+interface {{ Interface | resuball('IfsNormalize') }}
  description {{description | orphrase }}
  ipv4 address {{ ip }} {{ mask }}
- vrf {{ vrf | default(Default) }}
- {{ hostname | let(hostname) }}
- {{ bgp_as | let(bgpAS) }}
+ vrf {{ vrf | default('Default') }}
+ {{ hostname | let('hostname') }}
+ {{ bgp_as | let('bgpAS') }}
 !{{_end_}}
 </g>
 
 <g name="{{ hostname }}.interfaces.{{ Interface }}" containsall="ip" default="None" output="IPAM" input="./NX-OS/">
 ##====================CISCO NX-OS==================
-interface {{ Interface | resuball(IfsNormalize) }}
+interface {{ Interface | resuball('IfsNormalize') }}
   description {{description | orphrase }}
   ip address {{ ip }}/{{ mask }}
-  vrf member {{ vrf | default(Default) }}
-{{ hostname | let(hostname) }}
-{{ bgp_as | let(bgpAS) }}
+  vrf member {{ vrf | default('Default') }}
+{{ hostname | let('hostname') }}
+{{ bgp_as | let('bgpAS') }}
 {{ _end_ }}
 </g>
 
 <g name="{{ hostname }}.interfaces.{{ Interface }}.config" input="Cisco_IOS">
 ##====================All interfaces Config====================
-interface {{ Interface | resuball(IfsNormalize) }}
+interface {{ Interface | resuball('IfsNormalize') }}
  {{ config | _line_  }}
 !{{ _end_ }}
 {{_end_}}
@@ -706,4 +706,23 @@ name="bgp_peers_configured_and_state"
 type="json"
 destination="file"
 />
+"""
+
+test = """
+interface {{ interface | replaceall('Ethernet') }}
+!{{ end }}
+"""
+
+test1 = """
+<vars load="python">
+intf_replace = {
+                'Ge': ['GigabitEthernet', 'GigEthernet', 'GeEthernet'],
+                'Lo': ['Loopback'],
+                'Te': ['TenGigabitEth', 'TeGe', '10GE']
+                }
+</vars>
+
+<group name="ifs">
+interface {{ interface | replaceall('GE', 'intf_replace') }}
+</group>  
 """

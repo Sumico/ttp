@@ -455,9 +455,6 @@ class ttp_functions():
                             for i in oldVal:
                                 if isinstance(i, str):
                                     data = data.replace(i, newVal)
-                        elif isinstance(oldVal, str) and ',' in oldVal:
-                            for i in oldVal.split(','):
-                                data = data.replace(i.strip(), newVal)
                         elif isinstance(oldVal, str):
                             data = data.replace(oldVal, newVal)
             else:
@@ -473,7 +470,7 @@ class ttp_functions():
             if oldValue in vars:
                 if isinstance(vars[oldValue], list):
                     for oldVal in vars[oldValue]:
-                        if isinstance(oldVal, str) and new:
+                        if isinstance(oldVal, str):
                             data = re.sub(oldVal, new, data)
                 elif isinstance(vars[oldValue], dict):
                     for newVal, oldVal in vars[oldValue].items():
@@ -481,9 +478,6 @@ class ttp_functions():
                             for i in oldVal:
                                 if isinstance(i, str):
                                     data = re.sub(i, newVal, data)
-                        elif isinstance(oldVal, str) and ',' in oldVal:
-                            for i in oldVal.split(','):
-                                data = re.sub(i.strip(), newVal, data)
                         elif isinstance(oldVal, str):
                             data = re.sub(oldVal, newVal, data)
             else:
@@ -648,7 +642,7 @@ class ttp_utils():
             empy {} dict if nothing found, or python dictionary of loaded
             data from elemnt.text string or from included text files
         """
-        format = element.attrib.get('format', 'python').lower()
+        format = element.attrib.get('load', 'python').lower()
         include = element.attrib.get('include', '')
         text_data = element.text
         if text_data is None:
