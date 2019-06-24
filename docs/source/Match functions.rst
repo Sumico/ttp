@@ -5,19 +5,18 @@
 Match functions
 ===============
 
-Description of ttp built-in functions that can be applied to match results.
+Description of ttp built-in functions that can be applied to match results. 
 
-Functions can be of below logical types:
-  - *Action* - performs action with match result to transform it to desired output
-  - *Condition* - checks condition against match result, returns *True* if condition was satisfied and *False* otherwise
-  - *Indicator* - indicates additional logic that needs to be accounted for during script execution
-
-.. list-table:: Built-in Functions
+Action functions below act upon match result to transform it to desired state.
+  
+.. list-table:: action functions
    :widths: 10 90
    :header-rows: 1
 
    * - Name
      - Description
+   * - `chain`_ 
+     - add functions from chain variable 
    * - `record`_ 
      - Save match result to variable with given name, which can be referenced by actions
    * - `truncate`_ 
@@ -40,7 +39,86 @@ Functions can be of below logical types:
      - run replace against match for all given values
    * - `resuball`_ 
      - run re substitute against match for all given values
-     
+   * - `lookup`_ 
+     - find match value in lookup table and return result
+   * - `rlookup`_ 
+     - find rlookup table key in match result and return assiciated values
+ 
+Condition functions can perform various checks with match results and produce either True or False result
+
+.. list-table:: condition functions
+   :widths: 10 90
+   :header-rows: 1
+   
+   * - Name
+     - Description  
+   * - `startswith_re`_ 
+     - checks if match starts with certain string using regular expression
+   * - `endswith_re`_ 
+     - checks if match ends with certain string using regular expression
+   * - `contains_re`_ 
+     - checks if match contains certain string using regular expression
+   * - `contains`_ 
+     - checks if match contains certain string
+   * - `notstartswith_re`_ 
+     - checks if match not starts with certain string using regular expression
+   * - `notendswith_re`_ 
+     - checks if match not ends with certain string using regular expression
+   * - `exclude_re`_ 
+     - checks if match not contains certain string using regular expression
+   * - `exclude`_ 
+     - checks if match not contains certain string
+   * - `isdigit`_ 
+     - checks if match is digit string e.g. '42'
+   * - `notdigit`_ 
+     - checks if match is not digit string
+   * - `greaterthan`_ 
+     - checks if match is greater than given value
+   * - `lessthan`_ 
+     - checks if match is less than given value
+
+Match indicators used to change parsing logic or indicate certain events.
+	 
+.. list-table:: indicators
+   :widths: 10 90
+   :header-rows: 1
+   
+   * - Name
+     - Description  
+   * - `_exact_`_ 
+     - TBD
+   * - `_start_`_ 
+     - TBD
+   * - `_end_`_ 
+     - TBD
+   * - `_line_`_ 
+     - TBD
+
+Regex formatters help to specify regular expressions that should be used to match certain variables. 
+	 
+.. list-table:: indicators
+   :widths: 10 90
+   :header-rows: 1
+   
+   * - Name
+     - Description  
+   * - `PHRASE`_ 
+     - TBD
+   * - `ORPHRASE`_ 
+     - TBD
+   * - `WORD`_ 
+     - TBD
+	 
+Apart from ttp functions described above python objects built-in functions can be used as well. For instance string m
+
+chain
+------------------------------------------------------------------------------
+``{{ name | chain(variable) }}``
+
+* variable (mandatory) - string containing variable name
+
+Description goes here... 
+	
 record
 ------------------------------------------------------------------------------
 ``{{ name | record(name) }}``
@@ -73,21 +151,21 @@ Join results from different matches into a single result string using provider c
 
 Sample data is:
 ::
-	interface GigabitEthernet3/3
-	switchport trunk allowed vlan add 138,166,173 
-	switchport trunk allowed vlan add 400,401,410
+    interface GigabitEthernet3/3
+    switchport trunk allowed vlan add 138,166,173 
+    switchport trunk allowed vlan add 400,401,410
  
 If template is:
 ::
-	interface {{ interface }}
-	switchport trunk allowed vlan add {{ trunk_vlans | joinmatches(',') }}
+    interface {{ interface }}
+    switchport trunk allowed vlan add {{ trunk_vlans | joinmatches(',') }}
 
 Result will be:
 ::
-	{
-		"interface": "GigabitEthernet3/3"  
-		"trunkVlans": "138,166,173,400,401,410"
-	}
+    {
+        "interface": "GigabitEthernet3/3"  
+        "trunkVlans": "138,166,173,400,401,410"
+    }
     
 resub
 ------------------------------------------------------------------------------
@@ -174,7 +252,7 @@ Appends string to match result and returns produced value
 
 Sample data is:
 ::
-    interface GigabitEthernet3/3
+    interface Ge3/3
  
 Template is:
 ::
@@ -441,14 +519,14 @@ Result
             }
         ]
     }
-	
+    
 resuball
 ------------------------------------------------------------------------------
 ``{{ name | resuball('value1', 'value2', ..., 'valueN') }}``
 
 * value(mandatory) - string to replace in match
 
-Same as `resuball`_ but instead of string replace this function runs python re substitute method, allowing the use of regular expression to match *old* values.
+Same as `replaceall`_ but instead of string replace this function runs python re substitute method, allowing the use of regular expression to match *old* values.
 
 **Example**
 
@@ -496,3 +574,285 @@ Result
          }
      ]
  }
+ 
+lookup
+------------------------------------------------------------------------------
+``{{ name | lookup('name', 'add_field') }}``
+
+* name(mandatory) - lookup name and dot-separated path to data within which to perform lookup
+* add_field(optional) - default is False, can be set to string that will indicate name of the new field
+
+Lookup function takes match value and perform lookup on that value in lookup table. Lookup table is a dictionary data where keys checked if they are equal to math result.
+
+If lookup was unsuccesful no changes introduces to match result, if it was successful we have two option on what to do with looked up values:
+* if add_field is False - match result will be replaced with found values
+* if add_field is not False - string passed as add_field value used as a name for additional field that will be added to group match results
+
+**Example-1** *add_field* set to False
+
+In this example, as 65101 will be looked up in the lookup table and replaced with found values
+
+Data
+::
+ router bgp 65100
+   neighbor 10.145.1.9
+     remote-as 65101
+   !
+   neighbor 192.168.101.1
+     remote-as 65102
+ 
+Template
+::
+ <lookup name="ASNs" load="csv">
+ ASN,as_name,as_description
+ 65100,Customer_1,Private ASN for CN451275
+ 65101,CPEs,Private ASN for FTTB CPEs
+ </lookup>
+ 
+ <group name="bgp_config">
+ router bgp {{ bgp_as }}
+  <group name="peers">
+   neighbor {{ peer }}
+     remote-as {{ remote_as | lookup('ASNs') }}
+  </group>
+ </group> 
+ 
+Result
+::
+ {
+     "bgp_config": {
+         "bgp_as": "65100",
+         "peers": [
+             {
+                 "peer": "10.145.1.9",
+                 "remote_as": {
+                     "as_description": "Private ASN for FTTB CPEs",
+                     "as_name": "CPEs"
+                 }
+             },
+             {
+                 "peer": "192.168.101.1",
+                 "remote_as": "65102"
+             }
+         ]
+     }
+ }
+
+**Example-2** With additional field
+
+Data
+::
+ router bgp 65100
+   neighbor 10.145.1.9
+     remote-as 65101
+   !
+   neighbor 192.168.101.1
+     remote-as 65102
+ 
+Template
+::
+ <lookup name="ASNs" load="csv">
+ ASN,as_name,as_description
+ 65100,Customer_1,Private ASN for CN451275
+ 65101,CPEs,Private ASN for FTTB CPEs
+ </lookup>
+ 
+ <group name="bgp_config">
+ router bgp {{ bgp_as }}
+  <group name="peers">
+   neighbor {{ peer }}
+     remote-as {{ remote_as | lookup('ASNs', add_field='asn_details') }}
+  </group>
+ </group> 
+ 
+Result
+::
+ {
+     "bgp_config": {
+         "bgp_as": "65100",
+         "peers": [
+             {
+                 "asn_details": {
+                     "as_description": "Private ASN for FTTB CPEs",
+                     "as_name": "CPEs"
+                 },
+                 "peer": "10.145.1.9",
+                 "remote_as": "65101"
+             },
+             {
+                 "peer": "192.168.101.1",
+                 "remote_as": "65102"
+             }
+         ]
+     }
+ }
+ 
+rlookup
+------------------------------------------------------------------------------
+``{{ name | rlookup('name', 'add_field') }}``
+
+* name(mandatory) - rlookup table name and dot-separated path to data within which to perform search
+* add_field(optional) - default is False, can be set to string that will indicate name of the new field
+
+This function searches rlookup table keys in match value. rlookup table is a dictionary data where keys checked if they are equal to math result.
+
+If lookup was unsuccesful no changes introduces to match result, if it was successful we have two options:
+* if add_field is False - match result will be replaced with found values
+* if add_field is not False - string passed as add_field used as a name for additional field to be added to group results, value for that new field is a data from lookup table
+
+**Example**
+
+In this example, bgp neighbours descriptions set to hostnames of peering devices, usually hostnames tend to follow some naming convention to indicate physical location of device or its network role, in below examplenaming convention is *<state>-<city>-<role><num>* 
+
+Data
+::
+ router bgp 65100
+   neighbor 10.145.1.9
+     description vic-mel-core1
+   !
+   neighbor 192.168.101.1
+     description qld-bri-core1
+ 
+Template
+::
+ <lookup name="locations" load="ini">
+ [cities]
+ -mel- : 7 Name St, Suburb A, Melbourne, Postal Code
+ -bri- : 8 Name St, Suburb B, Brisbane, Postal Code
+ </lookup>
+ 
+ <group name="bgp_config">
+ router bgp {{ bgp_as }}
+  <group name="peers">
+   neighbor {{ peer }}
+     description {{ remote_as | rlookup('locations.cities', add_field='location') }}
+  </group>
+ </group> 
+ 
+Result
+::
+ {
+     "bgp_config": {
+         "bgp_as": "65100",
+         "peers": [
+             {
+                 "description": "vic-mel-core1",
+                 "location": "7 Name St, Suburb A, Melbourne, Postal Code",
+                 "peer": "10.145.1.9"
+             },
+             {
+                 "description": "qld-bri-core1",
+                 "location": "8 Name St, Suburb B, Brisbane, Postal Code",
+                 "peer": "192.168.101.1"
+             }
+         ]
+     }
+ }
+ 
+startswith_re
+------------------------------------------------------------------------------
+``{{ name | startswith_re('pattern') }}``
+
+* pattern(mandatory) - string pattern to check
+
+Python re search used to evaluate if match value starts with given string pattern, returns True if so and False otherwise
+
+endswith_re
+------------------------------------------------------------------------------
+``{{ name | endswith_re('pattern') }}``
+
+* pattern(mandatory) - string pattern to check
+
+Python re search used to evaluate if match value ends with given string pattern, returns True if so and False otherwise
+
+contains_re
+------------------------------------------------------------------------------
+``{{ name | contains_re('pattern') }}``
+
+* pattern(mandatory) - string pattern to check
+
+Python re search used to evaluate if match value contains given string pattern, returns True if so and False otherwise
+
+contains
+------------------------------------------------------------------------------
+``{{ name | contains('pattern') }}``
+
+* pattern(mandatory) - string pattern to check
+
+This faunction evaluates if match value contains given string pattern, returns True if so and False otherwise.
+
+notstartswith_re
+------------------------------------------------------------------------------
+``{{ name | notstartswith_re('pattern') }}``
+
+* pattern(mandatory) - string pattern to check
+
+Python re search used to evaluate if match value starts with given string pattern, returns False if so and True otherwise
+
+notendswith_re
+------------------------------------------------------------------------------
+``{{ name | notendswith_re('pattern') }}``
+
+* pattern(mandatory) - string pattern to check
+
+Python re search used to evaluate if match value ends with given string pattern, returns False if so and True otherwise
+
+exclude_re
+------------------------------------------------------------------------------
+``{{ name | exclude_re('pattern') }}``
+
+* pattern(mandatory) - string pattern to check
+
+Python re search used to evaluate if match value contains given string pattern, returns False if so and True otherwise
+
+exclude
+------------------------------------------------------------------------------
+``{{ name | exclude('pattern') }}``
+
+* pattern(mandatory) - string pattern to check
+
+This faunction evaluates if match value contains given string pattern, returns False if so and True otherwise.
+
+equal
+------------------------------------------------------------------------------
+``{{ name | equal('value') }}``
+
+* value(mandatory) - string pattern to check
+
+This faunction evaluates if match is equal to given value, returns True if so and False otherwise
+
+notequal
+------------------------------------------------------------------------------
+``{{ name | notequal('value') }}``
+
+* value(mandatory) - string pattern to check
+
+This faunction evaluates if match is equal to given value, returns False if so and True otherwise
+
+isdigit
+------------------------------------------------------------------------------
+``{{ name | isdigit }}``
+
+This faunction checks if match is a digit, returns True if so and False otherwise
+
+notdigit
+------------------------------------------------------------------------------
+``{{ name | notdigit }}``
+
+This faunction checks if match is digit, returns False if so and True otherwise
+
+greaterthan
+------------------------------------------------------------------------------
+``{{ name | greaterthan('value') }}``
+
+* value(mandatory) - integer value to compare with
+
+This faunction checks if match and supplied value are digits and performs comparison operation, if match is bigger than given value returns True and False otherwise
+
+lessthan
+------------------------------------------------------------------------------
+``{{ name | lessthan('value') }}``
+
+* value(mandatory) - integer value to compare with
+
+This faunction checks if match and supplied value are digits and performs comparison, if match is smaller than provided value returns True and False otherwise

@@ -68,7 +68,7 @@ Templates:
     
 IOS_Intfs = """
 interface {{ Interface | _key_ }}
- description {{description | orphrase | upper}}
+ description {{description | ORPHRASE | upper}}
  switchport access vlan {{ accessVlan }}
  switchport mode access {{ mode | set(access) }}
  switchport trunk allowed vlan {{ trunkVlans | joinmatches() }}
@@ -85,7 +85,7 @@ IPs = """
 
 {% group IPs** %}
 interface {{ Interface }}
- description {{description | orphrase }}
+ description {{description | ORPHRASE }}
  {{ hostname | record(hostname) }}
  ip address {{ ipv4 | _key_  }} {{ mask }}
  ipv4 address {{ ipv4 | _key_  }} {{ mask }}
@@ -97,7 +97,7 @@ interface {{ Interface }}
 IOS_Intfs2 = """
 {% group interfaces**._key_.descript %}
 interface {{ Interface | _key_ }}
- description {{description | orphrase | upper}}
+ description {{description | ORPHRASE | upper}}
 ! {{ _end_ }}
 {% endgroup interfaces**._key_.descript %}
 
@@ -270,14 +270,14 @@ IOS_Intfs_with_CDP2 = """
 -------------------------{{_start_}}
 Device ID: {{ CDP_peer_Hostname | replaceall(domainsToStrip) | exclude(SEP) | title }}
   IP address: {{ CDP_peer_ip }}
-Platform: {{ CDP_peer_platform | orphrase | upper }},  Capabilities: {{ CDP_peer_capabilities | orphrase }} 
-Interface: {{ Interface | resuball(IfsNormalize) | _key_ }},  Port ID (outgoing port): {{ CDP_peer_interface | orphrase | resuball(IfsNormalize) }}
+Platform: {{ CDP_peer_platform | ORPHRASE | upper }},  Capabilities: {{ CDP_peer_capabilities | ORPHRASE }} 
+Interface: {{ Interface | resuball(IfsNormalize) | _key_ }},  Port ID (outgoing port): {{ CDP_peer_interface | ORPHRASE | resuball(IfsNormalize) }}
 
 {% endgroup interfaces** %}
 
 {% group interfaces** %}
 interface {{ Interface | resuball(IfsNormalize) | _key_ }}
- description {{description | orphrase }}
+ description {{description | ORPHRASE }}
  no snmp trap link-status
  spanning-tree portfast {{ portfast | set(True) }}
  spanning-tree bpduguard enable {{ bpduguard | set(True) }}
@@ -308,14 +308,14 @@ IOS_Intfs_with_CDP = """
 -------------------------{{_start_}}
 Device ID: {{ CDP_peer_Hostname | replaceall(domainsToStrip) | exclude(SEP) | title }}
   IP address: {{ CDP_peer_ip }}
-Platform: {{ CDP_peer_platform | orphrase | upper }},  Capabilities: {{ CDP_peer_capabilities | orphrase }} 
-Interface: {{ Interface | resuball(IfsNormalize) | _key_ }},  Port ID (outgoing port): {{ CDP_peer_interface | orphrase | resuball(IfsNormalize) }}
+Platform: {{ CDP_peer_platform | ORPHRASE | upper }},  Capabilities: {{ CDP_peer_capabilities | ORPHRASE }} 
+Interface: {{ Interface | resuball(IfsNormalize) | _key_ }},  Port ID (outgoing port): {{ CDP_peer_interface | ORPHRASE | resuball(IfsNormalize) }}
 {% endgroup CDP_IOS* %}
 
 {% group interfaces* %}
 interface {{ Interface | resuball(IfsNormalize) }}
 {{ sysname | record(hostname) }}
- description {{description | orphrase }}
+ description {{description | ORPHRASE }}
 {% group Settings.L2.switchport | default(None)%}
  switchport access vlan {{ AccessVlan }}
  switchport mode access {{ mode | set(access) }}
@@ -380,11 +380,11 @@ Cisco_IOS_BGP_Peers = """
 {% var vendor='Cisco' %}
 
 {% group BGP_PEERS %}
-For address family: {{ AFI | orphrase }}
+For address family: {{ AFI | ORPHRASE }}
 
 {% group PEERS | default(None) %}
 BGP neighbor is {{ peer_ip }},  vrf {{ source_vrf }},  remote AS {{ peer_as }}, {{ type }} link
- Description: {{ source_description | orphrase }}
+ Description: {{ source_description | ORPHRASE }}
   BGP version 4, remote router ID {{ peer_rid }}
   BGP state = {{ source_state }}, up for {{ ignore() }}
 Local host: {{ source_ip }}, Local port: 15736
@@ -405,13 +405,13 @@ router bgp {{ AS | var(bgp_as) }}
 {% group Interfaces_L3 | default(None) | containsall(v4address, v4mask) %}
 interface {{ Inerface | replace(Vlan, SVI)}}
 ##Cisco IOS:
- description {{ description | orphrase | title }}
+ description {{ description | ORPHRASE | title }}
  vrf forwarding  {{ vrf | default(Default) }} 
  ip address {{ v4address  }} {{ v4mask  }}
  no ip redirects {{ipRedir | set(Disabled) }}
  
 ## Cisco NX-OS:
-  description {{ description | orphrase }}
+  description {{ description | ORPHRASE }}
   vrf member {{ vrf | default(Default)}} 
   ip address {{ v4address  }}/{{ v4mask  }}
   
@@ -482,13 +482,13 @@ syd-sot-ken       : SYD, 201KentStL14
 -----------------------{{_start_}}
 Device ID: {{ CDP_peer_Hostname | replaceall('domainsToStrip') | exclude('SEP') | title | rlookup('locations.SITES', 'site') }}
   IP address: {{ CDP_peer_ip }}
-Platform: {{ CDP_peer_platform | orphrase | upper }},  Capabilities: {{ CDP_peer_capabilities | orphrase }} 
-Interface: {{ Interface | resuball('IfsNormalize') }},  Port ID (outgoing port): {{ CDP_peer_interface | orphrase | resuball('IfsNormalize') }}
+Platform: {{ CDP_peer_platform | ORPHRASE | upper }},  Capabilities: {{ CDP_peer_capabilities | ORPHRASE }} 
+Interface: {{ Interface | resuball('IfsNormalize') }},  Port ID (outgoing port): {{ CDP_peer_interface | ORPHRASE | resuball('IfsNormalize') }}
 </g>
 
 <g name="{{ Interface }}**">
 interface {{ Interface | resuball('IfsNormalize') }}
- description {{description | orphrase }}
+ description {{description | ORPHRASE }}
  spanning-tree portfast {{ portfast | set(True) }}
  spanning-tree bpduguard enable {{ bpduguard | set(True) }}
  switchport access vlan {{ AccessVlan }}
@@ -551,7 +551,7 @@ router bgp {{ bgp_as | record('bgpAS') | default('ABC') }}
 <g name="{{ hostname }}.interfaces.{{ Interface }}" containsall="ip" default="None" input="Cisco_IOS" output="IPAM">
 ##====================CISCO IOS====================
 interface {{ Interface | resuball('IfsNormalize') }}
- description {{description | orphrase }}
+ description {{description | ORPHRASE }}
  ip address {{ ip }} {{ mask }}
  vrf forwarding {{ vrf | default('Default') }}
  {{ hostname | let('hostname') }}
@@ -562,7 +562,7 @@ interface {{ Interface | resuball('IfsNormalize') }}
 <g name="{{ hostname }}.interfaces.{{ Interface }}" containsall="ip" default="None" output="IPAM" input="Cisco_IOS-XR">
 ##====================CISCO IOS-XR==================
 interface {{ Interface | resuball('IfsNormalize') }}
- description {{description | orphrase }}
+ description {{description | ORPHRASE }}
  ipv4 address {{ ip }} {{ mask }}
  vrf {{ vrf | default('Default') }}
  {{ hostname | let('hostname') }}
@@ -573,7 +573,7 @@ interface {{ Interface | resuball('IfsNormalize') }}
 <g name="{{ hostname }}.interfaces.{{ Interface }}" containsall="ip" default="None" output="IPAM" input="./NX-OS/">
 ##====================CISCO NX-OS==================
 interface {{ Interface | resuball('IfsNormalize') }}
-  description {{description | orphrase }}
+  description {{description | ORPHRASE }}
   ip address {{ ip }}/{{ mask }}
   vrf member {{ vrf | default('Default') }}
 {{ hostname | let('hostname') }}
@@ -599,7 +599,7 @@ destination="file"
 Intfs_ios_XML_simple = """
 ##====================CISCO IOS====================
 interface {{ Interface | _key_ }}
- description {{description | orphrase }}
+ description {{description | ORPHRASE }}
  ip address {{ ip }} {{ mask }}
  vrf forwarding {{ vrf | default(GRT) }}
  {{ config | _line_ | strip }}
@@ -607,21 +607,29 @@ interface {{ Interface | _key_ }}
 """
 
 ip_intf_only = """
-<g name="interfaces_config" containsall="ip">
+<g name="interfaces_config">
 ##====================CISCO IOS====================
 interface {{ Interface }}
- description {{description | orphrase }}
+ description {{description | ORPHRASE }}
  ip address {{ ip }} {{ mask }}
- vrf forwarding {{ vrf | default(GRT) }}
+ vrf forwarding {{ vrf | default('GRT') }}
 !{{_end_}}
 </g>
+
+<o 
+name="ip_intf_only"
+returner="file" 
+url="./Output/" 
+format="yaml"
+method="join"
+/>
 """
 
 
 bgp_peers_configured_and_state = """
 <vars>
 hostname='gethostname' 
-caps = "orphrase | upper"
+caps = "ORPHRASE | upper"
 </vars>
 
 <lookup 
@@ -725,4 +733,36 @@ intf_replace = {
 <group name="ifs">
 interface {{ interface | replaceall('GE', 'intf_replace') }}
 </group>  
+"""
+
+test2 = """
+<lookup name="ASNs" load="csv">
+ASN,as_name,as_description
+65100,Customer_1,Private ASN for CN451275
+65101,CPEs,Private ASN for FTTB CPEs
+</lookup>
+
+<group name="bgp_config">
+router bgp {{ bgp_as }}
+ <group name="peers">
+  neighbor {{ peer }}
+    remote-as {{ remote_as | lookup('ASNs', add_field='asn_details') }}
+ </group>
+</group>   
+"""
+
+test3 = """
+<lookup name="locations" load="ini">
+[cities]
+-mel- : 7 Name St, Suburb A, Melbourne, Postal Code
+-bri- : 8 Name St, Suburb B, Brisbane, Postal Code
+</lookup>
+
+<group name="bgp_config">
+router bgp {{ bgp_as }}
+ <group name="peers">
+  neighbor {{ peer }}
+    description {{ description | rlookup('locations.cities', add_field='location') }}
+ </group>
+</group> 
 """

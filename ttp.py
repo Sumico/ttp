@@ -110,6 +110,8 @@ class ttp():
             self.parse_in_one_process()
         else:
             self.parse_in_multiprocess()
+        # run outputters defined in templates
+        self.run_outputs()
 
 
     def parse_in_multiprocess(self):
@@ -185,19 +187,23 @@ class ttp():
             self.results.append(result)
 
 
-    def output(self, **kwargs):
+    def run_outputs(self):
         """Method to run templates' outputters.
+        """
+        # run templates outputs
+        for template in self.templates:
+            [output.run(self.results, ret=False) 
+             for output in template.outputs]
+                
+
+    def result(self, **kwargs):
+        """
         kwargs:
             format : supported ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint']
             returner : supported ['file', 'terminal']
             url : path where to save files
             filename : name of the file
         """
-        # run templates outputs
-        for template in self.templates:
-            for output in template.outputs:
-                output.run(self.results, ret=False)
-
         # run on demand output with given returner
         if 'format' in kwargs and 'returner' in kwargs:
             outputter = outputter_class(**kwargs)
@@ -207,10 +213,8 @@ class ttp():
             outputter = outputter_class(**kwargs)
             result = outputter.run(self.results, ret=True)
             return result
-
-
-    def result(self):
-        return self.results
+        else:
+            return self.results
 
 
 """
@@ -247,7 +251,6 @@ class worker(Process):
 
 
 
-
 """
 ==============================================================================
 TTP RE PATTERNS COLLECTION CLASS
@@ -256,18 +259,17 @@ TTP RE PATTERNS COLLECTION CLASS
 class ttp_patterns():
     def __init__(self):
         self.patterns={
-        'phrase'   : '(\S+ {1})+?\S+',
-        'orphrase' : '\S+|(\S+ {1})+?\S+',
-        'digit'    : '\d+',
-        'ip'       : '(?:[0-9]{1,3}\.){3}[0-9]{1,3}',
-        'prefix'   : '(?:[0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}',
-        'ipv6'     : '(?:[a-fA-F0-9]{1,4}:|:){1,7}(?:[a-fA-F0-9]{1,4}|:?)',
-        'prefixv6' : '(?:[a-fA-F0-9]{1,4}:|:){1,7}(?:[a-fA-F0-9]{1,4}|:?)/[0-9]{1,3}',
+        'PHRASE'   : '(\S+ {1})+?\S+',
+        'ORPHRASE' : '\S+|(\S+ {1})+?\S+',
+        'DIGIT'    : '\d+',
+        'IP'       : '(?:[0-9]{1,3}\.){3}[0-9]{1,3}',
+        'PREFIX'   : '(?:[0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}',
+        'IPV6'     : '(?:[a-fA-F0-9]{1,4}:|:){1,7}(?:[a-fA-F0-9]{1,4}|:?)',
+        'PREFIXV6' : '(?:[a-fA-F0-9]{1,4}:|:){1,7}(?:[a-fA-F0-9]{1,4}|:?)/[0-9]{1,3}',
         '_line_'   : '.+',
-        'word'     : '\S+',
-        'mac'      : '(?:[0-9a-fA-F]{2}(:|\.)){5}([0-9a-fA-F]{2})|(?:[0-9a-fA-F]{4}(:|\.)){2}([0-9a-fA-F]{4})'
+        'WORD'     : '\S+',
+        'MAC'      : '(?:[0-9a-fA-F]{2}(:|\.)){5}([0-9a-fA-F]{2})|(?:[0-9a-fA-F]{4}(:|\.)){2}([0-9a-fA-F]{4})'
         }
-
 
 
 
@@ -280,12 +282,15 @@ class ttp_functions():
     """Class to store ttp built in functions used for parsing results
     Notes:
         functions to implement
-        # 'variable_wrap'        : add \n at given position to wrap long text
+        # 'variable_wrap'         : add \n at given position to wrap long text
         # 'variable_is_ip'        : to check that data is valid ip address - isip(4) for v4 or isip(6) for v6 or any
         # 'variable_is_mac'       : to check that data is valid  mac-address
         # 'variable_is_word'      : check if no spaces in data - same as notcontains(' ')
         # 'variable_is_phrase'    : check if we have spaces in data - same as contains(' ')
         # 'variable_to_ip'        : convert to IP object to do something with it like prefix matching, e.g. check if 1.1.1.1 is part of 1.1.0.0/16
+        # 'variable_to_list/to_digit/to_string' : convert variable to list, difit or string
+        # 'grouo_exclude_all/exclude_any'  : to exclude group if group contains certain values
+        # 'index(int)' : index to get from string converted into list with split
     """
     def __init__(self, parser_obj=None, results_obj=None):
         self.pobj = parser_obj
@@ -372,6 +377,11 @@ class ttp_functions():
             return data, True
         return data, False
 
+    def match_isdigit(self, data):
+        if data.strip().isdigit():
+            return data, True
+        return data, False
+        
     def match_notdigit(self, data):
         if not data.strip().isdigit():
             return data, True
@@ -547,7 +557,7 @@ class ttp_functions():
         """Description: Method to find hostname in show
         command output, uses symbols '# ', '<', '>' to find hostname
         """
-        REs = [ # ios-xr prompt re must go before ios exec prompt re
+        REs = [ # ios-xr prompt re must go before ios privilege prompt re
             {'ios_exec': '^\n(\S+)>.*(?=\n)'},   # e.g. 'hostname>'
             {'ios_xr': '^\n\S+:(\S+)#.*(?=\n)'}, # e.g. 'RP/0/4/CPU0:hostname#'
             {'ios_priv': '^\n(\S+)#.*(?=\n)'},   # e.g. 'hostname#'
@@ -1298,15 +1308,15 @@ class variable_class():
         'joinmatches'   : extract_joinmatches,
         # regex formatters:
         're'       : lambda data: self.var_res.append(data['args'][0]),
-        'phrase'   : lambda data: self.var_res.append(self.REs.patterns['phrase']),
-        'orphrase' : lambda data: self.var_res.append(self.REs.patterns['orphrase']),
-        'digit'    : lambda data: self.var_res.append(self.REs.patterns['digit']),
-        'ip'       : lambda data: self.var_res.append(self.REs.patterns['ip']),
-        'prefix'   : lambda data: self.var_res.append(self.REs.patterns['prefix']),
-        'ipv6'     : lambda data: self.var_res.append(self.REs.patterns['ipv6']),
-        'prefixv6' : lambda data: self.var_res.append(self.REs.patterns['prefixv6']),
-        'mac'      : lambda data: self.var_res.append(self.REs.patterns['mac']),
-        'word'     : lambda data: self.var_res.append(self.REs.patterns['word']),
+        'PHRASE'   : lambda data: self.var_res.append(self.REs.patterns['PHRASE']),
+        'ORPHRASE' : lambda data: self.var_res.append(self.REs.patterns['ORPHRASE']),
+        'DIGIT'    : lambda data: self.var_res.append(self.REs.patterns['DIGIT']),
+        'IP'       : lambda data: self.var_res.append(self.REs.patterns['IP']),
+        'PREFIX'   : lambda data: self.var_res.append(self.REs.patterns['PREFIX']),
+        'IPV6'     : lambda data: self.var_res.append(self.REs.patterns['IPV6']),
+        'PREFIXV6' : lambda data: self.var_res.append(self.REs.patterns['PREFIXV6']),
+        'MAC'      : lambda data: self.var_res.append(self.REs.patterns['MAC']),
+        'WORD'     : lambda data: self.var_res.append(self.REs.patterns['WORD']),
         '_line_'   : lambda data: self.var_res.append(self.REs.patterns['_line_']),
         }
 
@@ -1322,15 +1332,15 @@ class variable_class():
         """
         # form escapedVariable:
         esc_var='\\{\\{' + re.escape(self.variable) + '\\}\\}' # escape all special chars in variable like (){}[].* etc.
-        if not 'EXACT' in  esc_var.upper():
+        if not '_exact_' in  esc_var:
             esc_var=re.sub('\d+', r'\\d+', esc_var)  # replace all numbers with \d+ in regex in variable, skip it if EXACT in variable
-        esc_var=re.sub(r'(\\ )+', r'\\ +', esc_var)  # replace all spaces with  + in regex in variable
+        esc_var=re.sub(r'(\\ )+', r'\\ +', esc_var)  # replace all spaces with ' +' in regex in variable
 
         # form escaped line:
         esc_line=re.escape(self.LINE.lstrip())         # escape all special chars in line like (){} [].* etc. and strip leading spaces to preserve indent
-        if not 'EXACT' in  esc_line.upper():
+        if not '_exact_' in  esc_line:
             esc_line=re.sub('\d+',r'\\d+', esc_line)   # to replace all numbers with \d+ in regex
-        esc_line=re.sub(r'(\\ )+',r'\\ +', esc_line)   # to replace all spaces with  + in regex
+        esc_line=re.sub(r'(\\ )+',r'\\ +', esc_line)   # to replace all spaces with ' +' in regex
 
         # check if regex empty, if so, make it equal to escaped line, reconstruct indent and add start/end of line:
         if regex == '':
@@ -1357,7 +1367,7 @@ class variable_class():
             if result:
                 regex = result
 
-        # for variables like {{ _line_ }} or {{ ignore() }}
+        # for variables like {{ ignore() }}
         regexFuncsVar={
         'ignore'   : regex_ignore,
         '_start_'  : regex_deleteVar,
@@ -1376,7 +1386,7 @@ class variable_class():
          for i in self.functions if i['name'] in regexFuncs]
 
         # assign default re if variable without regex formatters:
-        if self.var_res == []: self.var_res.append(self.REs.patterns['word'])
+        if self.var_res == []: self.var_res.append(self.REs.patterns['WORD'])
 
         # form variable regex by replacing escaped variable, if it is still in regex:
         regex = regex.replace(esc_var,
@@ -1431,7 +1441,7 @@ class parser_class():
             try:
                 f = open(D[1], 'r', encoding='utf-8')
                 name = f.name
-                datatext = '\n' + f.read() + '\n'
+                datatext = '\n' + f.read() + '\n\n'
             except UnicodeDecodeError:
                 print('Warning: Unicode read error, file {}'.format(name))
             finally:
@@ -1439,7 +1449,7 @@ class parser_class():
 
         def load_text(D):
             nonlocal name, datatext
-            datatext = '\n' + D[1] + '\n'
+            datatext = '\n' + D[1] + '\n\n'
             name = 'text_data'
 
         read_funcs = {
@@ -1925,17 +1935,17 @@ class outputter_class():
         format (str): output format indicator on how to format data
         url (str): path to where to save data to e.g. OS path
         filename (str): name of hte file
+        method (str): how to save results, in separate files or in one file
     """
     def __init__(self, element=None, **kwargs):
         self.utils = ttp_utils()
         self.attributes = {
             'returner'    : 'file',
-            'format'      : 'json',
-            'url'         : './Output/',
-            'filename'    : 'output_{}.txt'.format(ctime)
+            'format'      : 'json'
         }
-        self.supported_formats = ['raw', 'yaml', 'json',
-                                'csv', 'jinja2', 'pprint']
+        self.supported_formats = ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint']
+        # dict of supported saving methods for each returner
+        self.supported_methods = {'file': ['split', 'join']}
         self.supported_returners = ['file', 'terminal']
         if element is not None:
             self.element = element
@@ -1944,8 +1954,7 @@ class outputter_class():
             self.element = None
             self.attributes.update(kwargs)
         self.name = self.attributes.get('name', None)
-        if self.name:
-            self.attributes['filename'] = self.name+'_'+self.attributes['filename']
+
 
     def run(self, data, ret):
         result = []
@@ -1966,13 +1975,28 @@ class outputter_class():
                              returner, self.supported_returners))
 
     def returner_file(self, D):
-        url = self.attributes['url']
-        filename = self.attributes['filename']
+        """Method to write data into file
+        Args:
+            url (str): os path there to save files
+            filename (str): name of the file
+        """
+        url = self.attributes.get('url', './Output/')
+        method = self.attributes.get('method', 'join')
+        filename = self.attributes.get('filename', 'output_{}.txt'.format(ctime))
+        if self.name:
+            filename = self.name + '_' + filename
+        if method not in self.supported_methods['file']:
+            raise SystemExit("Error: Unsupported file returner method '{}'. Supported: {}. Exiting".format(
+                             method, self.supported_methods['file']))
         if not os.path.exists(url):
             os.mkdir(url)
-        with open(url + filename, 'a') as f:
-            for datum in D:
-                f.write(datum)
+        if method is 'join':
+            with open(url + filename, 'a') as f:
+                for datum in D:
+                    f.write(datum)
+        elif method is 'split':
+            pass
+                
 
     def returner_terminal(self, D):
         [print(datum) for datum in D]
@@ -2002,13 +2026,9 @@ class outputter_class():
 
     def formatter_csv(self, data):
         """
-        Method to dump list of dictionaries to csv spreadsheet.
-        Args:
-            dataToDump : List of data to dump
-            output_data : Dictionary of {'attributes' : element.attrib, 'data' :
-                element.text} extracted from template "outputs" element
+        Method to dump list of dictionaries into csv spreadsheet.
         Example:
-            <outputs name="IPAM" format="csv" text="python">
+            <outputs name="IPAM" format="csv" load="python">
             group=["interfaces"]
             headers=["hostname", "Interface", "vrf", "ip", "mask", "description"]
             </outputs>
@@ -2032,6 +2052,15 @@ class outputter_class():
         # without predefined keys:
         result = template_obj.render(data, _data=data)
         return result
+        
+    def formatter_tabulate(self, data):
+        """MEthod to fornatt data as a tibale using tabulate module
+        """
+        try:
+            from tabulate import tabulate
+        except ImportError:
+            raise SystemExit("tabulate not installed, install: 'python -m pip install tabulate', exiting")
+        pass
 
 
 
@@ -2096,20 +2125,17 @@ if __name__ == '__main__':
     parser_Obj.parse(one=ONE, multi=MULTI)
     timing("Data parsing finished")
 
-    parser_Obj.output()
-    timing("Data output done")
-
     if output.lower() == 'yaml':
-        parser_Obj.output(format='yaml', returner='terminal')
+        parser_Obj.result(format='yaml', returner='terminal')
         timing("YAML dumped")
     elif output.lower() == 'raw':
-        parser_Obj.output(format='raw', returner='terminal')
+        parser_Obj.result(format='raw', returner='terminal')
         timing("RAW dumped")
     elif output.lower() == 'json':
-        parser_Obj.output(format='json', returner='terminal')
+        parser_Obj.result(format='json', returner='terminal')
         timing("JSON dumped")
     elif output.lower() == 'pprint':
-        parser_Obj.output(format='pprint', returner='terminal')
+        parser_Obj.result(format='pprint', returner='terminal')
         timing("RAW pprint dumped")
     elif output:
         print("Error: Unsuported output format '{}', supported [yaml, json, raw, pprint]".format(output.lower()))
