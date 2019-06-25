@@ -693,7 +693,7 @@ BGP neighbor is {{ PEER }},  remote AS {{ remote_as | lookup(aux_csv, asn_detail
   BGP state = {{ state }}, up for {{ time }}
   BGP state = {{ state }}, down for {{ time }}, retry in {{ ignore }}
   BGP state = {{ state }} (Admin), down for {{ time }}
-  Last read 00:00:06, hold time = {{ holddown }}, keepalive interval is {{ keepalive }} seconds
+  Last read {{ ignore }}, hold time = {{ holddown }}, keepalive interval is {{ keepalive }} seconds
   
   <g name = "afi**">  
    <g name="Unicast**.{{ AFI }}">
@@ -765,4 +765,25 @@ router bgp {{ bgp_as }}
     description {{ description | rlookup('locations.cities', add_field='location') }}
  </group>
 </group> 
+"""
+
+test4 = """
+<vars>
+vlans = "unrange(rangechar='-', joinchar=',') | split(',') | join(':') | joinmatches(':')"
+</vars>
+
+<group name="interfaces">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans | chain('vlans') }}
+</group>
+"""
+
+test5 = """
+<group name="vrfs">
+vrf {{ vrf }}
+ <group name="ipv4_config">
+ address-family ipv4 unicast
+  maximum prefix {{ limit }} {{ warning }}
+ </group>
+</group>
 """

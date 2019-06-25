@@ -1287,7 +1287,10 @@ class variable_class():
         def extract_chain(data):
             """add items from chain to variable attributes and functions
             """
-            variable_value = self.group.vars.get(data['args'][0], '')
+            variable_value = self.group.vars.get(data['args'][0], None)
+            if variable_value is None:
+                print("ERROR: chain variable '{}' not found".format(data['args'][0]))
+                return
             attributes =  self.get_attributes(variable_value)
             for i in attributes:
                 name = i['name']
@@ -1654,7 +1657,7 @@ class results_class():
             'ADD'        : self.ADD,         # ADD - to add data to group, defaul-normal action;
             'STARTEMPTY' : self.STARTEMPTY,  # STARTEMPTY - to start new empty group in case if _start_ found;
             'END'        : self.END,         # END - to explicitly signal the end of group to LOCK it;
-            'JOIN'       : self.JOIN         # JOIN - to join results for given variable, e.g. joinmatches; 'joinchar' value also must be passed in that case;
+            'JOIN'       : self.JOIN         # JOIN - to join results for given variable, e.g. joinmatches;
         }
 
         if results: self.RESULTS.update({'vars': vars})
@@ -1782,7 +1785,7 @@ class results_class():
         elif isinstance(ELEMENT, list):
             if ELEMENT == []:
                 ELEMENT.append(self.list_to_dict_fwd(PATH))   # check if element list is empty, if so - append empty dict to it
-            return self.dict_by_path(PATH, ELEMENT[-1])                     # run recursion with last item in the list
+            return self.dict_by_path(PATH, ELEMENT[-1])       # run recursion with last item in the list
 
 
     def SAVE_CURELEMENTS(self):
@@ -1991,13 +1994,12 @@ class outputter_class():
         if not os.path.exists(url):
             os.mkdir(url)
         if method is 'join':
-            with open(url + filename, 'a') as f:
+            with open(url + filename, 'w') as f:
                 for datum in D:
                     f.write(datum)
         elif method is 'split':
             pass
                 
-
     def returner_terminal(self, D):
         [print(datum) for datum in D]
 
@@ -2047,7 +2049,7 @@ class outputter_class():
         # load template:
         template_obj = Environment(loader='BaseLoader', trim_blocks=True,
                                    lstrip_blocks=True).from_string(self.element.text)
-        # render data - first argiment is data as is, second argument data assigned to _data,
+        # render data - first argument is data as is, second argument data assigned to _data,
         # so that _data can be referenced in templates, need it because data can be a dictionary
         # without predefined keys:
         result = template_obj.render(data, _data=data)
