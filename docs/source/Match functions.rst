@@ -2,12 +2,12 @@
 
    <br />
 
-Match functions
+Match Functions
 ===============
 
-Description of ttp built-in functions that can be applied to match results. 
+A set of ttp match variables functions that can be applied to match results to transform them in a desied way, additionally functions can be used to validate and filter match results. 
 
-Action functions below act upon match result to transform it to desired state.
+Action functions act upon match result to transform it to desired state.
   
 .. list-table:: action functions
    :widths: 10 90
@@ -44,7 +44,7 @@ Action functions below act upon match result to transform it to desired state.
    * - `rlookup`_ 
      - find rlookup table key in match result and return assiciated values
  
-Condition functions can perform various checks with match results and produce either True or False result
+Condition functions can perform various checks with match results and returns either True or False depending on check results.
 
 .. list-table:: condition functions
    :widths: 10 90
@@ -76,48 +76,92 @@ Condition functions can perform various checks with match results and produce ei
      - checks if match is greater than given value
    * - `lessthan`_ 
      - checks if match is less than given value
+	 
+Python builtins
+------------------------------------------------------------------------------
+Apart from functions provided by ttp, python objects builtin functions can be used as well. For instance string *upper* method can be used to convert match into apper case, or list *index* method to return index of certain value.
 
-Match indicators used to change parsing logic or indicate certain events.
-	 
-.. list-table:: indicators
-   :widths: 10 90
-   :header-rows: 1
-   
-   * - Name
-     - Description  
-   * - `_exact_`_ 
-     - TBD
-   * - `_start_`_ 
-     - TBD
-   * - `_end_`_ 
-     - TBD
-   * - `_line_`_ 
-     - TBD
+**Example**
 
-Regex formatters help to specify regular expressions that should be used to match certain variables. 
-	 
-.. list-table:: indicators
-   :widths: 10 90
-   :header-rows: 1
-   
-   * - Name
-     - Description  
-   * - `PHRASE`_ 
-     - TBD
-   * - `ORPHRASE`_ 
-     - TBD
-   * - `WORD`_ 
-     - TBD
-	 
-Apart from ttp functions described above python objects built-in functions can be used as well. For instance string m
+Data:
+
+.. code-block::
+
+ interface Tunnel2422
+  description cpe-1
+ !
+ interface GigabitEthernet1/1
+  description core-1
+ 
+Template:
+
+.. code-block:: html
+
+ <group name="interfaces">
+ interface {{ interface | upper }}
+  description {{ description | split('-') }}
+ </group>
+
+Result:
+
+.. code-block::
+
+ {
+     "interfaces": [
+         {
+             "description": ["cpe", "1"],
+             "interface": "TUNNEL2422"
+         },
+         {
+             "description": ["core", "1"],
+             "interface": "GIGABITETHERNET1/1"
+         }
+     ]
+ }
 
 chain
 ------------------------------------------------------------------------------
-``{{ name | chain(variable) }}``
+``{{ name | chain(variable_name) }}``
 
-* variable (mandatory) - string containing variable name
+* variable_name (mandatory) - string containing variable name
 
-Description goes here... 
+Sometime when many functions needs to be run against match result the template can become difficult to read, in addition if same set of functions needs to be run agains several matches and changes needs to be done to the set of functions it can become difficult to maintain such a template. 
+
+To solve above problem *chain* function can be use. Value supplied to that function must reference a valid variable name, that variable itslef should contain sting of functions names that should be used for match result.
+
+**Example**
+
+Data:
+
+.. code-block::
+
+ interface GigabitEthernet3/3
+  switchport trunk allowed vlan add 138,166-173 
+  switchport trunk allowed vlan add 400,401,410
+ 
+Template:
+
+.. code-block:: html
+
+ <vars>
+ vlans = "unrange(rangechar='-', joinchar=',') | split(',') | join(':') | joinmatches(':')"
+ </vars>
+ 
+ <group name="interfaces">
+ interface {{ interface }}
+  switchport trunk allowed vlan add {{ trunk_vlans | chain('vlans') }}
+ </group>
+
+Result:
+
+.. code-block::
+
+ {
+     "interfaces": {
+         "interface": "GigabitEthernet3/3",
+         "trunk_vlans": "138:166:167:168:169:170:171:172:173:400:401:410"
+     }
+ }
 	
 record
 ------------------------------------------------------------------------------
@@ -149,18 +193,18 @@ Join results from different matches into a single result string using provider c
 
 **Example**
 
-Sample data is:
+Data:
 ::
     interface GigabitEthernet3/3
-    switchport trunk allowed vlan add 138,166,173 
-    switchport trunk allowed vlan add 400,401,410
+     switchport trunk allowed vlan add 138,166,173 
+     switchport trunk allowed vlan add 400,401,410
  
-If template is:
+Template:
 ::
     interface {{ interface }}
-    switchport trunk allowed vlan add {{ trunk_vlans | joinmatches(',') }}
+     switchport trunk allowed vlan add {{ trunk_vlans | joinmatches(',') }}
 
-Result will be:
+Result:
 ::
     {
         "interface": "GigabitEthernet3/3"  
@@ -178,7 +222,7 @@ Performs re.sub(old, new, match, count=1) on match result and returns produced v
 
 **Example**
 
-Sample data is:
+Data:
 ::
     interface GigabitEthernet3/3
  
@@ -186,7 +230,7 @@ Template is:
 ::
     interface {{ interface | resub(old = '^GigabitEthernet'), new = 'Ge'}}
 
-Result will be:
+Result:
 ::
     {
         "interface": "Ge3/3"  
@@ -205,7 +249,7 @@ Run joins against match result using provided character and return string
 
 Match is a string here and running join against it will inser '.' in between each charscter 
 
-Sample data is:
+Data:
 ::
     description someimportantdescription
  
@@ -213,7 +257,7 @@ Template is:
 ::
     description {{ description | join('.') }}
 
-Result will be:
+Result:
 ::
     {
         "description": "s.o.m.e.i.m.p.o.r.t.a.n.t.d.e.s.c.r.i.p.t.i.o.n"  
@@ -223,17 +267,17 @@ Result will be:
 
 After running split function match result transformed into list object, running join against list will produce string with values separated by ":" character
 
-Sample data is:
+Data:
 ::
     interface GigabitEthernet3/3 
      switchport trunk allowed vlan add 138,166,173,400,401,410
  
-If template is:
+Template:
 ::
     interface {{ interface }}  
      switchport trunk allowed vlan add {{ trunk_vlans | split(',') | join(':') }}
 
-Result will be:
+Result:
 ::
     {
         "interface": "GigabitEthernet3/3"  
@@ -250,7 +294,7 @@ Appends string to match result and returns produced value
 
 **Example**
 
-Sample data is:
+Data:
 ::
     interface Ge3/3
  
@@ -258,7 +302,7 @@ Template is:
 ::
     interface {{ interface | append(' - non production') }}
 
-Result will be:
+Result:
 ::
     {
         "interface": "Ge3/3 - non production"  
@@ -272,12 +316,12 @@ Will print match result to terminal as is at the given position in chaing, can b
 
 **Example**
 
-Sample data is:
+Data:
 ::
     interface GigabitEthernet3/3
      switchport trunk allowed vlan add 138,166,173  
  
-If template is:
+Template:
 ::
     interface {{ interface }}
      switchport trunk allowed vlan add {{ trunk_vlans | split(',') | print | join(':') print }}
@@ -298,17 +342,17 @@ If match result has integer range in it, this function can be used to extend tha
 
 **Example**
 
-Sample data is:
+Data:
 ::
     interface GigabitEthernet3/3
      switchport trunk allowed vlan add 138,166,170-173
  
-If template is:
+Template:
 ::
     interface {{ interface }}
      switchport trunk allowed vlan add {{ trunk_vlans | unrange(rangechar='-', joinchar=',') }}
 
-Result will be:
+Result:
 ::
     {
         "interface": "GigabitEthernet3/3"  
@@ -325,7 +369,7 @@ Not all configuration statements have variables or values associated with them, 
 
 **Example**
 
-Sample data
+Data
 ::
     interface GigabitEthernet3/3
      shutdown
@@ -361,7 +405,7 @@ Run string replace method on match with *new* and *old* values derived using bel
 
 **Example-1.1** With *new* set to '' empty value
 
-*Sample data*
+Data
 ::
     interface GigabitEthernet3/3 
     interface GigEthernet5/7 
@@ -379,7 +423,7 @@ Result
     
 **Example-1.2** With *new* set to 'Ge'
 
-Sample data
+Data
 ::
     interface GigabitEthernet3/3 
     interface GigEth5/7 
@@ -399,7 +443,7 @@ Result
 
 **Example-2.1** With *new* set to 'GE' value
 
-Sample data
+Data
 ::
     interface GigabitEthernet3/3 
     interface GigEthernet5/7 
@@ -433,7 +477,7 @@ Result
     
 **Example-2.2** With *new* set to '' empty value
 
-Sample data
+Data
 ::
     interface GigabitEthernet3/3 
     interface GigEthernet5/7 
@@ -471,7 +515,7 @@ Result
 
 **Example-3.1** With dictionary values as lists
 
-Sample data
+Data
 ::
     interface GigabitEthernet3/3 
     interface GigEthernet5/7 
@@ -585,7 +629,7 @@ lookup
 Lookup function takes match value and perform lookup on that value in lookup table. Lookup table is a dictionary data where keys checked if they are equal to math result.
 
 If lookup was unsuccesful no changes introduces to match result, if it was successful we have two option on what to do with looked up values:
-* if add_field is False - match result will be replaced with found values
+* if add_field is False - match Result replaced with found values
 * if add_field is not False - string passed as add_field value used as a name for additional field that will be added to group match results
 
 **Example-1** *add_field* set to False
@@ -697,7 +741,7 @@ rlookup
 This function searches rlookup table keys in match value. rlookup table is a dictionary data where keys checked if they are equal to math result.
 
 If lookup was unsuccesful no changes introduces to match result, if it was successful we have two options:
-* if add_field is False - match result will be replaced with found values
+* if add_field is False - match Result replaced with found values
 * if add_field is not False - string passed as add_field used as a name for additional field to be added to group results, value for that new field is a data from lookup table
 
 **Example**
@@ -781,6 +825,55 @@ contains
 
 This faunction evaluates if match value contains given string pattern, returns True if so and False otherwise.
 
+**Example**
+
+*contains* can be used to filter group results based on filtering start res, for instance, if we have configuration of networking device and we want to extract information only about *Vlan* interfaces.
+
+Data
+::
+ interface Vlan123
+  description Desks vlan
+  ip address 192.168.123.1 255.255.255.0
+ !
+ interface GigabitEthernet1/1
+  description to core-1
+ !
+ interface Vlan222
+  description Phones vlan
+  ip address 192.168.222.1 255.255.255.0
+ !
+ interface Loopback0
+  description Routing ID loopback
+ 
+Template
+::
+ <group name="SVIs">
+ interface {{ interface | contains('Vlan') }}
+  description {{ description | ORPHRASE}}
+  ip address {{ ip }} {{ mask }}
+ </group>
+ 
+Result
+::
+ {
+     "SVIs": [
+         {
+             "description": "Desks vlan",
+             "interface": "Vlan123",
+             "ip": "192.168.123.1",
+             "mask": "255.255.255.0"
+         },
+         {
+             "description": "Phones vlan",
+             "interface": "Vlan222",
+             "ip": "192.168.222.1",
+             "mask": "255.255.255.0"
+         }
+     ]
+ }
+
+If first line in the group contains match variables it is considered start re, if start re condition check result evalueated to *False*, all the matches that belong to this group will be filtered. In example above line "interface {{ interface | contains('Vlan') }}" is a start re, hence if "interface" variable match will not contain "Vlan", group results will be discarded.
+ 
 notstartswith_re
 ------------------------------------------------------------------------------
 ``{{ name | notstartswith_re('pattern') }}``

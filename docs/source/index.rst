@@ -10,16 +10,13 @@ Template Text Parser
    :maxdepth: 2
    :caption: Contents:
    
-   Usage
-   Inputs
-   Variables
-   Lookups
-   Groups
-   Group attributes
-   Group functions
-   Match functions
-   Outputs
-   Templates library
+   Installation
+   Quick start
+   Overview
+   Templates structure
+   Match Variables
+   Writing templates
+   Examples
 
 Indices and tables
 ==================

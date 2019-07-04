@@ -634,13 +634,13 @@ caps = "ORPHRASE | upper"
 
 <lookup 
 name="aux_ini" 
-format="ini" 
+load="ini" 
 include="C:/Users/Denis/YandexDisk/Python/TPG/Text Template Parser/ttp/!USECASES/BGP MAP/aux_data.txt"
 />
 
 <lookup 
 name="aux_csv" 
-format="csv" 
+load="csv" 
 key='ASN'
 >
 ASN,as_name,as_description,as_number
@@ -654,28 +654,28 @@ ASN,as_name,as_description,as_number
 
 <!--NXOS "show run | sec bgp" parse template-->
 <group name="{{ hostname }}.bgp_config.AS_{{ loca_as }}">
-router bgp {{ bgp_as | record(loca_as) | lookup(name="aux_csv", add_field='asn_details') }}
+router bgp {{ bgp_as | record('loca_as') | lookup(name="aux_csv", add_field='asn_details') }}
   router-id {{ rid }}
   <group name="vrfs*.{{ VRF }}">
   vrf {{ VRF }}
-    {{ hostname | let(hostname) }}
-    {{ local_as | let(loca_as) }}
+    {{ hostname | let('hostname') }}
+    {{ local_as | let('loca_as') }}
     <group name="afi**">
       <group name="Unicast**.{{ AFI }}">
     address-family {{ AFI }} unicast
-      network {{ network | joinmathes() }}
+      network {{ network | joinmatches() }}
       redistribute direct route-map {{ redistr_direct_rpl }}
       </group>
     </group>
     <group name="peers**.{{ PEER }}">    
     neighbor {{ PEER }}
-      remote-as {{ remote_as | lookup(aux_csv) }}
-      description {{ description | chain(caps) }}
+      remote-as {{ remote_as | lookup('aux_csv') }}
+      description {{ description | chain('caps') }}
       <group name="afi**.{{ AFI }}">
        <group name="Unicast**">
       address-family {{ AFI }} unicast
-        shutdown {{ shutdown | set(True) }}
-        allowas-in {{ allow_as_in | set(True) }}
+        shutdown {{ shutdown | set('True') }}
+        allowas-in {{ allow_as_in | set('True') }}
         route-map {{ rpl_in }} in
         route-map {{ rpl_out }} out
        </group>
@@ -687,8 +687,8 @@ router bgp {{ bgp_as | record(loca_as) | lookup(name="aux_csv", add_field='asn_d
 
 <!--NXOS "show bgp vrf all all neighbors" parse template-->
 <g name = "peers_state.{{ PEER }}">
-BGP neighbor is {{ PEER }},  remote AS {{ remote_as | lookup(aux_csv, asn_details) }}, {{ type }} link, Peer index 2
-  Description: {{ description | chain(caps) }}
+BGP neighbor is {{ PEER }},  remote AS {{ remote_as | lookup('aux_csv', 'asn_details') }}, {{ type }} link, Peer index 2
+  Description: {{ description | chain('caps') }}
   BGP version 4, remote router ID {{ peer_rid }}
   BGP state = {{ state }}, up for {{ time }}
   BGP state = {{ state }}, down for {{ time }}, retry in {{ ignore }}
@@ -782,8 +782,143 @@ test5 = """
 <group name="vrfs">
 vrf {{ vrf }}
  <group name="ipv4_config">
- address-family ipv4 unicast
+ address-family ipv4 unicast {{ _start_ }}
   maximum prefix {{ limit }} {{ warning }}
+ !{{ _end_ }}
  </group>
 </group>
+"""
+
+test6 = """
+<group name="vrfs">
+vrf {{ vrf }}
+ <group name="ipv4_config">
+ address-family ipv4 unicast {{ _start_ }}{{ _exact_ }}
+  maximum prefix {{ limit }} {{ warning }}
+ !{{ _end_ }}
+ </group>
+</group>
+"""
+
+test7 = """
+<group name="cdp_peers">
+------------------------- {{ _start_ }}
+Device ID: {{ peer_hostname }}
+Entry address(es): 
+  IP address: {{ peer_ip }}
+</group>
+"""
+
+test8 = """
+<group name="interfaces">
+interface Tunnel{{ if_id }}
+interface GigabitEthernet{{ if_id | _start_ }}
+ description {{ description }}
+</group>
+"""
+
+test9 = """
+<group name="interfaces">
+interface {{ interface | contains("Vlan") }}
+ description {{ description }}
+</group>
+"""
+
+test10 = """
+<group name="interfaces">
+interface {{ interface | upper }}
+ description {{ description | split('-') }}
+</group>
+"""
+
+test11 = """
+<group name="SVIs">
+interface {{ interface | contains('Vlan') }}
+ description {{ description | ORPHRASE}}
+ ip address {{ ip }} {{ mask }}
+</group>
+"""
+
+test12 = """
+<input name="test11" load="text">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+ switchport trunk allowed vlan add 400,401,410
+</input>
+
+<vars>
+vlans = "unrange(rangechar='-', joinchar=',') | joinmatches(',')"
+</vars>
+
+<group name="interfaces">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans | chain("vlans") }}
+</group>
+"""
+
+TESTS = """
+<template>
+
+<!--template to test contains('Vlan')-->
+<template name="test1" 
+description="template to run tests with contains('Vlan')"
+>
+<input name="test1" load="text">
+interface Vlan123
+ description Desks vlan
+ ip address 192.168.123.1 255.255.255.0
+!
+interface GigabitEthernet1/1
+ description to core-1
+!
+interface Vlan222
+ description Phones vlan
+ ip address 192.168.222.1 255.255.255.0
+!
+interface Loopback0
+ description Routing ID loopback
+</input>
+
+<group name="SVIs">
+interface {{ interface | contains("Vlan") }}
+ description {{ description | ORPHRASE}}
+ ip address {{ ip }} {{ mask }}
+</group>
+</template>
+
+
+
+<!--template to test chain with unrange and joinmatches-->
+<template name="test12">
+<input name="test12" load="text">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+ switchport trunk allowed vlan add 400,401,410
+</input>
+
+<vars>
+vlans = "unrange(rangechar='-', joinchar=',') | joinmatches(',')"
+</vars>
+
+<group name="interfaces">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans | chain("vlans") }}
+</group>
+
+<output name="test12" load="json" functions="is_equal" returner="terminal" description="test vlans unrange and joinmatches functions">
+{
+    "interfaces": {
+        "interface": "GigabitEthernet3/3",
+        "trunk_vlans": "138,166,167,168,169,170,171,172,173,400,401,410"
+    },
+    "vars": {
+        "vlans": "unrange(rangechar='-', joinchar=',') | joinmatches(',')"
+    }
+}
+</output>
+</template>
+
+
+
+</template>
 """
