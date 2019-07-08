@@ -913,7 +913,8 @@ class _template_class():
     def update_groups_with_outputs(self):
         """Method to replace output names in group with
         output index from self.groups_outputs, also move 
-        output from self.outputs to self.groups_outputs
+        output from self.outputs to group specific 
+        self.groups_outputs
         """
         for G in self.groups:
             for grp_index, grp_output in enumerate(G.outputs):
@@ -934,7 +935,7 @@ class _template_class():
                         group_output_found = True                        
                 # print error message if not output found:
                 if not group_output_found:
-                    print("Error: gtoup output '{}' not found.".format(grp_output))
+                    print("Error: group output '{}' not found.".format(grp_output))
             
     
     def get_template_attributes(self, element):

@@ -711,8 +711,8 @@ BGP neighbor is {{ PEER }},  remote AS {{ remote_as | lookup('aux_csv', 'asn_det
 
 <out
 name="bgp_peers_configured_and_state"
-type="json"
-destination="file"
+format="json"
+returner="file"
 />
 """
 
@@ -876,7 +876,7 @@ interface {{ interface }}
 
 
 
-TESTS = """
+TESTS_TEMPLATES = """
 <template>
 
 <!--template to test contains('Vlan')-->
@@ -966,10 +966,7 @@ format_attributes = "tablefmt='fancy_grid'"
 """
 
 
-
-
-
-test100 = """
+TESTS_GROUPS = """
 <vars>
 vlans = "unrange(rangechar='-', joinchar=',') | joinmatches(',')"
 </vars>
