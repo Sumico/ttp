@@ -832,11 +832,28 @@ interface {{ interface | upper }}
 """
 
 test11 = """
-<group name="SVIs">
+<vars>
+hostname = 'gethostname'
+</vars>
+
+<group name="interfaces.SVIs">
 interface {{ interface | contains('Vlan') }}
  description {{ description | ORPHRASE}}
  ip address {{ ip }} {{ mask }}
+{{ hostname | let('hostname') }}
 </group>
+
+<output 
+description="tabulate test https://pyhdust.readthedocs.io/en/latest/tabulate.html"
+format="tabulate"
+path="interfaces.SVIs"
+headers="hostname, interface, ip, mask, description"
+format_attributes = "tablefmt='fancy_grid'"
+/>
+
+<output 
+format="json"
+/>
 """
 
 test12 = """
@@ -856,11 +873,15 @@ interface {{ interface }}
 </group>
 """
 
+
+
+
 TESTS = """
 <template>
 
 <!--template to test contains('Vlan')-->
-<template name="test1" 
+<template 
+name="template_test1" 
 description="template to run tests with contains('Vlan')"
 >
 <input name="test1" load="text">
@@ -884,6 +905,19 @@ interface {{ interface | contains("Vlan") }}
  description {{ description | ORPHRASE}}
  ip address {{ ip }} {{ mask }}
 </group>
+
+<output 
+name="test1" 
+load="python" 
+functions="is_equal" 
+description="test that only interaces with vlan got to results"
+returner="terminal"
+format="tabulate"
+format_attributes="tablefmt='fancy_grid'"
+>
+[{'vars': {}, 'SVIs': [{'interface': 'Vlan123', 'description': 'Desks vlan', 'ip': '192.168.123.1', 'mask': '255.255.255.0'}, {'interface': 'Vlan222', 'description': 'Phones vlan', 'ip': '192.168.222.1', 'mask': '255.255.255.0'}]}]
+</output>
+
 </template>
 
 
@@ -905,7 +939,59 @@ interface {{ interface }}
  switchport trunk allowed vlan add {{ trunk_vlans | chain("vlans") }}
 </group>
 
-<output name="test12" load="json" functions="is_equal" returner="terminal" description="test vlans unrange and joinmatches functions">
+<output 
+name="test12" 
+load="json" 
+functions="is_equal" 
+description="test vlans unrange and joinmatches functions" 
+returner="terminal"
+format="tabulate"
+format_attributes = "tablefmt='fancy_grid'"
+>
+[{
+    "interfaces": {
+        "interface": "GigabitEthernet3/3",
+        "trunk_vlans": "138,166,167,168,169,170,171,172,173,400,401,410"
+    },
+    "vars": {
+        "vlans": "unrange(rangechar='-', joinchar=',') | joinmatches(',')"
+    }
+}]
+</output>
+</template>
+
+
+
+</template>
+"""
+
+
+
+
+
+test100 = """
+<vars>
+vlans = "unrange(rangechar='-', joinchar=',') | joinmatches(',')"
+</vars>
+
+<!--template to test chain with unrange and joinmatches-->
+<input name="test1" load="text" groups="interfaces">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+ switchport trunk allowed vlan add 400,401,410
+</input>
+
+<group name="interfaces" output="test1">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans | chain("vlans") }}
+</group>
+
+<output 
+name="test1" 
+load="json" 
+functions="is_equal" 
+description="test vlans unrange and joinmatches functions" 
+>
 {
     "interfaces": {
         "interface": "GigabitEthernet3/3",
@@ -916,9 +1002,46 @@ interface {{ interface }}
     }
 }
 </output>
-</template>
+
+
+<!--test contains('vlan') for interfaces-->
+<input name="test2" load="text" groups="SVIs">
+interface Vlan123
+ description Desks vlan
+ ip address 192.168.123.1 255.255.255.0
+!
+interface GigabitEthernet1/1
+ description to core-1
+!
+interface Vlan222
+ description Phones vlan
+ ip address 192.168.222.1 255.255.255.0
+!
+interface Loopback0
+ description Routing ID loopback
+</input>
+
+<group name="SVIs" output="test2">
+interface {{ interface | contains("Vlan") }}
+ description {{ description | ORPHRASE}}
+ ip address {{ ip }} {{ mask }}
+</group>
+
+<output 
+name="test2" 
+load="python" 
+functions="is_equal" 
+description="test that only interaces with vlan got to results"
+>
+{'vars': {"vlans": "unrange(rangechar='-', joinchar=',') | joinmatches(',')"}, 'SVIs': [{'interface': 'Vlan123', 'description': 'Desks vlan', 'ip': '192.168.123.1', 'mask': '255.255.255.0'}, {'interface': 'Vlan222', 'description': 'Phones vlan', 'ip': '192.168.222.1', 'mask': '255.255.255.0'}]}
+</output>
 
 
 
-</template>
+<output 
+functions="join_results"
+format="tabulate"
+returner="terminal"
+format_attributes = "tablefmt='fancy_grid'"
+/>
 """

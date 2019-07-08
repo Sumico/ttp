@@ -135,9 +135,9 @@ class ttp():
                  for i in self.__data]
 
             tasks = JoinableQueue()
-            results = Queue()
+            results_queue = Queue()
 
-            workers = [_worker(tasks, results, lookups=template.lookups,
+            workers = [_worker(tasks, results_queue, lookups=template.lookups,
                               vars=template.vars, groups=template.groups)
                        for i in range(num_processes)]
             [w.start() for w in workers]
@@ -145,8 +145,8 @@ class ttp():
             for input_name, input_params in template.inputs.items():
                 for datum in input_params['data']:
                     task_dict = {
-                        'data'            : datum,
-                        'groups_to_run'   : input_params['groups']
+                        'data'          : datum,
+                        'groups_to_run' : input_params['groups']
                     }
                     tasks.put(task_dict)
                     num_jobs += 1
@@ -157,8 +157,8 @@ class ttp():
             tasks.join()
 
             for i in range(num_jobs):
-                result = results.get()
-                self.__form_results(result)
+                result = results_queue.get()
+                template.form_results(result)
 
 
     def __parse_in_one_process(self):
@@ -175,53 +175,44 @@ class ttp():
             for input_name, input_params in template.inputs.items():
                 for datum in input_params['data']:
                     parserObj.set_data(datum)
-                    parserObj.parse(input_params['groups'])
-                    result = parserObj.RSLTSOBJ.RESULTS
-                    self.__form_results(result)
-
-
-    def __form_results(self, result):
-        """Method to add results into self.__results
-        """
-        if not result:
-            return
-        elif 'non_hierarch_tmplt' in result:
-            if isinstance(result['non_hierarch_tmplt'], list):
-                self.__results += result['non_hierarch_tmplt']
-            else:
-                self.__results += [result['non_hierarch_tmplt']]
-        else:
-            self.__results.append(result)
+                    parserObj.parse(groups_names=input_params['groups'])
+                    result = parserObj.results
+                    template.form_results(result)
 
 
     def __run_outputs(self):
         """Method to run templates' outputters.
         """
-        # run templates outputs
-        for template in self.__templates:
-            [output.run(self.__results, ret=False)
-             for output in template.outputs]
+        [template.run_outputs() for template in self.__templates]            
 
 
-    def result(self, **kwargs):
+    def result(self, templates=None, returner='self', **kwargs):
         """
+        Args:
+            templates (list|str): names of the templates to return results for
+            returner (str): if 'self', results will be returned, else given returner will
+                be used to return results to
         kwargs:
             format : supported ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint']
             returner : supported ['file', 'terminal']
             url : path where to save files
             filename : name of the file
         """
-        # run on demand output with given returner
-        if 'format' in kwargs and 'returner' in kwargs:
+        # filter templates to run outputs for:
+        templates_obj = self.__templates
+        if isinstance(templates, str):
+            templates = [templates]
+        if templates:
+            templates_obj = [template for template in self.__templates 
+                             if template.name in templates]
+        
+        # return results:
+        if kwargs:
+            kwargs['returner'] = returner
             outputter = _outputter_class(**kwargs)
-            outputter.run(self.__results, ret=False)
-        # run on demand output and return results
-        elif 'format' in kwargs and 'returner' not in kwargs:
-            outputter = _outputter_class(**kwargs)
-            result = outputter.run(self.__results, ret=True)
-            return result
+            return [outputter.run(template.results) for template in templates_obj]
         else:
-            return self.__results
+            return [template.results for template in templates_obj]                
 
 
 """
@@ -233,10 +224,10 @@ class _worker(Process):
     """Class used in multiprocessing to parse data
     """
 
-    def __init__(self, task_queue, result_queue, lookups, vars, groups):
+    def __init__(self, task_queue, results_queue, lookups, vars, groups):
         Process.__init__(self)
         self.task_queue = task_queue
-        self.result_queue = result_queue
+        self.results_queue = results_queue
         self.parser_obj = _parser_class(lookups, vars, groups)
 
     def run(self):
@@ -249,11 +240,11 @@ class _worker(Process):
             # set parser object parameters
             self.parser_obj.set_data(next_task['data'])
             # parse and get results
-            self.parser_obj.parse(next_task['groups_to_run'])
-            result = self.parser_obj.RSLTSOBJ.RESULTS
+            self.parser_obj.parse(groups_names=next_task['groups_to_run'])
+            result = self.parser_obj.results
             # put results in the queue and finish task
             self.task_queue.task_done()
-            self.result_queue.put(result)
+            self.results_queue.put(result)
         return
 
 
@@ -310,9 +301,9 @@ class _ttp_functions():
         else:
             print("Error: {} function '{}' not found, valid functions are: \n{}".format(scope, name, getattr(self, scope).keys() ))
             
-    def output_is_equal(self, result, *args, **kwargs):
+    def output_is_equal(self, data, *args, **kwargs):
         data_to_compare_with = self.out_obj.attributes['load']
-        if result == data_to_compare_with:
+        if data == data_to_compare_with:
             is_equal = True
         else:
             is_equal = False
@@ -322,6 +313,16 @@ class _ttp_functions():
             'is_equal'           : is_equal
         }
 
+    def output_join_results(self, data, *args, **kwargs):
+        """Metod to join overall results into sigle list
+        Args:
+            data (list): list of overall results, each item is a result per input
+        """
+        results = []
+        for input_result in data:
+            [results.append(grp_result) for grp_result in input_result]
+        return results
+        
     def group_containsall(self, data, *args):
         # args = ('v4address', 'v4mask',)
         for var in args:
@@ -615,9 +616,9 @@ class _ttp_utils():
         """Method to traverse dictionary data and return dict element
         at given path
         """
-        result = {}
+        result = data
         for i in path:
-            result = data.get(i, {})
+            result = result.get(i, {})
         return result
 
     def load_files(self, path, extensions=[], filters=[], read=False):
@@ -710,6 +711,10 @@ class _ttp_utils():
                     text_data += "\n" + datum[1]
             try:
                 exec(compile(text_data, '<string>', 'exec'), {"__builtins__" : None}, data)
+                # run eval in case if data still empty as we might have python dictionary or list
+                # expressed as string
+                if not data:
+                    data = eval(text_data, None, None)
                 return data
             except:
                 print("ERROR: Unable to load Python formatted data\n'{}'".format(text_data))
@@ -811,10 +816,10 @@ class _template_class():
     """Template class to hold template data
     """
     def __init__(self, template_text, DEBUG=False, data_path_prefix=''):
-        self.DEBUG=DEBUG
-        self.PATHCHAR='.'          # character to separate path items, like ntp.clock.time, '.' is pathChar here
-        self.GROUPSTARTED = False
-        self.outputs = []
+        self.DEBUG = DEBUG
+        self.PATHCHAR = '.'          # character to separate path items, like ntp.clock.time, '.' is pathChar here
+        self.outputs = []            # list htat contains global outputs
+        self.groups_outputs = []     # list that contains groups specific outputs
         self.vars = {}
         self.groups = []
         self.inputs = {}
@@ -822,22 +827,47 @@ class _template_class():
         self.templates = []
         self.data_path_prefix = data_path_prefix
         self.utils = _ttp_utils()
+        self.results = []
+        self.name = None
+        self.attributes = {}
 
         # load template from string:
         self.load_template_xml(template_text)
 
         # update inputs with the groups it has to be run against:
         self.update_inputs_with_groups()
+        
+        # update groups if outputs references:
+        self.update_groups_with_outputs()
 
         if self.DEBUG == True:
             from yaml import dump
+            print("self.attributes: \n", self.attributes)
             print("self.outputs: \n", dump(self.outputs))
+            print("self.groups_outputs: \n", dump(self.groups_outputs))
             print("self.vars: \n",   dump(self.vars))
             print('self.groups: \n', dump(self.groups))
             print("self.inputs: \n", self.inputs)
             print('self.lookups: \n', self.lookups)
             print('self.templates: \n', self.templates)
 
+    def run_outputs(self):
+        """Method to run template outputs with template results
+        """
+        [output.run(self.results) for output in self.outputs]
+            
+    def form_results(self, result):
+        """Method to add results to self.results
+        """
+        if not result:
+            return
+        elif 'non_hierarch_tmplt' in result:
+            if isinstance(result['non_hierarch_tmplt'], list):
+                self.results += result['non_hierarch_tmplt']
+            else:
+                self.results += [result['non_hierarch_tmplt']]
+        else:
+            self.results.append(result)
 
     def set_input(self, data, input_name='Default_Input', groups=['all']):
         """
@@ -880,6 +910,54 @@ class _template_class():
                         'groups' : [G.name]
                     }
 
+    def update_groups_with_outputs(self):
+        """Method to replace output names in group with
+        output index from self.groups_outputs, also move 
+        output from self.outputs to self.groups_outputs
+        """
+        for G in self.groups:
+            for grp_index, grp_output in enumerate(G.outputs):
+                group_output_found = False
+                # search through global outputs:
+                for glob_index, glob_output in enumerate(self.outputs):
+                    if glob_output.name == grp_output:
+                        self.groups_outputs.append(self.outputs.pop(glob_index))
+                        G.outputs[grp_index] = self.groups_outputs[-1]
+                        group_output_found = True
+                # go to next output if this output found:        
+                if group_output_found:
+                    continue
+                # try to find output in group specific outputs:    
+                for index, output in enumerate(self.groups_outputs):
+                    if output.name == grp_output:
+                        G.outputs[grp_index] = output
+                        group_output_found = True                        
+                # print error message if not output found:
+                if not group_output_found:
+                    print("Error: gtoup output '{}' not found.".format(grp_output))
+            
+    
+    def get_template_attributes(self, element):
+        
+        def extract_name(O):
+            self.name = O
+        
+        def extract_results(O):
+            """O = join | pergroup
+            """
+            self.attributes['results'] = O
+            
+        def extract_vars(O):
+            self.attributes['vars'] = O
+            
+        opt_funcs = {
+        'name'    : extract_name,
+        'results' : extract_results,
+        'vars'    : extract_vars
+        }
+        
+        [opt_funcs[name](options) for name, options in element.attrib.items()
+         if name in opt_funcs]
 
     def load_template_xml(self, template_text):
 
@@ -899,15 +977,16 @@ class _template_class():
             # load input parameters:
             input_data = self.utils.load_struct(element)
 
-            # get parameters:
+            # get parameters from input attributes:
             name = element.attrib.get('name', 'Default_Input')
+            groups = element.attrib.get('groups', 'all')
+            groups = [i.strip() for i in groups.split(',')]
 
             # if load is text:
             if isinstance(input_data, str):
-                self.set_input(data=[('text_data', input_data)], input_name=name)
+                self.set_input(data=[('text_data', input_data)], input_name=name, groups=groups)
                 return
                 
-            groups = input_data.get('groups', [])
             extensions = input_data.get('extensions', [])
             filters = input_data.get('filters', [])
             urls = input_data.get('url', [])
@@ -1010,6 +1089,8 @@ class _template_class():
                     tmplt = ET.XML("<template />")
                     tmplt.insert(0, template_ET)
                     template_ET = tmplt
+                else:
+                    self.get_template_attributes(template_ET)
             except ET.ParseError as e:
                 template_ET = ET.XML("<template>\n{}\n</template>".format(template_text))
             
@@ -1044,7 +1125,7 @@ class _group_class():
             runs (dict): to sotre modified defaults during parsing run
             default (str): group all variables' default value if no more specific default value given
             inputs (list): list of inputs names this group should be used for
-            outputs (list): list of outputs, feature not implemnted yet
+            outputs (list): list of outputs to run for this group
             funcs (list):vlist of functions to run agaist group results
             method (str): indicate type of the group - [group | table]
             start_re (list): contains list of group start regular epressions
@@ -1472,8 +1553,7 @@ class _parser_class():
         Args:
             D (tuple): dict of (dataname, data_path,)
         """
-        self.raw_results = []            # initiate raw results dictionary
-        self.RSLTSOBJ = _results_class()  # create results object
+        self.results = {}
         self.DATANAME, self.DATATEXT = self.read_data(D)
         # set vars to original vars and update them based on DATATEXT:
         self.set_vars()
@@ -1543,14 +1623,18 @@ class _parser_class():
                     result = getattr(self.functions, 'variable_' + VARvalue)(self.DATATEXT, self.DATANAME)
                     self.vars['globals']['vars'].update({VARname: result})
                 except AttributeError:
-                    continue
-
-
+                    continue              
+        
+                    
     def parse(self, groups_names):
         # groups_names - list of groups' names to run
-        unsort_rslts=[] # list of dictionaries - one item per top group, each dictionary
-                        # contains unsorted match results for all res within group
-
+        unsort_rslts = [] # list of dictionaries - one item per top group, each dictionary
+                          # contains all unsorted match results for all REs within group
+        raw_results = []  # list to store sorted results for all groups
+        grps_unsort_rslts = [] # group specific match results to run output against them
+                               # each item is a tuple of (results, group.outputs,)
+        grps_raw_results = []  # group specific sorted results
+        
         def check_matches(regex, matches, results, start):
             for match in matches:
                 result = {} # dict to store result
@@ -1656,23 +1740,51 @@ class _parser_class():
 
             return results
 
-        [unsort_rslts.append(run_re(group, results={})) for group in self.groups
-         if group.name in groups_names or 'all' in groups_names]
+        # run parsing to produce unsorted results:
+        for group in self.groups:
+            if group.name in groups_names or 'all' in groups_names:
+                # get results for groups with global only outputs:
+                if group.outputs == []:
+                    unsort_rslts.append(run_re(group, results={}))
+                # get results for groups with group specific results:
+                else:
+                    # for a tuple of (results, group.outputs,)
+                    grps_unsort_rslts.append(
+                        (run_re(group, results={}), group.outputs,)
+                    )        
 
-        # sort results:
-        [ self.raw_results.append(
+        # sort results global groups:
+        [ raw_results.append(
           [group_result[key] for key in sorted(list(group_result.keys()))]
-          )
-          for group_result in unsort_rslts if group_result ]
+          ) for group_result in unsort_rslts if group_result ]       
+        # form results for global groups:
+        RSLTSOBJ = _results_class()
+        RSLTSOBJ.form_results(self.vars['globals']['vars'], raw_results)
+        self.results = RSLTSOBJ.RESULTS
+        
+        # sort results for group specific results:
+        [ grps_raw_results.append(
+            ([group_result[0][key] for key in sorted(list(group_result[0].keys()))],
+            group_result[1],) # tuple item that contains group.outputs
+        ) for group_result in grps_unsort_rslts if group_result[0] ]    
+        # form results for groups specific results with running group through outputs:
+        for grp_raw_result in grps_raw_results:
+            raw_result = [grp_raw_result[0]]
+            RSLTSOBJ = _results_class()
+            RSLTSOBJ.form_results(self.vars['globals']['vars'], raw_result)
+            grp_result = RSLTSOBJ.RESULTS
+            for output in grp_raw_result[1]:
+                grp_result = output.run(data=grp_result)
+            # transform results into list:
+            if isinstance(self.results, dict):
+                if self.results:
+                    self.results = [self.results]
+                else:
+                    self.results = []
+            # save results into global results list:
+            self.results.append(grp_result)
 
-        # import yaml
-        # print(yaml.dump(self.raw_results, default_flow_style=False))
-        # import pprint
-        # pprint.pprint(self.raw_results)
-
-        # save results:
-        self.RSLTSOBJ.form_results(self.vars['globals']['vars'], self.raw_results)
-
+            
 
 """
 ==============================================================================
@@ -1991,8 +2103,8 @@ class _outputter_class():
     def __init__(self, element=None, **kwargs):
         self.utils = _ttp_utils()
         self.attributes = {
-            'returner'    : 'file',
-            'format'      : 'json',
+            'returner'    : 'self',
+            'format'      : 'raw',
             'url'         : './Output/',
             'method'      : 'join',
             'filename'    : 'output_{}.txt'.format(ctime)
@@ -2014,7 +2126,7 @@ class _outputter_class():
             self.name = O
             
         def extract_returner(O):
-            supported_returners = ['file', 'terminal']
+            supported_returners = ['file', 'terminal', 'self']
             if O in supported_returners:
                 self.attributes['returner'] = O
             else:
@@ -2022,7 +2134,7 @@ class _outputter_class():
                     O, supported_returners))        
                     
         def extract_format(O):        
-            supported_formats = ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint']
+            supported_formats = ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint', 'tabulate']
             if O in supported_formats:
                 self.attributes['format'] = O
             else:
@@ -2060,21 +2172,43 @@ class _outputter_class():
                 # do nothing as self.attributes['load'] will be used
                 self.functions.append(data)
                 
+        def function_join_results(data):
+            self.functions.append(data)
+                
         def extract_description(O):
             self.attributes['description'] = O
-                
+            
+        def extract_format_attributes(O):
+            """Extract formatter attributes
+            """
+            format_attributes = self.utils.get_attributes(
+                            'format_attributes({})'.format(O))
+            self.attributes['format_attributes'] = {
+                'args': format_attributes[0]['args'],
+                'kwargs': format_attributes[0]['kwargs']
+            }
+            
+        def extract_path(O):
+            self.attributes['path'] = O.split('.')
         
+        def extract_headers(O):
+            self.attributes['headers'] = [i.strip() for i in O.split(',')]
+                
         opt_funcs = {    
-        'name'        : extract_name,
-        'returner'    : extract_returner,
-        'format'      : extract_format,
-        'load'        : extract_load,
-        'url'         : extract_url,
-        'filename'    : extract_filename,
-        'method'      : extract_method,    
-        'functions'   : extract_functions,
-        'is_equal'    : function_is_equal,
-        'description' : extract_description
+        'name'           : extract_name,                  
+        'returner'       : extract_returner,
+        'format'         : extract_format,
+        'load'           : extract_load,
+        'url'            : extract_url,
+        'filename'       : extract_filename,
+        'method'         : extract_method,    
+        'functions'      : extract_functions,
+        'is_equal'       : function_is_equal,
+        'description'    : extract_description,
+        'format_attributes' : extract_format_attributes,
+        'path'           : extract_path,
+        'headers'        : extract_headers,
+        'join_results'   : function_join_results
         }
 
         for name, options in data.items():
@@ -2082,24 +2216,20 @@ class _outputter_class():
             else: print('ERROR: Uncknown output attribute: {}="{}"'.format(name, options))
           
 
-    def run(self, data, ret=False):
-        results = []
-        format = self.attributes['format']
+    def run(self, data):
         returner = self.attributes['returner']
-        # construct results on a per-file basis:
-        for datum in data:
-            # run functions
-            for item in self.functions:
-                func_name = item['name']
-                args = item['args']
-                kwargs = item['kwargs']
-                datum = getattr(self.functions_obj, 'output_' + func_name)(datum, *args, **kwargs)
-            # format data using requested formatter
-            result = getattr(self, 'formatter_' + format)(datum)
-            results.append(result)
-                
+        format = self.attributes['format']
+        results = data
+        # run fuctions:
+        for item in self.functions:
+            func_name = item['name']
+            args = item['args']
+            kwargs = item['kwargs']
+            results = getattr(self.functions_obj, 'output_' + func_name)(results, *args, **kwargs)
+        # format data using requested formatter:
+        results = getattr(self, 'formatter_' + format)(results)    
         # decide what to do with results:
-        if ret:
+        if returner == 'self':
             return results
         else:
             getattr(self, 'returner_' + returner)(results)
@@ -2126,8 +2256,9 @@ class _outputter_class():
         elif method is 'split':
             pass
 
-    def returner_terminal(self, D):
-        [print(datum) for datum in D]
+    def returner_terminal(self, D): 
+        print(str(D).replace('\\n', '\n'))
+        # [print(datum) for datum in D]
 
     def formatter_raw(self, data):
         """Method returns parsing results as python list or dictionary.
@@ -2188,8 +2319,30 @@ class _outputter_class():
             from tabulate import tabulate
         except ImportError:
             raise SystemExit("tabulate not installed, install: 'python -m pip install tabulate', exiting")
-        pass
+            
+        headers = self.attributes.get('headers', 'keys')          
+        attribs = self.attributes.get('format_attributes', {'args': [], 'kwargs': {}})
+        path = self.attributes.get('path', [])
+        data_to_tabulate = self.utils.traverse_dict(data, path)
 
+        if isinstance(data_to_tabulate, dict):
+            data_to_tabulate = [data_to_tabulate]
+
+        # if headers given - reform data to follow headers order
+        if isinstance(headers, list):
+            table = []
+            for item in data_to_tabulate:
+                if isinstance(item, dict):
+                    row = ['' for i in headers]
+                    for k, v in item.items():
+                        if k not in headers:
+                            headers.append(k)                    
+                        row[headers.index(k)] = v
+                    table.append(row)    
+            return tabulate(table, headers=headers, *attribs['args'], **attribs['kwargs'])
+
+        return tabulate(data_to_tabulate, headers=headers, *attribs['args'], **attribs['kwargs'])            
+                
 
 
 """
