@@ -314,13 +314,17 @@ class _ttp_functions():
         }
 
     def output_join_results(self, data, *args, **kwargs):
-        """Metod to join overall results into sigle list
+        """Metod to join flatten results into sigle list, will work 
+        only if data items are lists.
         Args:
             data (list): list of overall results, each item is a result per input
         """
         results = []
         for input_result in data:
-            [results.append(grp_result) for grp_result in input_result]
+            if isinstance(input_result, list):
+                [results.append(grp_result) for grp_result in input_result]
+            elif isinstance(input_result, dict):
+                return data
         return results
         
     def group_containsall(self, data, *args):
@@ -2243,23 +2247,17 @@ class _outputter_class():
             filename (str): name of the file
         """
         url = self.attributes.get('url', './Output/')
-        method = self.attributes.get('method', 'join')
         filename = self.attributes.get('filename', 'output_{}.txt'.format(ctime))
         if self.name:
             filename = self.name + '_' + filename
 
         if not os.path.exists(url):
             os.mkdir(url)
-        if method is 'join':
-            with open(url + filename, 'w') as f:
-                for datum in D:
-                    f.write(datum)
-        elif method is 'split':
-            pass
+        with open(url + filename, 'w') as f:
+            f.write(D)
 
     def returner_terminal(self, D): 
         print(str(D).replace('\\n', '\n'))
-        # [print(datum) for datum in D]
 
     def formatter_raw(self, data):
         """Method returns parsing results as python list or dictionary.
