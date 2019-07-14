@@ -193,10 +193,7 @@ class ttp():
             returner (str): if 'self', results will be returned, else given returner will
                 be used to return results to
         kwargs:
-            format : supported ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint']
             returner : supported ['file', 'terminal']
-            url : path where to save files
-            filename : name of the file
         """
         # filter templates to run outputs for:
         templates_obj = self.__templates
@@ -284,10 +281,9 @@ class _ttp_functions():
         # 'variable_is_ip'        : to check that data is valid ip address - isip(4) for v4 or isip(6) for v6 or any
         # 'variable_is_mac'       : to check that data is valid  mac-address
         # 'variable_is_word'      : check if no spaces in data - same as notcontains(' ')
-        # 'variable_is_phrase'    : check if we have spaces in data - same as contains(' ')
         # 'variable_to_ip'        : convert to IP object to do something with it like prefix matching, e.g. check if 1.1.1.1 is part of 1.1.0.0/16
         # 'variable_to_list/to_digit/to_string' : convert variable to list, difit or string
-        # 'grouo_exclude_all/exclude_any'  : to exclude group if group contains certain values
+        # 'group_exclude_all/exclude_any'  : to exclude group if group contains certain values
         # 'index(int)' : index to get from string converted into list with split
     """
     def __init__(self, parser_obj=None, results_obj=None, out_obj=None):
@@ -299,7 +295,8 @@ class _ttp_functions():
         if skip == True:
             print("Error: {} function '{}' not found".format(scope, name))
         else:
-            print("Error: {} function '{}' not found, valid functions are: \n{}".format(scope, name, getattr(self, scope).keys() ))
+            print("Error: {} function '{}' not found, valid functions are: \n{}".format(
+                scope, name, getattr(self, scope).keys() ))
             
     def output_is_equal(self, data, *args, **kwargs):
         data_to_compare_with = self.out_obj.attributes['load']
@@ -334,19 +331,18 @@ class _ttp_functions():
                 if var in self.robj.record['DEFAULTS']:
                     if self.robj.record['DEFAULTS'][var] == data[var]:
                         return data, False
-                return data, True
             else:
                 return data, False
+        return data, None
 
-    def group_containsany(self, data, *args):
+    def group_contains(self, data, *args):
         # args = ('v4address', 'v4mask',)
         for var in args:
             if var in data:
                 if var in self.robj.record['DEFAULTS']:
-                    if self.robj.record['DEFAULTS'][var] != data[var]:
-                        return data, None
-                else:
-                    return data, None
+                    if self.robj.record['DEFAULTS'][var] == data[var]:
+                        return data, False
+                return data, None
         return data, False
 
     def match_joinmatches(self, data, *args, **kwargs):
@@ -639,8 +635,17 @@ class _ttp_utils():
             read True, if read False return (type, url,) or []
         """
         files=[]
+        # check if path is a path to file
+        if os.path.isfile(path):
+            if read:
+                try:
+                    return [('text_data', open(path, 'r', encoding='utf-8').read(),)]
+                except UnicodeDecodeError:
+                    print('Warning: Unicode read error, file "{}"'.format(path))
+            else:
+                return [('file_name', path,)]
         # check if path is directory
-        if os.path.isdir(path):
+        elif os.path.isdir(path):
             files = [f for f in os.listdir(path) if os.path.isfile(path + f)]
             if extensions:
                 files=[f for f in files if f.split('.')[-1] in extensions]
@@ -650,12 +655,6 @@ class _ttp_utils():
                 return [('text_data', open((path + f), 'r', encoding='utf-8').read(),) for f in files]
             else:
                 return [('file_name', path + f,) for f in files]
-        # check if path is a path to file
-        elif os.path.isfile(path):
-            if read:
-                return [('text_data', open(path, 'r', encoding='utf-8').read(),)]
-            else:
-                return [('file_name', path,)]
         # check if path is a string:
         elif isinstance(path, str):
             return [('text_data', path,)]
@@ -677,12 +676,12 @@ class _ttp_utils():
             empy {} dict if nothing found, or python dictionary of loaded
             data from elemnt.text string or from included text files
         """
+        result = {}
         loader = element.attrib.get('load', 'python').lower()
         include = element.attrib.get('include', '')
         text_data = element.text
         if text_data is None:
             text_data = ''
-        result = {}
 
         def load_text(text_data, kwargs):
             return text_data
@@ -824,7 +823,8 @@ class _template_class():
         self.PATHCHAR = '.'          # character to separate path items, like ntp.clock.time, '.' is pathChar here
         self.outputs = []            # list htat contains global outputs
         self.groups_outputs = []     # list that contains groups specific outputs
-        self.vars = {}
+        # _vars_to_results_ is a dict of {pathN:[var_key1, var_keyN]} data 
+        self.vars = {"_vars_to_results_":{}}
         self.groups = []
         self.inputs = {}
         self.lookups = {}
@@ -841,7 +841,7 @@ class _template_class():
         # update inputs with the groups it has to be run against:
         self.update_inputs_with_groups()
         
-        # update groups if outputs references:
+        # update groups with output references:
         self.update_groups_with_outputs()
 
         if self.DEBUG == True:
@@ -937,8 +937,9 @@ class _template_class():
                     if output.name == grp_output:
                         G.outputs[grp_index] = output
                         group_output_found = True                        
-                # print error message if not output found:
+                # print error message if no output found:
                 if not group_output_found:
+                    G.outputs.pop(grp_index)
                     print("Error: group output '{}' not found.".format(grp_output))
             
     
@@ -946,19 +947,12 @@ class _template_class():
         
         def extract_name(O):
             self.name = O
-        
-        def extract_results(O):
-            """O = join | pergroup
-            """
-            self.attributes['results'] = O
-            
-        def extract_vars(O):
-            self.attributes['vars'] = O
             
         opt_funcs = {
-        'name'    : extract_name,
-        'results' : extract_results,
-        'vars'    : extract_vars
+        'name'    : extract_name
+        # data_path_prefix
+        # pathchar
+        # debug
         }
         
         [opt_funcs[name](options) for name, options in element.attrib.items()
@@ -968,9 +962,15 @@ class _template_class():
 
         def parse_vars(element):
             # method to parse vars data
-           vars = self.utils.load_struct(element)
-           if vars:
-               self.vars.update(vars)
+            vars = self.utils.load_struct(element)
+            if vars:
+                self.vars.update(vars)
+            #check if var has name attribute:
+            if "name" in element.attrib:
+                path = element.attrib['name']
+                if not path in self.vars['_vars_to_results_']:
+                    self.vars['_vars_to_results_'][path] = []
+                [self.vars['_vars_to_results_'][path].append(key) for key in vars.keys()]
 
         def parse_output(element):
             self.outputs.append(_outputter_class(element))
@@ -1179,9 +1179,9 @@ class _group_class():
             self.path=self.path + O.split(self.pathchar)
             self.name='.'.join(self.path)
 
-        def extract_containsany(O):
+        def extract_contains(O):
             self.funcs.append({
-                'name': 'containsany',
+                'name': 'contains',
                 'args': [i.strip() for i in O.split(',')]
             })
 
@@ -1193,7 +1193,7 @@ class _group_class():
 
         # group attributes extract functions dictionary:
         opt_funcs={
-        'containsany' : extract_containsany,
+        'contains' : extract_contains,
         'containsall' : extract_containsall,
         'method'      : extract_method,
         'input'       : extract_input,
@@ -1370,7 +1370,6 @@ class _variable_class():
 
         # perform extractions:
         self.extract_functions()
-
 
 
     def extract_functions(self):
@@ -1551,49 +1550,27 @@ class _parser_class():
         self.original_vars = vars
         self.groups = groups
         self.functions = _ttp_functions(parser_obj=self)
+        self.utils = _ttp_utils()
 
 
     def set_data(self, D):
-        """Method to load data and recreate results object
+        """Method to load data:
         Args:
-            D (tuple): dict of (dataname, data_path,)
+            D (tuple): items are dict of (data_type, data_path,)
         """
         self.results = {}
-        self.DATANAME, self.DATATEXT = self.read_data(D)
+        if D[0] == 'text_data':
+            self.DATATEXT = '\n' + D[1] + '\n\n'
+            self.DATANAME = 'text_data'    
+        else:
+            data = self.utils.load_files(path=D[1], read=True)
+            # data is a list of one tuple - [(data_type, data_text,)]
+            self.DATATEXT = '\n' + data[0][1] + '\n\n'
+            self.DATANAME = D[1]
         # set vars to original vars and update them based on DATATEXT:
         self.set_vars()
 
-
-    def read_data(self, D):
-        """Method to read data from datafile
-        """
-        name = ''
-        datatext = '\n\n'
-
-        def load_file(D):
-            nonlocal name, datatext
-            try:
-                f = open(D[1], 'r', encoding='utf-8')
-                name = f.name
-                datatext = '\n' + f.read() + '\n\n'
-            except UnicodeDecodeError:
-                print('Warning: Unicode read error, file {}'.format(name))
-            finally:
-                f.close()
-
-        def load_text(D):
-            nonlocal name, datatext
-            datatext = '\n' + D[1] + '\n\n'
-            name = 'text_data'
-
-        read_funcs = {
-            'file_name': load_file,
-            'text_data': load_text
-        }
-        read_funcs[D[0]](D)
-        return (name, datatext,)
-
-
+        
     def set_vars(self):
         """Method to load template
         Args:
@@ -1774,9 +1751,8 @@ class _parser_class():
         ) for group_result in grps_unsort_rslts if group_result[0] ]    
         # form results for groups specific results with running group through outputs:
         for grp_raw_result in grps_raw_results:
-            raw_result = [grp_raw_result[0]]
             RSLTSOBJ = _results_class()
-            RSLTSOBJ.form_results(self.vars['globals']['vars'], raw_result)
+            RSLTSOBJ.form_results(self.vars['globals']['vars'], [grp_raw_result[0]])
             grp_result = RSLTSOBJ.RESULTS
             for output in grp_raw_result[1]:
                 grp_result = output.run(data=grp_result)
@@ -1825,7 +1801,7 @@ class _results_class():
             'JOIN'       : self.JOIN         # JOIN - to join results for given variable, e.g. joinmatches;
         }
 
-        if results: self.RESULTS.update({'vars': vars})
+        if results: self.save_vars(vars)
 
         for group_results in results:
             # clear LOCK between groups as LOCK has intra group significanse only:
@@ -1879,7 +1855,23 @@ class _results_class():
         if self.record['RESULT'] and self.PROCESSGRP() is not False:
             self.SAVE_CURELEMENTS()
 
+            
+    def save_vars(self, vars):
+        for path, vars_keys in vars['_vars_to_results_'].items():
+            # skip empty path:
+            if not path: continue
+            result = {}
+            for key in vars_keys:
+                result[key] = vars[key]
+            self.record = {
+                'RESULT'     : result,
+                'PATH'       : [i.strip() for i in path.split('.')],
+            }
+            self.SAVE_CURELEMENTS()
+        # set record to default value:
+        self.record={'RESULT': {}, 'PATH': [], 'CONDITIONS': []}    
 
+            
     def value_to_list(self, DATA, PATH, RESULT):
         """recursive function to get value at given PATH and transform it into the list
         Example:
@@ -1959,11 +1951,11 @@ class _results_class():
         RSLT = self.record['RESULT']
         PATH = self.record['PATH']
         # get ELEMENT from self.RESULTS by PATH
-        E=self.dict_by_path(PATH=PATH, ELEMENT=self.RESULTS)
+        E = self.dict_by_path(PATH=PATH, ELEMENT=self.RESULTS)
         if isinstance(E, list):
             E.append(RSLT)
         elif isinstance(E, dict):
-            # check if PATH endswith "**" - update result's ELMENET without converting it into list:
+            # check if PATH endswith "**" - update result's ELEMENET without converting it into list:
             if len(PATH[-1]) - len(str(PATH[-1]).rstrip('*')) == 2:
                 E.update(RSLT)
             # to match all the other cases, like templates without "**" in path:
@@ -1981,7 +1973,8 @@ class _results_class():
             'RESULT'     : DEFAULTS.copy(),
             'DEFAULTS'   : DEFAULTS,
             'PATH'       : PATH,
-            'CONDITIONS' : copy.deepcopy(CONDITIONS)
+            #'CONDITIONS' : copy.deepcopy(CONDITIONS)
+            'CONDITIONS' : CONDITIONS
         }
         self.record['RESULT'].update(RESULT)
 
@@ -1993,7 +1986,8 @@ class _results_class():
             'RESULT'     : DEFAULTS.copy(),
             'DEFAULTS'   : DEFAULTS,
             'PATH'       : PATH,
-            'CONDITIONS' : copy.deepcopy(CONDITIONS)
+            #'CONDITIONS' : copy.deepcopy(CONDITIONS)
+            'CONDITIONS' : CONDITIONS
         }
 
 
@@ -2107,6 +2101,7 @@ class _outputter_class():
     """
     def __init__(self, element=None, **kwargs):
         self.utils = _ttp_utils()
+        # set attributes default values:
         self.attributes = {
             'returner'    : 'self',
             'format'      : 'raw',
@@ -2117,14 +2112,13 @@ class _outputter_class():
         self.name = None
         self.functions = []
         self.functions_obj = _ttp_functions(out_obj=self)
-        
+        # get output attributes:
         if element is not None:
             self.element = element
             self.get_attributes(element.attrib)
         elif kwargs:
             self.get_attributes(kwargs)
-
-        
+      
     def get_attributes(self, data):
         
         def extract_name(O):
@@ -2220,7 +2214,6 @@ class _outputter_class():
             if name.lower() in opt_funcs: opt_funcs[name.lower()](options)
             else: print('ERROR: Uncknown output attribute: {}="{}"'.format(name, options))
           
-
     def run(self, data):
         returner = self.attributes['returner']
         format = self.attributes['format']
@@ -2239,7 +2232,6 @@ class _outputter_class():
         else:
             getattr(self, 'returner_' + returner)(results)
             
-
     def returner_file(self, D):
         """Method to write data into file
         Args:
@@ -2250,7 +2242,7 @@ class _outputter_class():
         filename = self.attributes.get('filename', 'output_{}.txt'.format(ctime))
         if self.name:
             filename = self.name + '_' + filename
-
+        # check if path exists already, create it if not:
         if not os.path.exists(url):
             os.mkdir(url)
         with open(url + filename, 'w') as f:
@@ -2305,10 +2297,10 @@ class _outputter_class():
         # load template:
         template_obj = Environment(loader='BaseLoader', trim_blocks=True,
                                    lstrip_blocks=True).from_string(self.element.text)
-        # render data - first argument is data as is, second argument data assigned to _data,
-        # so that _data can be referenced in templates, need it because data can be a dictionary
+        # render data - first argument is data as is, second argument data assigned to _data_,
+        # so that _data_ can be referenced in templates, need it because data can be a dictionary
         # without predefined keys:
-        result = template_obj.render(data, _data=data)
+        result = template_obj.render(data, _data_=data)
         return result
 
     def formatter_tabulate(self, data):
@@ -2339,8 +2331,10 @@ class _outputter_class():
                         row[headers.index(k)] = v
                     table.append(row)    
             return tabulate(table, headers=headers, *attribs['args'], **attribs['kwargs'])
-
-        return tabulate(data_to_tabulate, headers=headers, *attribs['args'], **attribs['kwargs'])            
+        try:
+            return tabulate(data_to_tabulate, headers=headers, *attribs['args'], **attribs['kwargs']) 
+        except AttributeError as e:
+            print("Error: failed construction tabulate table, detail: '{}'".format(e))
                 
 
 
@@ -2352,7 +2346,7 @@ TTP CLI PROGRAMM
 if __name__ == '__main__':
     import argparse
     try:
-        import templates as ts
+        import templates as ttp_templates
         templates_exist = True
     except ModuleNotFoundError:
         templates_exist = False
@@ -2396,8 +2390,8 @@ if __name__ == '__main__':
     else:
         t0 = 0
 
-    if templates_exist:
-        parser_Obj = ttp(data=DATA, template=vars(ts)[TEMPLATE], DEBUG=DEBUG, data_path_prefix=DP)
+    if templates_exist and TEMPLATE in vars(ttp_templates):
+        parser_Obj = ttp(data=DATA, template=vars(ttp_templates)[TEMPLATE], DEBUG=DEBUG, data_path_prefix=DP)
     else:
         parser_Obj = ttp(data=DATA, template=TEMPLATE, DEBUG=DEBUG, data_path_prefix=DP)
     timing("Template and data descriptors loaded")

@@ -627,8 +627,11 @@ method="join"
 
 
 bgp_peers_configured_and_state = """
-<vars>
+<vars name="vars.info">
 hostname='gethostname' 
+</vars>
+
+<vars>
 caps = "ORPHRASE | upper"
 </vars>
 
@@ -1041,4 +1044,92 @@ format="tabulate"
 returner="terminal"
 format_attributes = "tablefmt='fancy_grid'"
 />
+"""
+
+test123 = """
+<input name="test1" load="text">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+</input>
+
+<group name="interfaces" input="test1">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+</group>
+"""
+
+test124 = """
+<input name="test1" load="text">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+</input>
+
+<group name="interfaces" input="test1" default="some_default_value">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ ip address {{ ip }}
+ description {{ description }}
+</group>
+"""
+
+test125 = """
+<group name="interfaces" containsall="ip, vrf">
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+</group>
+"""
+
+test128="""
+<group name="interfaces" contains="ip, vrf">
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+</group>
+"""
+
+test126="""
+<group name="arp" method="table">
+Internet  {{ ip }}  {{ age | DIGIT }}   {{ mac }}  ARPA   {{ interface }}
+Internet  {{ ip }}  -                   {{ mac }}  ARPA   {{ interface }}
+</group>
+"""
+
+test127="""
+<group name="arp">
+Internet  {{ ip }}  {{ age | DIGIT }}   {{ mac }}  ARPA   {{ interface }}
+Internet  {{ ip }}  -                   {{ mac }}  ARPA   {{ interface | _start_ }}
+</group>
+"""
+
+test129="""
+<group name="interfaces.SVIs.L3.vrf-enabled" containsall="ip, vrf">
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+</group>
+"""
+
+test130="""
+<vars name="vars.info*.bla">
+hostname='gethostname' 
+</vars>
+
+<vars name=''>
+caps = "ORPHRASE | upper"
+</vars>
+
+<vars name="vars.info*.bla">
+filename='getfilename' 
+</vars>
+
+<group name="interfaces" contains="ip">
+interface {{ interface }}
+ description {{ description }}
+ ip address {{ ip }} {{ mask }}
+ vrf {{ vrf }}
+</group>
 """

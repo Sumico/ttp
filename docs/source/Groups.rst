@@ -6,3 +6,4 @@ Groups
    
    Group Attributes
    Group Functions
+   Group Name Attribute

@@ -38,34 +38,35 @@ Supported loaders:
 
 Template
 ::
-<!--Python formatted variables data-->
-<v>
-domains = ['.lab.local', '.static.on.net', '.abc']
-</v>
 
-<!--YAML formatted variables data-->
-<vars load="yaml">
-domains:
-  - '.lab.local'
-  - '.static.on.net'
-  - '.abc'
-</vars>
-
-<!--Json formatted variables data-->
-<vars load="json">
-{
-    "data": [
-        ".lab.local",
-        ".static.on.net",
-        ".abc"
-    ]
-}
-</vars>
-
-<!--INI formatted variables data-->
-<variables load="ini">
-[domains]
-'.lab.local'
-'.static.on.net'
-'.abc'
-</variables>
+    <!--Python formatted variables data-->
+    <v>
+    domains = ['.lab.local', '.static.on.net', '.abc']
+    </v>
+    
+    <!--YAML formatted variables data-->
+    <vars load="yaml">
+    domains:
+      - '.lab.local'
+      - '.static.on.net'
+      - '.abc'
+    </vars>
+    
+    <!--Json formatted variables data-->
+    <vars load="json">
+    {
+        "data": [
+            ".lab.local",
+            ".static.on.net",
+            ".abc"
+        ]
+    }
+    </vars>
+    
+    <!--INI formatted variables data-->
+    <variables load="ini">
+    [domains]
+    '.lab.local'
+    '.static.on.net'
+    '.abc'
+    </variables>
