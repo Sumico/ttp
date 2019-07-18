@@ -1133,3 +1133,149 @@ interface {{ interface }}
  vrf {{ vrf }}
 </group>
 """
+
+test131="""
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+"""
+
+test132="""
+<group name="interfaces*.vlan.L3*.vrf-enabled" containsall="ip, vrf">
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+</group>
+"""
+
+test133 = """
+<group name="interfaces.{{ interface }}">
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+</group>
+"""
+
+test134 = """
+<group name="interfaces.cool_{{ interface }}_interface">
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+</group>
+"""
+
+test135="""
+<vars>
+hostname = "gethostname"
+</vars>
+
+<group name="{{ hostname }}.router.bgp.BGP_AS_{{ asn }}">
+router bgp {{ asn }}
+  <group name="vrfs.{{ vrf_name }}">
+  vrf {{ vrf_name }}
+    <group name="peers.{{ peer_ip }}">
+    neighbor {{ peer_ip }}
+      remote-as {{ peer_asn }}
+      description {{ peer_description }}
+	  <group name="afi.{{ afi }}.unicast">
+      address-family {{ afi }} unicast
+        route-map {{ rpl_in }} in
+        route-map {{ rpl_out }} out
+	  </group>
+	</group>
+   </group>
+</group>
+"""
+
+test136="""
+<input name="test1" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+!
+interface GigabitEthernet3/4
+ switchport trunk allowed vlan add 100-105
+!
+interface GigabitEthernet3/5
+ switchport trunk allowed vlan add 459,531,704-707
+</input>
+
+<group name="interfaces.trunks">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+</group>
+"""
+
+test137 = """
+<group name="interfaces" contains="helpers" output="out_jinja, out_tabulate">
+interface {{ interface }}
+ description {{ description | ORPHRASE }}
+ vrf forwarding {{ vrf }}
+ ip address {{ ip }} {{ mask }}
+ ip helper-address {{ helpers | joinmatches(";") }}
+! {{ _end_ }}
+</group>
+
+<output 
+name="out_jinja"
+format="jinja2"
+returner="terminal"
+>
+{% for interface in _data_.interfaces %}
+{% set helpers = ["10.229.19.28", "10.229.20.28"] %}
+interface {{ interface.interface }}
+{% for helper in helpers %}
+ ip helper-address {{ helper }}
+{% endfor %}
+!
+{% endfor %}
+</output>
+
+<output
+name="out_tabulate"
+headers="hostname, interface, vrf, ip, mask, helpers, description"
+returner="terminal"
+format="tabulate"
+format_attributes = "tablefmt='jira'"
+path="interfaces"
+/>
+"""
+
+test138="""
+<input name="test1" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+ description some description
+!
+interface GigabitEthernet3/4
+ switchport trunk allowed vlan add 100-105
+!
+interface GigabitEthernet3/5
+ switchport trunk allowed vlan add 459,531,704-707
+ ip address 1.1.1.1 255.255.255.255
+ vrf forwarding ABC_VRF
+!
+</input>
+
+<group name="interfaces.trunks" output="out_csv">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ vrf forwarding {{ vrf }}
+ ip address {{ ip }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+<out
+name="out_csv"
+path="interfaces.trunks"
+format="csv"
+returner="terminal"
+sep=","
+missing="undefined"
+load="python"
+/>
+"""

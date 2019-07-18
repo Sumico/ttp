@@ -183,7 +183,7 @@ class ttp():
     def __run_outputs(self):
         """Method to run templates' outputters.
         """
-        [template.run_outputs() for template in self.__templates]            
+        [template.run_outputs() for template in self.__templates]
 
 
     def result(self, templates=None, returner='self', **kwargs):
@@ -200,16 +200,16 @@ class ttp():
         if isinstance(templates, str):
             templates = [templates]
         if templates:
-            templates_obj = [template for template in self.__templates 
+            templates_obj = [template for template in self.__templates
                              if template.name in templates]
-        
+
         # return results:
         if kwargs:
             kwargs['returner'] = returner
             outputter = _outputter_class(**kwargs)
             return [outputter.run(template.results) for template in templates_obj]
         else:
-            return [template.results for template in templates_obj]                
+            return [template.results for template in templates_obj]
 
 
 """
@@ -297,7 +297,7 @@ class _ttp_functions():
         else:
             print("Error: {} function '{}' not found, valid functions are: \n{}".format(
                 scope, name, getattr(self, scope).keys() ))
-            
+
     def output_is_equal(self, data, *args, **kwargs):
         data_to_compare_with = self.out_obj.attributes['load']
         if data == data_to_compare_with:
@@ -311,7 +311,7 @@ class _ttp_functions():
         }
 
     def output_join_results(self, data, *args, **kwargs):
-        """Metod to join flatten results into sigle list, will work 
+        """Metod to join flatten results into sigle list, will work
         only if data items are lists.
         Args:
             data (list): list of overall results, each item is a result per input
@@ -323,7 +323,7 @@ class _ttp_functions():
             elif isinstance(input_result, dict):
                 return data
         return results
-        
+
     def group_containsall(self, data, *args):
         # args = ('v4address', 'v4mask',)
         for var in args:
@@ -681,7 +681,8 @@ class _ttp_utils():
         include = element.attrib.get('include', '')
         text_data = element.text
         if text_data is None:
-            text_data = ''
+            #text_data = ''
+            return None
 
         def load_text(text_data, kwargs):
             return text_data
@@ -790,7 +791,7 @@ class _ttp_utils():
         """
         def get_args_kwargs(*args, **kwargs):
             return {'args': args, 'kwargs': kwargs}
-            
+
         RESULT=[]
         ATTRIBUTES=[i.strip() for i in line.split('|')]
         for item in ATTRIBUTES:
@@ -823,7 +824,7 @@ class _template_class():
         self.PATHCHAR = '.'          # character to separate path items, like ntp.clock.time, '.' is pathChar here
         self.outputs = []            # list htat contains global outputs
         self.groups_outputs = []     # list that contains groups specific outputs
-        # _vars_to_results_ is a dict of {pathN:[var_key1, var_keyN]} data 
+        # _vars_to_results_ is a dict of {pathN:[var_key1, var_keyN]} data
         self.vars = {"_vars_to_results_":{}}
         self.groups = []
         self.inputs = {}
@@ -840,7 +841,7 @@ class _template_class():
 
         # update inputs with the groups it has to be run against:
         self.update_inputs_with_groups()
-        
+
         # update groups with output references:
         self.update_groups_with_outputs()
 
@@ -859,7 +860,7 @@ class _template_class():
         """Method to run template outputs with template results
         """
         [output.run(self.results) for output in self.outputs]
-            
+
     def form_results(self, result):
         """Method to add results to self.results
         """
@@ -916,8 +917,8 @@ class _template_class():
 
     def update_groups_with_outputs(self):
         """Method to replace output names in group with
-        output index from self.groups_outputs, also move 
-        output from self.outputs to group specific 
+        output index from self.groups_outputs, also move
+        output from self.outputs to group specific
         self.groups_outputs
         """
         for G in self.groups:
@@ -929,32 +930,32 @@ class _template_class():
                         self.groups_outputs.append(self.outputs.pop(glob_index))
                         G.outputs[grp_index] = self.groups_outputs[-1]
                         group_output_found = True
-                # go to next output if this output found:        
+                # go to next output if this output found:
                 if group_output_found:
                     continue
-                # try to find output in group specific outputs:    
+                # try to find output in group specific outputs:
                 for index, output in enumerate(self.groups_outputs):
                     if output.name == grp_output:
                         G.outputs[grp_index] = output
-                        group_output_found = True                        
+                        group_output_found = True
                 # print error message if no output found:
                 if not group_output_found:
                     G.outputs.pop(grp_index)
                     print("Error: group output '{}' not found.".format(grp_output))
-            
-    
+
+
     def get_template_attributes(self, element):
-        
+
         def extract_name(O):
             self.name = O
-            
+
         opt_funcs = {
         'name'    : extract_name
         # data_path_prefix
         # pathchar
         # debug
         }
-        
+
         [opt_funcs[name](options) for name, options in element.attrib.items()
          if name in opt_funcs]
 
@@ -991,7 +992,7 @@ class _template_class():
             if isinstance(input_data, str):
                 self.set_input(data=[('text_data', input_data)], input_name=name, groups=groups)
                 return
-                
+
             extensions = input_data.get('extensions', [])
             filters = input_data.get('filters', [])
             urls = input_data.get('url', [])
@@ -1032,7 +1033,7 @@ class _template_class():
             if data is None:
                 return
             self.lookups[name] = data
-            
+
         def parse_template(element):
             self.templates.append(_template_class(
                 template_text=ET.tostring(element, encoding="unicode"),
@@ -1098,7 +1099,7 @@ class _template_class():
                     self.get_template_attributes(template_ET)
             except ET.ParseError as e:
                 template_ET = ET.XML("<template>\n{}\n</template>".format(template_text))
-            
+
             # check if template has children:
             if not list(template_ET):
                 parse_non_hierarch_tmplt(template_ET)
@@ -1351,7 +1352,7 @@ class _variable_class():
         self.skip_regex_dict = False                 # will be set to true for 'let'
         self.var_res = []                            # list of variable regexes
         self.utils = _ttp_utils()                    # ttp utils
-        
+
         # add formatters:
         self.REs = _ttp_patterns()
 
@@ -1561,7 +1562,7 @@ class _parser_class():
         self.results = {}
         if D[0] == 'text_data':
             self.DATATEXT = '\n' + D[1] + '\n\n'
-            self.DATANAME = 'text_data'    
+            self.DATANAME = 'text_data'
         else:
             data = self.utils.load_files(path=D[1], read=True)
             # data is a list of one tuple - [(data_type, data_text,)]
@@ -1570,7 +1571,7 @@ class _parser_class():
         # set vars to original vars and update them based on DATATEXT:
         self.set_vars()
 
-        
+
     def set_vars(self):
         """Method to load template
         Args:
@@ -1605,9 +1606,9 @@ class _parser_class():
                     result = getattr(self.functions, 'variable_' + VARvalue)(self.DATATEXT, self.DATANAME)
                     self.vars['globals']['vars'].update({VARname: result})
                 except AttributeError:
-                    continue              
-        
-                    
+                    continue
+
+
     def parse(self, groups_names):
         # groups_names - list of groups' names to run
         unsort_rslts = [] # list of dictionaries - one item per top group, each dictionary
@@ -1616,7 +1617,7 @@ class _parser_class():
         grps_unsort_rslts = [] # group specific match results to run output against them
                                # each item is a tuple of (results, group.outputs,)
         grps_raw_results = []  # group specific sorted results
-        
+
         def check_matches(regex, matches, results, start):
             for match in matches:
                 result = {} # dict to store result
@@ -1733,22 +1734,22 @@ class _parser_class():
                     # for a tuple of (results, group.outputs,)
                     grps_unsort_rslts.append(
                         (run_re(group, results={}), group.outputs,)
-                    )        
+                    )
 
         # sort results global groups:
         [ raw_results.append(
           [group_result[key] for key in sorted(list(group_result.keys()))]
-          ) for group_result in unsort_rslts if group_result ]       
+          ) for group_result in unsort_rslts if group_result ]
         # form results for global groups:
         RSLTSOBJ = _results_class()
         RSLTSOBJ.form_results(self.vars['globals']['vars'], raw_results)
         self.results = RSLTSOBJ.RESULTS
-        
+
         # sort results for group specific results:
         [ grps_raw_results.append(
             ([group_result[0][key] for key in sorted(list(group_result[0].keys()))],
             group_result[1],) # tuple item that contains group.outputs
-        ) for group_result in grps_unsort_rslts if group_result[0] ]    
+        ) for group_result in grps_unsort_rslts if group_result[0] ]
         # form results for groups specific results with running group through outputs:
         for grp_raw_result in grps_raw_results:
             RSLTSOBJ = _results_class()
@@ -1765,7 +1766,7 @@ class _parser_class():
             # save results into global results list:
             self.results.append(grp_result)
 
-            
+
 
 """
 ==============================================================================
@@ -1776,7 +1777,7 @@ class _results_class():
     """
     Class to save results and do actions with them.
     Args:
-        self.dyn_path (dict): used to store dynamic path variables
+        self.dyn_path_cache (dict): used to store dynamic path variables
     """
     def __init__(self):
         self.RESULTS = {}
@@ -1786,13 +1787,11 @@ class _results_class():
             'PATH'       : [],
             'CONDITIONS' : []
         }
-        self.dyn_path={}
+        self.dyn_path_cache={}
         self.functions = _ttp_functions(results_obj=self)
 
     def form_results(self, vars, results):
-
         self.vars=vars
-
         saveFuncs={
             'START'      : self.START,       # START - to start new group;
             'ADD'        : self.ADD,         # ADD - to add data to group, defaul-normal action;
@@ -1800,14 +1799,14 @@ class _results_class():
             'END'        : self.END,         # END - to explicitly signal the end of group to LOCK it;
             'JOIN'       : self.JOIN         # JOIN - to join results for given variable, e.g. joinmatches;
         }
-
+        # save _vars_to_results_ to results if any:
         if results: self.save_vars(vars)
-
+        # iterate over group results and form results structure:
         for group_results in results:
             # clear LOCK between groups as LOCK has intra group significanse only:
             self.GRPLOCK['LOCK'] = False
             self.GRPLOCK['GROUP'] = ()
-
+            # iterate over each match result for the group:
             for result in group_results:
                 # if result been matched by one regex only
                 if len(result) == 1:
@@ -1820,14 +1819,11 @@ class _results_class():
                         if re['IS_LINE'] == False:
                             result_data=item[1]
                             break
-
                 group = re['GROUP']
-
                 # check if result is false, lock the group if so:
                 if result_data == False:
                     self.GRPLOCK['LOCK']=True
                     self.GRPLOCK['GROUP']=group.path
-
                 # skip results for locked group:
                 if self.GRPLOCK['LOCK'] is True:
                     locked_group_path=self.GRPLOCK['GROUP']
@@ -1841,7 +1837,6 @@ class _results_class():
                         self.GRPLOCK['GROUP'] = ()
                     else:
                         continue
-
                 # Save results:
                 saveFuncs[re['ACTION']](
                     RESULT     = result_data,
@@ -1850,12 +1845,11 @@ class _results_class():
                     CONDITIONS = group.funcs,
                     REDICT     = re
                 )
-
         # check the last group:
         if self.record['RESULT'] and self.PROCESSGRP() is not False:
             self.SAVE_CURELEMENTS()
 
-            
+
     def save_vars(self, vars):
         for path, vars_keys in vars['_vars_to_results_'].items():
             # skip empty path:
@@ -1869,9 +1863,9 @@ class _results_class():
             }
             self.SAVE_CURELEMENTS()
         # set record to default value:
-        self.record={'RESULT': {}, 'PATH': [], 'CONDITIONS': []}    
+        self.record={'RESULT': {}, 'PATH': [], 'CONDITIONS': []}
 
-            
+
     def value_to_list(self, DATA, PATH, RESULT):
         """recursive function to get value at given PATH and transform it into the list
         Example:
@@ -2049,11 +2043,11 @@ class _results_class():
             for m in match:
                 pattern='{{\s*' + m + '\s*}}'
                 if m in self.record['RESULT']:
-                    self.dyn_path[m] = self.record['RESULT'][m]
+                    self.dyn_path_cache[m] = self.record['RESULT'][m]
                     repl = self.record['RESULT'].pop(m)
                     path[index] = re.sub(pattern, repl, item)
-                elif m in self.dyn_path:
-                    path[index] = re.sub(pattern, self.dyn_path[m], item)
+                elif m in self.dyn_path_cache:
+                    path[index] = re.sub(pattern, self.dyn_path_cache[m], item)
                 elif m in self.vars:
                     path[index] = re.sub(pattern, self.vars[m], item)
                 else:
@@ -2118,45 +2112,45 @@ class _outputter_class():
             self.get_attributes(element.attrib)
         elif kwargs:
             self.get_attributes(kwargs)
-      
+
     def get_attributes(self, data):
-        
+
         def extract_name(O):
             self.name = O
-            
+
         def extract_returner(O):
             supported_returners = ['file', 'terminal', 'self']
             if O in supported_returners:
                 self.attributes['returner'] = O
             else:
                 raise SystemExit("Error: Unsupported output returner '{}'. Supported: {}. Exiting".format(
-                    O, supported_returners))        
-                    
-        def extract_format(O):        
+                    O, supported_returners))
+
+        def extract_format(O):
             supported_formats = ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint', 'tabulate']
             if O in supported_formats:
                 self.attributes['format'] = O
             else:
                 raise SystemExit("Error: Unsupported output format '{}'. Supported: {}. Exiting".format(
-                    O, supported_formats))    
-            
+                    O, supported_formats))
+
         def extract_load(O):
             self.attributes['load'] = self.utils.load_struct(element=self.element)
-            
+
         def extract_url(O):
             self.attributes['url'] = O
-            
+
         def extract_filename(O):
             self.attributes['filename'] = O
-            
+
         def extract_method(O):
             supported_methods = ['split', 'join']
             if O in supported_methods:
                 self.attributes['method'] = O
             else:
                 raise SystemExit("Error: Unsupported file returner method '{}'. Supported: {}. Exiting".format(
-                                O, supported_methods))        
-        
+                                O, supported_methods))
+
         def extract_functions(O):
             functions = self.utils.get_attributes(O)
             for i in functions:
@@ -2165,18 +2159,18 @@ class _outputter_class():
                     opt_funcs[name](i)
                 else:
                     print('ERROR: Uncknown output function: "{}"'.format(name))
-                    
+
         def function_is_equal(data):
             if not data['kwargs'] and not data['args']:
                 # do nothing as self.attributes['load'] will be used
                 self.functions.append(data)
-                
+
         def function_join_results(data):
             self.functions.append(data)
-                
+
         def extract_description(O):
             self.attributes['description'] = O
-            
+
         def extract_format_attributes(O):
             """Extract formatter attributes
             """
@@ -2186,21 +2180,21 @@ class _outputter_class():
                 'args': format_attributes[0]['args'],
                 'kwargs': format_attributes[0]['kwargs']
             }
-            
+
         def extract_path(O):
             self.attributes['path'] = O.split('.')
-        
+
         def extract_headers(O):
             self.attributes['headers'] = [i.strip() for i in O.split(',')]
-                
-        opt_funcs = {    
-        'name'           : extract_name,                  
+
+        opt_funcs = {
+        'name'           : extract_name,
         'returner'       : extract_returner,
         'format'         : extract_format,
         'load'           : extract_load,
         'url'            : extract_url,
         'filename'       : extract_filename,
-        'method'         : extract_method,    
+        'method'         : extract_method,
         'functions'      : extract_functions,
         'is_equal'       : function_is_equal,
         'description'    : extract_description,
@@ -2212,8 +2206,8 @@ class _outputter_class():
 
         for name, options in data.items():
             if name.lower() in opt_funcs: opt_funcs[name.lower()](options)
-            else: print('ERROR: Uncknown output attribute: {}="{}"'.format(name, options))
-          
+            else: self.attributes[name] = options 
+
     def run(self, data):
         returner = self.attributes['returner']
         format = self.attributes['format']
@@ -2225,13 +2219,16 @@ class _outputter_class():
             kwargs = item['kwargs']
             results = getattr(self.functions_obj, 'output_' + func_name)(results, *args, **kwargs)
         # format data using requested formatter:
-        results = getattr(self, 'formatter_' + format)(results)    
+        results = getattr(self, 'formatter_' + format)(results)
         # decide what to do with results:
         if returner == 'self':
+            # return results as it contains processed data:
             return results
         else:
             getattr(self, 'returner_' + returner)(results)
-            
+            # return unmodified data:
+            return data
+
     def returner_file(self, D):
         """Method to write data into file
         Args:
@@ -2248,7 +2245,7 @@ class _outputter_class():
         with open(url + filename, 'w') as f:
             f.write(D)
 
-    def returner_terminal(self, D): 
+    def returner_terminal(self, D):
         print(str(D).replace('\\n', '\n'))
 
     def formatter_raw(self, data):
@@ -2274,17 +2271,127 @@ class _outputter_class():
         from json import dumps
         return dumps(data, sort_keys=True, indent=4, separators=(',', ': '))
 
+    def form_table(self, data):
+        table = []
+        headers = set()
+        # get attributes:
+        provided_headers = self.attributes.get('headers', [])
+        path = self.attributes.get('path', [])        
+        extras = self.attributes.get('extras', 'ignore')
+        missing = self.attributes.get('missing', '')
+        # get data to convert to table:
+        data_to_table = self.utils.traverse_dict(data, path)
+        if isinstance(data_to_table, dict):
+            data_to_table = [data_to_table]
+			
+        # create headers:
+        if not provided_headers:
+            # headers is a set, set.update only adds unique values to set
+            for item in data_to_table:
+                if isinstance(item, dict):
+                    headers.update(list(item.keys()))
+                # check if list and go deeper one level only:
+                elif isinstance(item, list):
+                    for i in item:
+                        if isinstance(i, dict):
+                            headers.update(list(i.keys()))
+            headers = sorted(list(headers))        
+        elif extras is "add":
+            pass
+        elif provided_headers:
+            headers = provided_headers
+        # save headers row in table:    
+        table.insert(0, headers)      
+		
+        # fill in table with data:
+        for item in data_to_table:
+            row = [missing for _ in headers]
+            if isinstance(item, dict):
+                for k, v in item.items():
+                    if k in headers:
+                        row[headers.index(k)] = v
+                table.append(row)
+            # check if list and go deeper one level only:
+            elif isinstance(item, list):
+                for i in item:
+                    row = [missing for _ in headers]
+                    if isinstance(i, dict):
+                        for k, v in i.items():
+                            if k in headers:
+                                row[headers.index(k)] = v
+                    table.append(row)
+        return table                   
+            
     def formatter_csv(self, data):
+        """Method to dump list of dictionaries into csv spreadsheet.
         """
-        Method to dump list of dictionaries into csv spreadsheet.
-        Example:
-            <outputs name="IPAM" format="csv" load="python">
-            group=["interfaces"]
-            headers=["hostname", "Interface", "vrf", "ip", "mask", "description"]
-            </outputs>
+        result = ""
+        #table_data = self.form_table(data)
+        #print(table_data)
+        # get attributes:
+        headers = self.attributes.get('headers', set())
+        path = self.attributes.get('path', [])
+        sep = self.attributes.get('sep', ',')
+        missing = self.attributes.get('missing', '')
+        # get data to transform in csv
+        data_to_csv = self.utils.traverse_dict(data, path)
+        if isinstance(data_to_csv, dict):
+            data_to_csv = [data_to_csv]
+        # create headers:
+        if not headers:
+            # headers is a set, set.update only adds unique values to set
+            for item in data_to_csv:
+                if isinstance(item, dict):
+                    headers.update(list(item.keys()))
+            headers = sorted(list(headers))
+        # write headers row in results:
+        result += sep.join(headers)
+        # fill in data into results:
+        for item in data_to_csv:
+            row = [missing for _ in headers]
+            if isinstance(item, dict):
+                for k, v in item.items():
+                    if k in headers:
+                        row[headers.index(k)] = v
+            result += "\n" + sep.join(row)
+        return result
+
+    def formatter_tabulate(self, data):
+        """Method to format data as a table using tabulate module.
+        Will extract list of dictionaries that needs to be tabulated,
+        if headers given, will transform list of dictionaries to list
+        of lists following the headers order.
         """
-        import csv
-        pass
+        try:
+            from tabulate import tabulate
+        except ImportError:
+            raise SystemExit("tabulate not installed, install: 'python -m pip install tabulate', exiting")
+
+        # if `headers="keys"`, then dictionary keys are used by tabulate
+        headers = self.attributes.get('headers', 'keys')
+        attribs = self.attributes.get('format_attributes', {'args': [], 'kwargs': {}})
+        path = self.attributes.get('path', [])
+        data_to_tabulate = self.utils.traverse_dict(data, path)
+        if isinstance(data_to_tabulate, dict):
+            data_to_tabulate = [data_to_tabulate]
+        # if headers given - reform data to follow headers order
+        if isinstance(headers, list):
+            table = []
+            for item in data_to_tabulate:
+                if isinstance(item, dict):
+                    row = ['' for i in headers]
+                    for k, v in item.items():
+                        if k not in headers:
+                            headers.append(k)
+                            row.append('')
+                        row[headers.index(k)] = v
+                    table.append(row)
+            return tabulate(table, headers=headers, *attribs['args'], **attribs['kwargs'])
+        # try to run tabulate with headers='keys', to use dictionaries keys as headers:
+        try:
+            return tabulate(data_to_tabulate, headers=headers, *attribs['args'], **attribs['kwargs'])
+        except AttributeError as e:
+            print("Error: failed construct tabulate table, detail: '{}'".format(e))
 
     def formatter_jinja2(self, data):
         """Method to render output template using results data.
@@ -2302,40 +2409,6 @@ class _outputter_class():
         # without predefined keys:
         result = template_obj.render(data, _data_=data)
         return result
-
-    def formatter_tabulate(self, data):
-        """MEthod to fornatt data as a tibale using tabulate module
-        """
-        try:
-            from tabulate import tabulate
-        except ImportError:
-            raise SystemExit("tabulate not installed, install: 'python -m pip install tabulate', exiting")
-            
-        headers = self.attributes.get('headers', 'keys')          
-        attribs = self.attributes.get('format_attributes', {'args': [], 'kwargs': {}})
-        path = self.attributes.get('path', [])
-        data_to_tabulate = self.utils.traverse_dict(data, path)
-
-        if isinstance(data_to_tabulate, dict):
-            data_to_tabulate = [data_to_tabulate]
-
-        # if headers given - reform data to follow headers order
-        if isinstance(headers, list):
-            table = []
-            for item in data_to_tabulate:
-                if isinstance(item, dict):
-                    row = ['' for i in headers]
-                    for k, v in item.items():
-                        if k not in headers:
-                            headers.append(k)                    
-                        row[headers.index(k)] = v
-                    table.append(row)    
-            return tabulate(table, headers=headers, *attribs['args'], **attribs['kwargs'])
-        try:
-            return tabulate(data_to_tabulate, headers=headers, *attribs['args'], **attribs['kwargs']) 
-        except AttributeError as e:
-            print("Error: failed construction tabulate table, detail: '{}'".format(e))
-                
 
 
 """

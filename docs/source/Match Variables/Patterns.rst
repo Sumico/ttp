@@ -2,7 +2,7 @@
 
    <br />
 
-Match Patterns
+Patterns
 ==============
 
 Match Patterns or regex formatters help to specify regular expressions that should be used to match certain variables. 

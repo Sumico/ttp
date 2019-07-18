@@ -8,13 +8,18 @@ Template Text Parser
 ====================
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Table of Contents
+   :titlesonly:
    
    Installation
    Quick start
    Overview
-   Templates structure
-   Match Variables
+   Inputs
+   Variables/index
+   Lookups
+   Groups/index
+   Outputs
+   Match Variables/index
    Writing templates
    Examples
 

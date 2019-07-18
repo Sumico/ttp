@@ -4,6 +4,6 @@ Groups
    :maxdepth: 2
    :caption: Contents:
    
-   Group Attributes
-   Group Functions
-   Group Name Attribute
+   Attributes
+   Functions
+   Name Attribute

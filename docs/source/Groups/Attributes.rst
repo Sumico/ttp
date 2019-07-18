@@ -1,4 +1,4 @@
-Group Attributes
+Attributes
 ================
 
 Each group tag (<g>, <grp>, <group>)can have a number of attributes, they used during module execution to provide desired results. Attributes can be mandatory or optional. Each attribute is a string of data formatted in certain way.

@@ -2,7 +2,7 @@
 
    <br />
 
-Match Indicators
+Indicators
 ================
 
 Indicators or directives are strings of text that serve to change parsing logic or indicate certain events.

@@ -63,13 +63,7 @@ Documentation
    development/index
    hackathons/index
    
-   
-   
- 
- 
- 
- 
- 
+
  
 .. _supported-devices:
 
