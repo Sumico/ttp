@@ -257,16 +257,16 @@ description="test dynamic path"
 
 
 
-<!--output to print raw python result to screen-->
+<!--output to print raw python result to screen
 <output
 name="print_python"
 returner="terminal"
 format="raw"
 />
+-->
 
 <!--final output to put all results in tabulate table-->
 <output 
-functions="join_results"
 format="tabulate"
 returner="terminal"
 format_attributes = "tablefmt='fancy_grid'"
@@ -293,6 +293,7 @@ filename='getfilename'
 </vars>
 
 <input name="test1" load="text" groups="interfaces">
+router1#show run int vlan 777
 interface Vlan777
  description Management
  ip address 192.168.0.1/24
@@ -332,10 +333,107 @@ description="test vars path forming and saving in results"
 
 <!--final output to put all results in tabulate table-->
 <output 
-functions="join_results"
 returner="terminal"
 format="tabulate"
 format_attributes = "tablefmt='fancy_grid'"
 />
 </template>
+
+
+
+<!--one more teamplte###############################################################################################-->
+<template
+name="TESTS-CSV-TABULATE-TABLES"
+description="template to test csv/tabulate global and group specific outputters"
+>
+<!--test csv and tabulate outputters-->
+<input name="test1" load="text" groups="interfaces.trunks, interfaces2.trunks2">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+ description some description
+!
+interface GigabitEthernet3/4
+ switchport trunk allowed vlan add 100-105
+!
+interface GigabitEthernet3/5
+ switchport trunk allowed vlan add 459,531,704-707
+ ip address 1.1.1.1 255.255.255.255
+ vrf forwarding ABC_VRF
+!
+</input>
+
+<input name="test1_1" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/7
+ switchport trunk allowed vlan add 138,166-173 
+ description some description
+!
+interface GigabitEthernet3/8
+ switchport trunk allowed vlan add 100-105
+!
+interface GigabitEthernet3/9
+ switchport trunk allowed vlan add 459,531,704-707
+ ip address 1.1.1.1 255.255.255.255
+ vrf forwarding ABC_VRF
+!
+</input>
+
+<!--group for global outputs:-->
+<group name="interfaces.trunks">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ vrf forwarding {{ vrf }}
+ ip address {{ ip }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+<!--global outputs:-->
+<out
+name="out_csv"
+path="interfaces.trunks"
+format="csv"
+returner="terminal"
+sep=","
+missing="undefined"
+load="python"
+/>
+
+<out
+name="out_tabulate"
+path="interfaces.trunks"
+format="tabulate"
+returner="terminal"
+headers="interface, vrf, ip, mask, description"
+format_attributes = "tablefmt='fancy_grid'"
+/>
+
+<!--group with group specific outputs:-->
+<group name="interfaces2.trunks2" output="out_tabulate2, out_csv2">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ vrf forwarding {{ vrf }}
+ ip address {{ ip }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+<!--group specific outputs:-->
+<out
+name="out_csv2"
+path="interfaces2.trunks2"
+format="csv"
+returner="terminal"
+sep=","
+missing="undefined"
+load="python"
+/>
+
+<out
+name="out_tabulate2"
+path="interfaces2.trunks2"
+format="tabulate"
+returner="terminal"
+/>
+</template>
+
 </template>

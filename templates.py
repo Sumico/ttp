@@ -1245,7 +1245,9 @@ path="interfaces"
 """
 
 test138="""
-<input name="test1" load="text" groups="interfaces.trunks">
+<template>
+<!--test csv and tabulate outputters-->
+<input name="test1" load="text" groups="interfaces.trunks, interfaces2.trunks2">
 interface GigabitEthernet3/3
  switchport trunk allowed vlan add 138,166-173 
  description some description
@@ -1260,7 +1262,23 @@ interface GigabitEthernet3/5
 !
 </input>
 
-<group name="interfaces.trunks" output="out_csv">
+<input name="test1_1" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/7
+ switchport trunk allowed vlan add 138,166-173 
+ description some description
+!
+interface GigabitEthernet3/8
+ switchport trunk allowed vlan add 100-105
+!
+interface GigabitEthernet3/9
+ switchport trunk allowed vlan add 459,531,704-707
+ ip address 1.1.1.1 255.255.255.255
+ vrf forwarding ABC_VRF
+!
+</input>
+
+<!--group for global outputs:-->
+<group name="interfaces.trunks">
 interface {{ interface }}
  switchport trunk allowed vlan add {{ trunk_vlans }}
  description {{ description | ORPHRASE }}
@@ -1269,6 +1287,7 @@ interface {{ interface }}
 !{{ _end_ }}
 </group>
 
+<!--global outputs:-->
 <out
 name="out_csv"
 path="interfaces.trunks"
@@ -1278,4 +1297,51 @@ sep=","
 missing="undefined"
 load="python"
 />
+
+<out
+name="out_tabulate"
+path="interfaces.trunks"
+format="tabulate"
+returner="terminal"
+headers="interface, vrf, ip, mask, description"
+format_attributes = "tablefmt='fancy_grid'"
+/>
+
+
+<out
+name="out_table"
+path="interfaces.trunks"
+format="table"
+returner="terminal"
+headers="interface, vrf, ip, mask, description"
+/>
+
+<!--group with group specific outputs:-->
+<group name="interfaces2.trunks2" output="out_tabulate2, out_csv2">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ vrf forwarding {{ vrf }}
+ ip address {{ ip }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+<!--group specific outputs:-->
+<out
+name="out_csv2"
+path="interfaces2.trunks2"
+format="csv"
+returner="terminal"
+sep=","
+missing="undefined"
+load="python"
+/>
+
+<out
+name="out_tabulate2"
+path="interfaces2.trunks2"
+format="tabulate"
+returner="terminal"
+/>
+</template>
 """

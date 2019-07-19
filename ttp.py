@@ -310,20 +310,6 @@ class _ttp_functions():
             'is_equal'           : is_equal
         }
 
-    def output_join_results(self, data, *args, **kwargs):
-        """Metod to join flatten results into sigle list, will work
-        only if data items are lists.
-        Args:
-            data (list): list of overall results, each item is a result per input
-        """
-        results = []
-        for input_result in data:
-            if isinstance(input_result, list):
-                [results.append(grp_result) for grp_result in input_result]
-            elif isinstance(input_result, dict):
-                return data
-        return results
-
     def group_containsall(self, data, *args):
         # args = ('v4address', 'v4mask',)
         for var in args:
@@ -872,7 +858,10 @@ class _template_class():
             else:
                 self.results += [result['non_hierarch_tmplt']]
         else:
-            self.results.append(result)
+            if isinstance(result, list):
+                self.results += result
+            else:
+                self.results.append(result)
 
     def set_input(self, data, input_name='Default_Input', groups=['all']):
         """
@@ -2127,7 +2116,7 @@ class _outputter_class():
                     O, supported_returners))
 
         def extract_format(O):
-            supported_formats = ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint', 'tabulate']
+            supported_formats = ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint', 'tabulate', 'table']
             if O in supported_formats:
                 self.attributes['format'] = O
             else:
@@ -2165,9 +2154,6 @@ class _outputter_class():
                 # do nothing as self.attributes['load'] will be used
                 self.functions.append(data)
 
-        def function_join_results(data):
-            self.functions.append(data)
-
         def extract_description(O):
             self.attributes['description'] = O
 
@@ -2200,13 +2186,12 @@ class _outputter_class():
         'description'    : extract_description,
         'format_attributes' : extract_format_attributes,
         'path'           : extract_path,
-        'headers'        : extract_headers,
-        'join_results'   : function_join_results
+        'headers'        : extract_headers
         }
 
         for name, options in data.items():
             if name.lower() in opt_funcs: opt_funcs[name.lower()](options)
-            else: self.attributes[name] = options 
+            else: self.attributes[name] = options
 
     def run(self, data):
         returner = self.attributes['returner']
@@ -2271,127 +2256,82 @@ class _outputter_class():
         from json import dumps
         return dumps(data, sort_keys=True, indent=4, separators=(',', ': '))
 
-    def form_table(self, data):
+    def formatter_table(self, data):
+        """Method to form table there table is list of lists,
+        firts item - heders row. Method used by csv/tabulate/excel
+        formatters.
+        """
         table = []
         headers = set()
+        data_to_table = []
+        source_data = []
         # get attributes:
         provided_headers = self.attributes.get('headers', [])
-        path = self.attributes.get('path', [])        
+        path = self.attributes.get('path', [])
         extras = self.attributes.get('extras', 'ignore')
         missing = self.attributes.get('missing', '')
-        # get data to convert to table:
-        data_to_table = self.utils.traverse_dict(data, path)
-        if isinstance(data_to_table, dict):
-            data_to_table = [data_to_table]
-			
+        # normilize source_data to list:
+        if isinstance(data, list): # handle the case for template/global output
+            source_data += data
+        elif isinstance(data, dict): # handle the case for group specific output
+            source_data.append(data)
+        # form data_to_table:
+        for datum in source_data:
+            item = self.utils.traverse_dict(datum, path)
+            if not item: # skip empty results
+                continue
+            elif isinstance(item, list):
+                data_to_table += item
+            elif isinstance(item, dict):
+                data_to_table.append(item)
         # create headers:
-        if not provided_headers:
-            # headers is a set, set.update only adds unique values to set
-            for item in data_to_table:
-                if isinstance(item, dict):
-                    headers.update(list(item.keys()))
-                # check if list and go deeper one level only:
-                elif isinstance(item, list):
-                    for i in item:
-                        if isinstance(i, dict):
-                            headers.update(list(i.keys()))
-            headers = sorted(list(headers))        
-        elif extras is "add":
-            pass
-        elif provided_headers:
+        if provided_headers:
             headers = provided_headers
-        # save headers row in table:    
-        table.insert(0, headers)      
-		
+        else:
+            # headers is a set, set.update only adds unique values to set
+            [headers.update(list(item.keys())) for item in data_to_table]
+            headers = sorted(list(headers))
+        # handle extras:
+        if extras is "add":
+            pass
+        # save headers row in table:
+        table.insert(0, headers)
         # fill in table with data:
         for item in data_to_table:
             row = [missing for _ in headers]
-            if isinstance(item, dict):
-                for k, v in item.items():
-                    if k in headers:
-                        row[headers.index(k)] = v
-                table.append(row)
-            # check if list and go deeper one level only:
-            elif isinstance(item, list):
-                for i in item:
-                    row = [missing for _ in headers]
-                    if isinstance(i, dict):
-                        for k, v in i.items():
-                            if k in headers:
-                                row[headers.index(k)] = v
-                    table.append(row)
-        return table                   
-            
+            for k, v in item.items():
+                if k in headers:
+                    row[headers.index(k)] = v
+            table.append(row)
+        return table
+
     def formatter_csv(self, data):
-        """Method to dump list of dictionaries into csv spreadsheet.
+        """Method to dump list of dictionaries into table
+        using provided separator, default is comma - ','
         """
         result = ""
-        #table_data = self.form_table(data)
-        #print(table_data)
-        # get attributes:
-        headers = self.attributes.get('headers', set())
-        path = self.attributes.get('path', [])
+        # form table - list of lists
+        table = self.formatter_table(data)
         sep = self.attributes.get('sep', ',')
-        missing = self.attributes.get('missing', '')
-        # get data to transform in csv
-        data_to_csv = self.utils.traverse_dict(data, path)
-        if isinstance(data_to_csv, dict):
-            data_to_csv = [data_to_csv]
-        # create headers:
-        if not headers:
-            # headers is a set, set.update only adds unique values to set
-            for item in data_to_csv:
-                if isinstance(item, dict):
-                    headers.update(list(item.keys()))
-            headers = sorted(list(headers))
-        # write headers row in results:
-        result += sep.join(headers)
-        # fill in data into results:
-        for item in data_to_csv:
-            row = [missing for _ in headers]
-            if isinstance(item, dict):
-                for k, v in item.items():
-                    if k in headers:
-                        row[headers.index(k)] = v
+        # from results:
+        result = sep.join(table[0])
+        for row in table[1:]:
             result += "\n" + sep.join(row)
         return result
 
     def formatter_tabulate(self, data):
         """Method to format data as a table using tabulate module.
-        Will extract list of dictionaries that needs to be tabulated,
-        if headers given, will transform list of dictionaries to list
-        of lists following the headers order.
         """
         try:
             from tabulate import tabulate
         except ImportError:
-            raise SystemExit("tabulate not installed, install: 'python -m pip install tabulate', exiting")
-
-        # if `headers="keys"`, then dictionary keys are used by tabulate
-        headers = self.attributes.get('headers', 'keys')
+            raise SystemExit("ERROR: tabulate not installed, install: 'python -m pip install tabulate', exiting")
+        # form table - list of lists
+        table = self.formatter_table(data)
+        headers = table.pop(0)
         attribs = self.attributes.get('format_attributes', {'args': [], 'kwargs': {}})
-        path = self.attributes.get('path', [])
-        data_to_tabulate = self.utils.traverse_dict(data, path)
-        if isinstance(data_to_tabulate, dict):
-            data_to_tabulate = [data_to_tabulate]
-        # if headers given - reform data to follow headers order
-        if isinstance(headers, list):
-            table = []
-            for item in data_to_tabulate:
-                if isinstance(item, dict):
-                    row = ['' for i in headers]
-                    for k, v in item.items():
-                        if k not in headers:
-                            headers.append(k)
-                            row.append('')
-                        row[headers.index(k)] = v
-                    table.append(row)
-            return tabulate(table, headers=headers, *attribs['args'], **attribs['kwargs'])
-        # try to run tabulate with headers='keys', to use dictionaries keys as headers:
-        try:
-            return tabulate(data_to_tabulate, headers=headers, *attribs['args'], **attribs['kwargs'])
-        except AttributeError as e:
-            print("Error: failed construct tabulate table, detail: '{}'".format(e))
+        # run tabulate:
+        return tabulate(table, headers=headers, *attribs['args'], **attribs['kwargs'])
 
     def formatter_jinja2(self, data):
         """Method to render output template using results data.
