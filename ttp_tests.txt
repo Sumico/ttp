@@ -9,7 +9,7 @@ description="Groups to test various function"
 vlans = "unrange(rangechar='-', joinchar=',') | joinmatches(',')"
 </vars>
 
-<!--template to test chain with unrange and joinmatches-->
+<!--to test chain with unrange and joinmatches-->
 <input name="test1" load="text" groups="interfaces">
 interface GigabitEthernet3/3
  switchport trunk allowed vlan add 138,166-173 
@@ -254,7 +254,40 @@ description="test dynamic path"
 </output>
 
 
+<!--test set function-->
+<input 
+name="test7" 
+load="text" 
+>
+interface GigabitEthernet3/4
+ switchport mode access 
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface GigabitEthernet3/7
+ switchport mode access 
+ switchport mode trunk
+ switchport nonegotiate
+!
+</input>
 
+<group name="interfacesset" input="test7" output="test7">
+interface {{ interface }}
+ switchport mode access {{ mode_access | set("True") }}
+ switchport trunk encapsulation dot1q {{ encap | set("dot1q") }}
+ switchport mode trunk {{ mode | set("Trunk") }} {{ vlans | set("all_vlans") }}
+ shutdown {{ disabled | set("True") }}
+!{{ _end_ }}
+</group>
+
+<output name="test7"
+functions="is_equal"
+description="test set function"
+load="python"
+>
+{'interfacesset': [{'interface': 'GigabitEthernet3/4', 'mode_access': 'True', 'encap': 'dot1q', 'mode': 'Trunk', 'vlans': 'all_vlans'}, {'interface': 'GigabitEthernet3/7', 'mode_access': 'True', 'mode': 'Trunk', 'vlans': 'all_vlans'}]}
+</output>
 
 
 <!--output to print raw python result to screen

@@ -517,7 +517,7 @@ format="jinja2"
 returner="terminal"
 >
 hostname,interface,description
-{% for key, value in _data.items() %}
+{% for key, value in _data_.items() %}
 {{ value.sysname }},{{ key }},{{ value.description }}
 {% endfor %}
 </out>
@@ -1344,4 +1344,63 @@ format="tabulate"
 returner="terminal"
 />
 </template>
+"""
+
+test139="""
+<input 
+name="test7" 
+load="text" 
+>
+interface GigabitEthernet3/4
+ switchport mode access 
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface GigabitEthernet3/7
+ switchport mode access 
+ switchport mode trunk
+ switchport nonegotiate
+!
+</input>
+
+<group name="interfaces" input="test7" output="test7">
+interface {{ interface }}
+ switchport mode access {{ mode_access | set("True") }}
+ switchport trunk encapsulation dot1q {{ encap | set("dot1q") }}
+ switchport mode trunk {{ mode | set("Trunk") }} {{ vlans | set("all_vlans") }}
+ shutdown {{ disabled | set("True") }}
+!{{ _end_ }}
+</group>
+
+<output name="test7"
+description="test dynamic path"
+returner="terminal"
+format="raw"
+>
+</output>
+"""
+
+
+test140="""
+<input name="test1" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+!
+interface GigabitEthernet3/4
+ switchport trunk allowed vlan add 100-105
+!
+interface GigabitEthernet3/5
+ switchport trunk allowed vlan add 459,531,704-707
+</input>
+
+<group name="interfaces.trunks">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+</group>
+
+<output 
+format="json"
+returner="terminal"
+/>
 """

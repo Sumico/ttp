@@ -4,15 +4,20 @@ Template Text Parser
 
 Module to parse semi-structured text data.
 """
+# compatibility with python2.6:
+# from __future__ import print_function
 
 __version__ = '0.0.0'
 
 import re
 import os
 import time
-import copy
 from xml.etree import cElementTree as ET
 from multiprocessing import Process, cpu_count, JoinableQueue, Queue
+from sys import version_info
+
+# get version of python running the script:
+python_major_version = version_info.major
 
 # Initiate global variables:
 ctime = time.ctime().replace(':', '-').replace(' ', '_')
@@ -625,6 +630,8 @@ class _ttp_utils():
         if os.path.isfile(path):
             if read:
                 try:
+                    if python_major_version is 2:
+                        return [('text_data', open(path, 'r').read(),)]
                     return [('text_data', open(path, 'r', encoding='utf-8').read(),)]
                 except UnicodeDecodeError:
                     print('Warning: Unicode read error, file "{}"'.format(path))
@@ -638,6 +645,8 @@ class _ttp_utils():
             for filter in filters:
                 files=[f for f in files if re.search(filter, f)]
             if read:
+                if python_major_version is 2:
+                    return [('text_data', open((path + f), 'r').read(),) for f in files]
                 return [('text_data', open((path + f), 'r', encoding='utf-8').read(),) for f in files]
             else:
                 return [('file_name', path + f,) for f in files]
@@ -893,6 +902,9 @@ class _template_class():
             for input_name in G.inputs:
                 if input_name in self.inputs:
                     self.inputs[input_name]['groups'].append(G.name)
+                    # remove 'all' from this input as it is group specific:
+                    if self.inputs[input_name]['groups'][0].lower() == 'all':
+                        self.inputs[input_name]['groups'].pop(0)
                 else:
                     input_name = self.data_path_prefix + input_name.lstrip('.')
                     data_items = self.utils.load_files(path=input_name, extensions=[],
@@ -1025,7 +1037,7 @@ class _template_class():
 
         def parse_template(element):
             self.templates.append(_template_class(
-                template_text=ET.tostring(element, encoding="unicode"),
+                template_text=ET.tostring(element, encoding="UTF-8"),
                 DEBUG=self.DEBUG,
                 data_path_prefix=self.data_path_prefix)
             )
@@ -1130,7 +1142,7 @@ class _group_class():
         """
         self.pathchar = pathchar
         self.top      = top
-        self.path     = path.copy()
+        self.path     = list(path)
         self.defaults = {}
         self.runs     = {}
         self.default  = "_Not_Given_"
@@ -1466,30 +1478,30 @@ class _variable_class():
             esc_line=re.sub('\d+',r'\\d+', esc_line)   # to replace all numbers with \d+ in regex
         esc_line=re.sub(r'(\\ )+',r'\\ +', esc_line)   # to replace all spaces with ' +' in regex
 
-        # check if regex empty, if so, make it equal to escaped line, reconstruct indent and add start/end of line:
+        # check if regex empty, if so, make self.regex equal to escaped line, reconstruct indent and add start/end of line:
         if regex == '':
-            regex=esc_line
-            regex=self.indent * ' ' + regex       # reconstruct indent
-            regex='\\n' + regex + ' *(?=\\n)'     # use lookahead assertion for end of line and match any number of leading spaces
+            self.regex = esc_line
+            self.regex = self.indent * ' ' + self.regex       # reconstruct indent
+            self.regex = '\\n' + self.regex + ' *(?=\\n)'     # use lookahead assertion for end of line and match any number of leading spaces
+        else:
+            self.regex = regex
 
         def regex_ignore(data):
-            nonlocal regex
             if len(data['args']) == 0:
-                regex = regex.replace(esc_var, '\S+', 1)
+                self.regex = self.regex.replace(esc_var, '\S+', 1)
             elif len(data['args']) == 1:
-                regex = regex.replace(esc_var, data['args'][0], 1)
+                self.regex = self.regex.replace(esc_var, data['args'][0], 1)
 
         def regex_deleteVar(data):
-            nonlocal regex
             result = None
-            if esc_var in regex:
-                index = regex.find(esc_var)
+            if esc_var in self.regex:
+                index = self.regex.find(esc_var)
                 # slice regex string before esc_var start:
-                result = regex[:index]
+                result = self.regex[:index]
                 # delete "\ +" from end of line and add " *(?=\\n)":
                 result = re.sub('(\\\\ \+)$', '', result) + ' *(?=\\n)'
             if result:
-                regex = result
+                self.regex = result
 
         # for variables like {{ ignore() }}
         regexFuncsVar={
@@ -1513,17 +1525,17 @@ class _variable_class():
         if self.var_res == []: self.var_res.append(self.REs.patterns['WORD'])
 
         # form variable regex by replacing escaped variable, if it is still in regex:
-        regex = regex.replace(esc_var,
+        self.regex = self.regex.replace(esc_var,
             '(?P<{}>(?:{}))'.format(self.var_name, ')|(?:'.join(self.var_res),1)
         )
 
         # after regexes formed we can delete unneccesary variables:
         if self.DEBUG == False:
-            del self.attributes, esc_var, esc_line, self.DEBUG
+            del self.attributes, esc_line, self.DEBUG
             del self.LINE, self.skip_defaults, self.indent
             del self.var_dict, self.REs, self.var_res, self.utils
 
-        return regex
+        return self.regex
 
 
 
@@ -1829,7 +1841,7 @@ class _results_class():
                 # Save results:
                 saveFuncs[re['ACTION']](
                     RESULT     = result_data,
-                    PATH       = group.path.copy(),
+                    PATH       = list(group.path),
                     DEFAULTS   = group.runs,
                     CONDITIONS = group.funcs,
                     REDICT     = re
@@ -1956,7 +1968,6 @@ class _results_class():
             'RESULT'     : DEFAULTS.copy(),
             'DEFAULTS'   : DEFAULTS,
             'PATH'       : PATH,
-            #'CONDITIONS' : copy.deepcopy(CONDITIONS)
             'CONDITIONS' : CONDITIONS
         }
         self.record['RESULT'].update(RESULT)
@@ -1969,7 +1980,6 @@ class _results_class():
             'RESULT'     : DEFAULTS.copy(),
             'DEFAULTS'   : DEFAULTS,
             'PATH'       : PATH,
-            #'CONDITIONS' : copy.deepcopy(CONDITIONS)
             'CONDITIONS' : CONDITIONS
         }
 
@@ -2019,7 +2029,7 @@ class _results_class():
     def END(self, RESULT, PATH, DEFAULTS={}, CONDITIONS=[], REDICT=''):
         # action to end current group by locking it
         self.GRPLOCK['LOCK'] = True
-        self.GRPLOCK['GROUP'] = PATH.copy()
+        self.GRPLOCK['GROUP'] = list(PATH)
 
 
     def form_path(self, path):
@@ -2231,7 +2241,10 @@ class _outputter_class():
             f.write(D)
 
     def returner_terminal(self, D):
-        print(str(D).replace('\\n', '\n'))
+        if isinstance(D, str) or isinstance(D, unicode):
+            print(D)
+        else:
+            print(str(D).replace('\\n', '\n'))
 
     def formatter_raw(self, data):
         """Method returns parsing results as python list or dictionary.
@@ -2344,10 +2357,8 @@ class _outputter_class():
         # load template:
         template_obj = Environment(loader='BaseLoader', trim_blocks=True,
                                    lstrip_blocks=True).from_string(self.element.text)
-        # render data - first argument is data as is, second argument data assigned to _data_,
-        # so that _data_ can be referenced in templates, need it because data can be a dictionary
-        # without predefined keys:
-        result = template_obj.render(data, _data_=data)
+        # render data making whole results accessible from _data_ variable in jinja
+        result = template_obj.render(_data_=data)
         return result
 
 
@@ -2396,10 +2407,10 @@ if __name__ == '__main__':
 
     def timing(message):
         if TIMING:
-            print(round(time.perf_counter() - t0, 5), message)
+            print(round(time.time() - t0, 5), message)
 
     if TIMING:
-        t0 = time.perf_counter()
+        t0 = time.time()
     else:
         t0 = 0
 
