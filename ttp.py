@@ -2260,7 +2260,10 @@ class _outputter_class():
     def formatter_yaml(self, data):
         """Method returns parsing results in yaml format.
         """
-        from yaml import dump
+        try:
+            from yaml import dump
+        except ImportError:
+            raise SystemExit("yaml not installed, install: 'python -m pip install pyyaml', exiting")
         return dump(data, default_flow_style=False)
 
     def formatter_json(self, data):
@@ -2436,6 +2439,6 @@ if __name__ == '__main__':
         parser_Obj.result(format='pprint', returner='terminal')
         timing("RAW pprint dumped")
     elif output:
-        print("Error: Unsuported output format '{}', supported [yaml, json, raw, pprint]".format(output.lower()))
+        print("Error: Unsuported cli output format '{}', supported [yaml, json, raw, pprint]".format(output.lower()))
 
     timing("Done")
