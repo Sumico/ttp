@@ -441,7 +441,7 @@ format_attributes = "tablefmt='fancy_grid'"
 />
 
 <!--group with group specific outputs:-->
-<group name="interfaces2.trunks2" output="out_tabulate2, out_csv2">
+<group name="interfaces2.trunks2" output="out_tabulate2, out_csv2, test_csv_is_equal">
 interface {{ interface }}
  switchport trunk allowed vlan add {{ trunk_vlans }}
  description {{ description | ORPHRASE }}
@@ -458,8 +458,19 @@ format="csv"
 returner="terminal"
 sep=","
 missing="undefined"
-load="python"
 />
+
+<out 
+name="test_csv_is_equal"
+load="text"
+function="is_equal"
+description="test csv outputter"
+>
+description,interface,ip,mask,trunk_vlans,vrf
+some description,GigabitEthernet3/3,undefined,undefined,138,166-173,undefined
+undefined,GigabitEthernet3/4,undefined,undefined,100-105,undefined
+undefined,GigabitEthernet3/5,1.1.1.1,255.255.255.255,459,531,704-707,ABC_VRF
+</out>
 
 <out
 name="out_tabulate2"

@@ -854,7 +854,9 @@ class _template_class():
     def run_outputs(self):
         """Method to run template outputs with template results
         """
-        [output.run(self.results) for output in self.outputs]
+        # [output.run(self.results) for output in self.outputs]
+        for output in self.outputs:
+            self.results = output.run(self.results)
 
     def form_results(self, result):
         """Method to add results to self.results
@@ -2096,13 +2098,14 @@ class _outputter_class():
         self.utils = _ttp_utils()
         # set attributes default values:
         self.attributes = {
-            'returner'    : 'self',
+            'returner'    : ['self'],
             'format'      : 'raw',
             'url'         : './Output/',
             'method'      : 'join',
             'filename'    : 'output_{}.txt'.format(ctime)
         }
         self.name = None
+        self.return_to_self = False
         self.functions = []
         self.functions_obj = _ttp_functions(out_obj=self)
         # get output attributes:
@@ -2120,7 +2123,7 @@ class _outputter_class():
         def extract_returner(O):
             supported_returners = ['file', 'terminal', 'self']
             if O in supported_returners:
-                self.attributes['returner'] = O
+                self.attributes['returner'] = [i.strip() for i in O.split(',')]
             else:
                 raise SystemExit("Error: Unsupported output returner '{}'. Supported: {}. Exiting".format(
                     O, supported_returners))
@@ -2178,7 +2181,7 @@ class _outputter_class():
             }
 
         def extract_path(O):
-            self.attributes['path'] = O.split('.')
+            self.attributes['path'] = [i.strip() for i in O.split('.')]
 
         def extract_headers(O):
             self.attributes['headers'] = [i.strip() for i in O.split(',')]
@@ -2204,7 +2207,7 @@ class _outputter_class():
             else: self.attributes[name] = options
 
     def run(self, data):
-        returner = self.attributes['returner']
+        returners = self.attributes['returner']
         format = self.attributes['format']
         results = data
         # run fuctions:
@@ -2215,14 +2218,18 @@ class _outputter_class():
             results = getattr(self.functions_obj, 'output_' + func_name)(results, *args, **kwargs)
         # format data using requested formatter:
         results = getattr(self, 'formatter_' + format)(results)
-        # decide what to do with results:
-        if returner == 'self':
-            # return results as it contains processed data:
-            return results
-        else:
-            getattr(self, 'returner_' + returner)(results)
-            # return unmodified data:
-            return data
+        # run returners:
+        [getattr(self, 'returner_' + returner)(results) for returner in returners]
+        # check if need to return processed data:
+        if self.return_to_self is True:
+            return results        
+        # return unmodified data:
+        return data
+
+    def returner_self(self, D):
+        """Method to indicate that processed data need to be returned
+        """
+        self.return_to_self = True
 
     def returner_file(self, D):
         """Method to write data into file
