@@ -1404,3 +1404,58 @@ format="json"
 returner="terminal"
 />
 """
+
+test141="""
+<group name="facts.os_version">
+Cisco IOS XE Software, Version {{ os_version }}
+<group name="uptime">
+{{ ignore }} uptime is {{ weeks | DIGIT }} weeks, {{ days | DIGIT }} days, {{ minutes | DIGIT }} minutes
+</group>
+System image file is {{ system_file | strip('"') }}
+Last reload reason: {{ last_reload_reason | ORPHRASE }}
+License Level: {{ license_level }}
+License Type: {{ license_type | ORPHRASE }}
+Next reload license Level: {{ next_reload_license_level}}
+Smart Licensing Status: {{ smart_licencing | ORPHRASE }}
+{{ GE_intfs_count }} Gigabit Ethernet interfaces
+{{ non_volatile_mem_Kbytes | DIGIT }} bytes of non-volatile configuration memory.
+{{ RAM_Kbytes | DIGIT }} bytes of physical memory.
+{{ bootflash_mem_Kbytes | DIGIT }} bytes of virtual hard disk at bootflash:.
+Configuration register is {{ config_register }}
+</group>
+"""
+
+test142="""
+<group name="platform">
+cisco {{ platform }} ({{ ignore }}) processor (revision {{ ignore }}) with {{ ignore }} bytes of memory.
+</group>
+"""
+
+test143="""
+<vars load="ini" name="vars">
+[my_vars]
+hostname=gethostname
+abc=xyz
+</vars>
+
+<input name="test1" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+!
+interface GigabitEthernet3/4
+ switchport trunk allowed vlan add 100-105
+!
+interface GigabitEthernet3/5
+ switchport trunk allowed vlan add 459,531,704-707
+</input>
+
+<group name="interfaces.trunks">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+</group>
+
+<output 
+format="json"
+returner="terminal"
+/>
+"""

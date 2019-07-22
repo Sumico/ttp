@@ -81,7 +81,8 @@ class ttp():
             return
         for i in data_items:
             if self.__data_size < self.multiproc_threshold:
-                self.__data_size += os.path.getsize(i[1])
+                if i[0] == "file_name":
+                    self.__data_size += os.path.getsize(i[1])
             else:
                 break
 
@@ -604,8 +605,8 @@ class _ttp_utils():
         pass
 
     def traverse_dict(self, data, path):
-        """Method to traverse dictionary data and return dict element
-        at given path
+        """Method to traverse dictionary data and return element
+        at given path.
         """
         result = data
         for i in path:
@@ -700,7 +701,10 @@ class _ttp_utils():
                 except:
                     ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
             # convert configparser object into dictionary
-            return {k: dict(data.items(k)) for k in list(data.keys())}
+            result = {k: dict(data.items(k)) for k in list(data.keys())}
+            if not result["DEFAULT"]: # delete empty DEFAULT section
+                result.pop("DEFAULT")
+            return result
 
         def load_python(text_data, kwargs):
             data = {}
@@ -709,14 +713,14 @@ class _ttp_utils():
                 for datum in files:
                     text_data += "\n" + datum[1]
             try:
-                exec(compile(text_data, '<string>', 'exec'), {"__builtins__" : None}, data)
-                # run eval in case if data still empty as we might have python dictionary or list
-                # expressed as string
-                if not data:
-                    data = eval(text_data, None, None)
+                if python_major_version is 2:
+                    from utils.ttp_load_py2 import load_python
+                elif python_major_version is 3:
+                    from utils.ttp_load_py3 import load_python
+                data = load_python(text_data, kwargs)
                 return data
             except:
-                print("ERROR: Unable to load Python formatted data\n'{}'".format(text_data))
+              print("ERROR: Unable to load Python formatted data\n'{}'".format(text_data))
 
         def load_yaml(text_data, kwargs):
             from yaml import load
@@ -1230,10 +1234,10 @@ class _group_class():
             regex=''
             variables={}
             action='ADD'
-            is_line=False
+            is_line = False
             skip_regex = False
             for variable in i['variables']:
-                variableObj=_variable_class(variable, i['line'], DEBUG=self.debug, group=self)
+                variableObj = _variable_class(variable, i['line'], DEBUG=self.debug, group=self)
 
                 # check if need to skip appending regex dict to regexes list
                 # have to skip it for 'let' function
@@ -1243,18 +1247,18 @@ class _group_class():
 
                 # creade variable dict:
                 if variableObj.skip_variable_dict is False:
-                    variables[variableObj.var_name]=variableObj
+                    variables[variableObj.var_name] = variableObj
 
                 # form regex:
                 regex=variableObj.form_regex(regex)
 
                 # check if IS_LINE:
                 if is_line == False:
-                    is_line=variableObj.IS_LINE
+                    is_line = variableObj.IS_LINE
 
                 # modify save action only if it is not START or STARTEMPTY already:
                 if "START" not in action:
-                    action=variableObj.SAVEACTION
+                    action = variableObj.SAVEACTION
 
             if skip_regex is True:
                 continue
@@ -1484,7 +1488,7 @@ class _variable_class():
         if regex == '':
             self.regex = esc_line
             self.regex = self.indent * ' ' + self.regex       # reconstruct indent
-            self.regex = '\\n' + self.regex + ' *(?=\\n)'     # use lookahead assertion for end of line and match any number of leading spaces
+            self.regex = '\\n' + self.regex + ' *(?=\\n)'     # use lookalhead assertion for end of line and match any number of trailing spaces
         else:
             self.regex = regex
 
@@ -1511,14 +1515,13 @@ class _variable_class():
         '_start_'  : regex_deleteVar,
         '_end_'    : regex_deleteVar
         }
+        if self.var_name in regexFuncsVar:
+            regexFuncsVar[self.var_name](self.var_dict)
+            
         # for the rest of functions:
         regexFuncs={
         'set'      : regex_deleteVar
         }
-
-        if self.var_name in regexFuncsVar:
-            regexFuncsVar[self.var_name](self.var_dict)
-
         # go over all keywords to form regex:
         [regexFuncs[i['name']](i)
          for i in self.functions if i['name'] in regexFuncs]
@@ -1526,10 +1529,13 @@ class _variable_class():
         # assign default re if variable without regex formatters:
         if self.var_res == []: self.var_res.append(self.REs.patterns['WORD'])
 
-        # form variable regex by replacing escaped variable, if it is still in regex:
-        self.regex = self.regex.replace(esc_var,
-            '(?P<{}>(?:{}))'.format(self.var_name, ')|(?:'.join(self.var_res),1)
-        )
+        # form variable regex by replacing escaped variable, if it is in regex
+        # except for the case if variable is "ignore" as it already was replaced
+        # in regex_ignore function:
+        if self.var_name != "ignore":
+            self.regex = self.regex.replace(esc_var,
+                '(?P<{}>(?:{}))'.format(self.var_name, ')|(?:'.join(self.var_res),1)
+            )
 
         # after regexes formed we can delete unneccesary variables:
         if self.DEBUG == False:
@@ -2382,7 +2388,7 @@ if __name__ == '__main__':
     try:
         import templates as ttp_templates
         templates_exist = True
-    except ModuleNotFoundError:
+    except ImportError:
         templates_exist = False
 
     # form arg parser menu:
