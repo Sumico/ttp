@@ -19,6 +19,8 @@ Action functions act upon match result to transform it to desired state.
      - add functions from chain variable 
    * - `record`_ 
      - Save match result to variable with given name, which can be referenced by actions
+   * - `let`_ 
+     - Assigns provided value to match variable
    * - `truncate`_ 
      - truncate match results
    * - `joinmatches`_ 
@@ -76,7 +78,7 @@ Condition functions can perform various checks with match results and returns ei
      - checks if match is greater than given value
    * - `lessthan`_ 
      - checks if match is less than given value
-	 
+     
 Python builtins
 ------------------------------------------------------------------------------
 Apart from functions provided by ttp, python objects builtin functions can be used as well. For instance string *upper* method can be used to convert match into apper case, or list *index* method to return index of certain value.
@@ -162,7 +164,7 @@ Result:
          "trunk_vlans": "138:166:167:168:169:170:171:172:173:400:401:410"
      }
  }
-	
+    
 record
 ------------------------------------------------------------------------------
 ``{{ name | record(name) }}``
@@ -170,6 +172,56 @@ record
 * name (mandatory) - a string containing variable name
 
 Records match results in variable with given name after all functions run
+
+let
+------------------------------------------------------------------------------
+``{{ variable | let(value) }}``
+
+* value (mandatory) - a string containing value to be assigned to variable
+
+Statically assigns provided value to variable for in group results. Prior to assigning value as a static sting, template variables will be checked for matching varaible, if such a variable foun, its value will be used.
+
+**Example**
+
+In this example "interface_role" will be statically set to "Uplink", but value for "provider" variable will be taken from template variable "my_var" and set to "L2VC".
+
+Data:
+::
+    interface Vlan777
+      description Management
+      ip address 192.168.0.1/24
+      vrf MGMT
+    !
+
+Template:
+::
+    <vars>
+    my_var = "L2VC"
+    </vars>
+
+    <group>
+    interface {{ interface }}
+      description {{ description }}
+      ip address {{ ip }}/{{ mask }}
+      vrf {{ vrf }}
+      {{ interface_role | let("Uplink") }}
+      {{ provider | let("my_var") }}
+    !{{_end_}}
+    </group>
+
+Result:
+::
+    [
+        {
+            "description": "Management",
+            "interface": "Vlan777",
+            "interface_role": "Uplink",
+            "ip": "192.168.0.1",
+            "mask": "24",
+            "provider": "L2VC",
+            "vrf": "MGMT"
+        }
+    ]
 
 truncate
 --------

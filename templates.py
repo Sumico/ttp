@@ -918,7 +918,7 @@ returner="terminal"
 format="tabulate"
 format_attributes="tablefmt='fancy_grid'"
 >
-[{'vars': {}, 'SVIs': [{'interface': 'Vlan123', 'description': 'Desks vlan', 'ip': '192.168.123.1', 'mask': '255.255.255.0'}, {'interface': 'Vlan222', 'description': 'Phones vlan', 'ip': '192.168.222.1', 'mask': '255.255.255.0'}]}]
+[{'SVIs': [{'interface': 'Vlan123', 'description': 'Desks vlan', 'ip': '192.168.123.1', 'mask': '255.255.255.0'}, {'interface': 'Vlan222', 'description': 'Phones vlan', 'ip': '192.168.222.1', 'mask': '255.255.255.0'}]}]
 </output>
 
 </template>
@@ -955,9 +955,6 @@ format_attributes = "tablefmt='fancy_grid'"
     "interfaces": {
         "interface": "GigabitEthernet3/3",
         "trunk_vlans": "138,166,167,168,169,170,171,172,173,400,401,410"
-    },
-    "vars": {
-        "vlans": "unrange(rangechar='-', joinchar=',') | joinmatches(',')"
     }
 }]
 </output>
@@ -1394,6 +1391,17 @@ interface GigabitEthernet3/5
  switchport trunk allowed vlan add 459,531,704-707
 </input>
 
+<input name="test2" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/6
+ switchport trunk allowed vlan add 138,166-173 
+!
+interface GigabitEthernet3/7
+ switchport trunk allowed vlan add 100-105
+!
+interface GigabitEthernet3/8
+ switchport trunk allowed vlan add 459,531,704-707
+</input>
+
 <group name="interfaces.trunks">
 interface {{ interface }}
  switchport trunk allowed vlan add {{ trunk_vlans }}
@@ -1458,4 +1466,170 @@ interface {{ interface }}
 format="json"
 returner="terminal"
 />
+"""
+
+test144="""
+<input name="test1" load="text" groups="interfaces2.trunks2">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+ description some description
+!
+interface GigabitEthernet3/4
+ switchport trunk allowed vlan add 100-105
+!
+interface GigabitEthernet3/5
+ switchport trunk allowed vlan add 459,531,704-707
+ ip address 1.1.1.1 255.255.255.255
+ vrf forwarding ABC_VRF
+!
+</input>
+
+<group name="interfaces2.trunks2" output="out_csv2, test_csv_is_equal">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ vrf forwarding {{ vrf }}
+ ip address {{ ip }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+<!--group specific outputs:-->
+<out
+name="out_csv2"
+path="interfaces2.trunks2"
+format="csv"
+sep=","
+missing="undefined"
+/>
+
+<out 
+name="test_csv_is_equal"
+load="text"
+returner="terminal"
+functions="is_equal"
+description="test csv outputter"
+>description,interface,ip,mask,trunk_vlans,vrf
+some description,GigabitEthernet3/3,undefined,undefined,138,166-173,undefined
+undefined,GigabitEthernet3/4,undefined,undefined,100-105,undefined
+undefined,GigabitEthernet3/5,1.1.1.1,255.255.255.255,459,531,704-707,ABC_VRF</out>
+"""
+
+test145="""
+<input load="text">
+interface Port-Chanel11
+  description Storage
+!
+interface Loopback0
+  description RID
+  ip address 10.0.0.3/24
+!
+interface Vlan777
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<group name="interfaces*.{{ interface }}">
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+</group>
+"""
+
+test146="""
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+!{{_end_}}
+"""
+
+test147="""
+<input load="text">
+interface Port-Chanel11
+  description Storage
+!
+interface Loopback0
+  description RID
+  ip address 10.0.0.3/24
+!
+interface Vlan777
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<group>
+interface {{ interface }}
+  description {{ description }}
+<group name = "ips">
+  ip address {{ ip }}/{{ mask }}
+</group>
+  vrf {{ vrf }}
+!{{_end_}}
+</group>
+"""
+
+test148 = """
+<group name="interfaces.cool_{{ interface }}_interface_{{ interface }}">
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+</group>
+"""
+
+test149="""
+<input load="text">
+interface Port-Chanel11
+  description Storage
+!
+interface Loopback0
+  description RID
+  ip address 10.0.0.3/24
+!
+interface Vlan777
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<group>
+interface {{ interface }}
+  description {{ description }}
+<group>
+  ip address {{ ip }}/{{ mask }}
+</group>
+  vrf {{ vrf }}
+!{{_end_}}
+</group>
+"""
+
+
+test150="""
+<input load="text">
+interface Vlan777
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<vars>
+my_var = "L2VC"
+</vars>
+
+<group>
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+  {{ interface_role | let("Uplink") }}
+  {{ provider | let("my_var") }}
+!{{_end_}}
+</group>
 """

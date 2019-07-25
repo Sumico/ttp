@@ -2,7 +2,7 @@
 
 <!--one more template###############################################################################################-->
 <template
-name="TESTS_SET_1" 
+name="template-1" 
 description="Groups to test various function"
 >
 <vars>
@@ -10,19 +10,19 @@ vlans = "unrange(rangechar='-', joinchar=',') | joinmatches(',')"
 </vars>
 
 <!--to test chain with unrange and joinmatches-->
-<input name="test1" load="text" groups="interfaces">
+<input name="test1-1" load="text" groups="interfaces">
 interface GigabitEthernet3/3
  switchport trunk allowed vlan add 138,166-173 
  switchport trunk allowed vlan add 400,401,410
 </input>
 
-<group name="interfaces" output="test1">
+<group name="interfaces" output="test1-1">
 interface {{ interface }}
  switchport trunk allowed vlan add {{ trunk_vlans | chain("vlans") }}
 </group>
 
 <output 
-name="test1" 
+name="test1-1" 
 load="json" 
 functions="is_equal" 
 description="test vlans unrange and joinmatches functions" 
@@ -37,7 +37,7 @@ description="test vlans unrange and joinmatches functions"
 
 
 <!--test contains('vlan') for interfaces-->
-<input name="test2" load="text" groups="SVIs">
+<input name="test1-2" load="text" groups="SVIs">
 interface Vlan123
  description Desks vlan
  ip address 192.168.123.1 255.255.255.0
@@ -53,14 +53,14 @@ interface Loopback0
  description Routing ID loopback
 </input>
 
-<group name="SVIs" output="test2">
+<group name="SVIs" output="test1-2">
 interface {{ interface | contains("Vlan") }}
  description {{ description | ORPHRASE}}
  ip address {{ ip }} {{ mask }}
 </group>
 
 <output 
-name="test2" 
+name="test1-2" 
 load="python" 
 functions="is_equal" 
 description="test that only interaces with vlan got to results"
@@ -71,7 +71,7 @@ description="test that only interaces with vlan got to results"
 
 <!--test containsall for group results-->
 <input 
-name="test3" 
+name="test1-3" 
 load="text" 
 groups="interfaces_contansall"
 >
@@ -88,14 +88,14 @@ interface Vlan777
   vrf MGMT
 </input>
 
-<group name="interfaces_contansall" containsall="ip, vrf" output="test3">
+<group name="interfaces_contansall" containsall="ip, vrf" output="test1-3">
 interface {{ interface }}
   description {{ description }}
   ip address {{ ip }}/{{ mask }}
   vrf {{ vrf }}
 </group>
 
-<output name="test3"
+<output name="test1-3"
 load="json"
 functions="is_equal"
 description="test containsall for group"
@@ -114,7 +114,7 @@ description="test containsall for group"
 
 <!--test containsany for group results-->
 <input 
-name="test4" 
+name="test1-4" 
 load="text" 
 groups="interfaces_contains"
 >
@@ -131,14 +131,14 @@ interface Vlan777
   vrf MGMT
 </input>
 
-<group name="interfaces_contains" contains="ip,vrf" output="test4">
+<group name="interfaces_contains" contains="ip,vrf" output="test1-4">
 interface {{ interface }}
   description {{ description }}
   ip address {{ ip }}/{{ mask }}
   vrf {{ vrf }}
 </group>
 
-<output name="test4"
+<output name="test1-4"
 load="json"
 functions="is_equal"
 description="test contains any for group"
@@ -165,7 +165,7 @@ description="test contains any for group"
 
 <!--test group table method-->
 <input 
-name="test5" 
+name="test1-5" 
 load="text" 
 groups="arp_table"
 >
@@ -175,12 +175,12 @@ Internet  10.1.13.1              98   0050.5685.5cd1  ARPA   GigabitEthernet2.13
 Internet  10.1.13.3               -   0050.5685.14d5  ARPA   GigabitEthernet2.13
 </input>
 
-<group name="arp_table" method="table" output="test5">
+<group name="arp_table" method="table" output="test1-5">
 Internet  {{ ip }}  {{ age | DIGIT }}   {{ mac }}  ARPA   {{ interface }}
 Internet  {{ ip }}  -                   {{ mac }}  ARPA   {{ interface }}
 </group>
 
-<output name="test5"
+<output name="test1-5"
 load="json"
 functions="is_equal"
 description="test group table method"
@@ -205,7 +205,7 @@ description="test group table method"
 
 <!--test dynamic path-->
 <input 
-name="test6" 
+name="test1-6" 
 load="text" 
 >
 ucs-core-switch-1#show run | section bgp
@@ -228,7 +228,7 @@ router bgp 65100
         route-map RPL-2-EXPORT-V6 out
 </input>
 
-<group name="router.bgp.BGP_AS_{{ asn }}" input="test6" output="test6">
+<group name="router.bgp.BGP_AS_{{ asn }}" input="test1-6" output="test1-6">
 router bgp {{ asn }}
   <group name="vrfs.{{ vrf_name }}">
   vrf {{ vrf_name }}
@@ -245,7 +245,7 @@ router bgp {{ asn }}
    </group>
 </group>
 
-<output name="test6"
+<output name="test1-6"
 load="python"
 functions="is_equal"
 description="test dynamic path"
@@ -256,7 +256,7 @@ description="test dynamic path"
 
 <!--test set function-->
 <input 
-name="test7" 
+name="test1-7" 
 load="text" 
 >
 interface GigabitEthernet3/4
@@ -272,7 +272,7 @@ interface GigabitEthernet3/7
 !
 </input>
 
-<group name="interfacesset" input="test7" output="test7">
+<group name="interfacesset" input="test1-7" output="test1-7">
 interface {{ interface }}
  switchport mode access {{ mode_access | set("True") }}
  switchport trunk encapsulation dot1q {{ encap | set("dot1q") }}
@@ -281,7 +281,7 @@ interface {{ interface }}
 !{{ _end_ }}
 </group>
 
-<output name="test7"
+<output name="test1-7"
 functions="is_equal"
 description="test set function"
 load="python"
@@ -289,6 +289,156 @@ load="python"
 {'interfacesset': [{'interface': 'GigabitEthernet3/4', 'mode_access': 'True', 'encap': 'dot1q', 'mode': 'Trunk', 'vlans': 'all_vlans'}, {'interface': 'GigabitEthernet3/7', 'mode_access': 'True', 'mode': 'Trunk', 'vlans': 'all_vlans'}]}
 </output>
 
+
+
+<!--test dynamic path with regex formatters-->
+<input 
+name="test1-8" 
+load="text" 
+>
+interface Port-Chanel11
+  description Storage
+!
+interface Loopback0
+  description RID
+  ip address 10.0.0.3/24
+!
+interface Vlan777
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<group name="interfaces*.{{ interface }}" output="test1-8" input="test1-8">
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+</group>
+
+<output name="test1-8"
+functions="is_equal"
+description="test dynamic path with regex formatters"
+load="json"
+>
+{
+     "interfaces": [
+         {
+             "Loopback0": {
+                 "description": "RID",
+                 "ip": "10.0.0.3",
+                 "mask": "24"
+             },
+             "Port-Chanel11": {
+                 "description": "Storage"
+             },
+             "Vlan777": {
+                 "description": "Management",
+                 "ip": "192.168.0.1",
+                 "mask": "24",
+                 "vrf": "MGMT"
+             }
+         }
+     ]
+}
+</output>
+
+<input load="text" name="test1-9">
+interface Port-Chanel11
+  description Storage
+!
+interface Loopback0
+  description RID
+  ip address 10.0.0.3/24
+!
+interface Vlan777
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<group input="test1-9" output="test1-9">
+interface {{ interface }}
+  description {{ description }}
+<group name = "ips">
+  ip address {{ ip }}/{{ mask }}
+</group>
+  vrf {{ vrf }}
+!{{_end_}}
+</group>
+
+<output name="test1-9"
+functions="is_equal"
+description="test top group without name attribute with _anonymous_ path"
+load="json"
+>
+[
+    {
+        "description": "Storage",
+        "interface": "Port-Chanel11"
+    },
+    {
+        "description": "RID",
+        "interface": "Loopback0",
+        "ips": {
+            "ip": "10.0.0.3",
+            "mask": "24"
+        }
+    },
+    {
+        "description": "Management",
+        "interface": "Vlan777",
+        "ips": {
+            "ip": "192.168.0.1",
+            "mask": "24"
+        },
+        "vrf": "MGMT"
+    }
+]
+</output>
+
+
+<input name="test1-10" load="text">
+interface Vlan777
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<vars>
+my_var = "L2VC"
+</vars>
+
+<group name="interfaces_with_let" input="test1-10" output="test1-10">
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+  {{ interface_role | let("Uplink") }}
+  {{ provider | let("my_var") }}
+!{{_end_}}
+</group>
+
+<output name="test1-10"
+functions="is_equal"
+description="test variables let function"
+load="json"
+>
+{
+    "interfaces_with_let": {
+        "description": "Management",
+        "interface": "Vlan777",
+        "interface_role": "Uplink",
+        "ip": "192.168.0.1",
+        "mask": "24",
+        "provider": "L2VC",
+        "vrf": "MGMT"
+    }
+}
+</output>
 
 <!--output to print raw python result to screen
 <output
@@ -309,7 +459,7 @@ format_attributes = "tablefmt='fancy_grid'"
 
 <!--one more teamplte###############################################################################################-->
 <template
-name="TESTS-VARs"
+name="template2"
 description="test vars path forming and saving in results"
 >
 
@@ -325,7 +475,7 @@ caps = "ORPHRASE | upper"
 filename='getfilename' 
 </vars>
 
-<input name="test1" load="text" groups="interfaces">
+<input name="test2-1" load="text" groups="interfaces">
 router1#show run int vlan 777
 interface Vlan777
  description Management
@@ -333,14 +483,14 @@ interface Vlan777
  vrf MGMT
 </input>
 
-<group name="interfaces" output="test1">
+<group name="interfaces" output="test2-1">
 interface {{ interface }}
  description {{ description }}
  ip address {{ ip }} {{ mask }}
  vrf {{ vrf }}
 </group>
 
-<output name="test1"
+<output name="test2-1"
 load="json"
 functions="is_equal"
 description="test vars path forming and saving in results"
@@ -376,11 +526,11 @@ format_attributes = "tablefmt='fancy_grid'"
 
 <!--one more teamplte###############################################################################################-->
 <template
-name="TESTS-CSV-TABULATE-TABLES"
-description="template to test csv/tabulate global and group specific outputters"
+name="template3"
+description="template to test csv/tabulate group specific outputters"
 >
 <!--test csv and tabulate outputters-->
-<input name="test1" load="text" groups="interfaces.trunks, interfaces2.trunks2">
+<input name="test3-1" load="text" groups="interfaces2.trunks2, interfaces3.trunks3">
 interface GigabitEthernet3/3
  switchport trunk allowed vlan add 138,166-173 
  description some description
@@ -395,7 +545,99 @@ interface GigabitEthernet3/5
 !
 </input>
 
-<input name="test1_1" load="text" groups="interfaces.trunks">
+<!--group with group specific outputs:-->
+<group name="interfaces2.trunks2" output="out_csv2, test3-1">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ vrf forwarding {{ vrf }}
+ ip address {{ ip }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces3.trunks3" output="out_tabulate2, test3-2">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ vrf forwarding {{ vrf }}
+ ip address {{ ip }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+<!--group specific outputs:-->
+<out
+name="out_csv2"
+path="interfaces2.trunks2"
+format="csv"
+sep=","
+missing="undefined"
+description="group specific csv outputter"
+/>
+
+<out 
+name="test3-1"
+load="text"
+returner="self"
+functions="is_equal"
+description="test csv group specific outputter"
+>description,interface,ip,mask,trunk_vlans,vrf
+some description,GigabitEthernet3/3,undefined,undefined,138,166-173,undefined
+undefined,GigabitEthernet3/4,undefined,undefined,100-105,undefined
+undefined,GigabitEthernet3/5,1.1.1.1,255.255.255.255,459,531,704-707,ABC_VRF</out>
+
+<out
+name="out_tabulate2"
+path="interfaces3.trunks3"
+format="tabulate"
+description="group specific tabulate outputter"
+/>
+
+<out 
+name="test3-2"
+load="text"
+returner="self"
+functions="is_equal"
+description="test tabulate group specific outputter"
+>description       interface           ip       mask             trunk_vlans      vrf
+----------------  ------------------  -------  ---------------  ---------------  -------
+some description  GigabitEthernet3/3                            138,166-173
+                  GigabitEthernet3/4                            100-105
+                  GigabitEthernet3/5  1.1.1.1  255.255.255.255  459,531,704-707  ABC_VRF</out>
+
+<!--final output to put all results in tabulate table-->
+<output 
+returner="terminal"
+format="tabulate"
+format_attributes = "tablefmt='fancy_grid'"
+/>
+
+</template>
+
+
+
+
+<!--one more teamplte###############################################################################################-->
+<template
+name="template4"
+description="template to test csv/tabulate global outputters"
+>
+<!--test csv and tabulate outputters-->
+<input name="test4-1" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+ description some description
+!
+interface GigabitEthernet3/4
+ switchport trunk allowed vlan add 100-105
+!
+interface GigabitEthernet3/5
+ switchport trunk allowed vlan add 459,531,704-707
+ ip address 1.1.1.1 255.255.255.255
+ vrf forwarding ABC_VRF
+!
+</input>
+
+<input name="test4-1-1" load="text" groups="interfaces.trunks">
 interface GigabitEthernet3/7
  switchport trunk allowed vlan add 138,166-173 
  description some description
@@ -425,59 +667,34 @@ interface {{ interface }}
 name="out_csv"
 path="interfaces.trunks"
 format="csv"
-returner="terminal"
+returner="self"
 sep=","
 missing="undefined"
 load="python"
 />
 
-<out
-name="out_tabulate"
-path="interfaces.trunks"
-format="tabulate"
-returner="terminal"
-headers="interface, vrf, ip, mask, description"
-format_attributes = "tablefmt='fancy_grid'"
-/>
-
-<!--group with group specific outputs:-->
-<group name="interfaces2.trunks2" output="out_tabulate2, out_csv2, test_csv_is_equal">
-interface {{ interface }}
- switchport trunk allowed vlan add {{ trunk_vlans }}
- description {{ description | ORPHRASE }}
- vrf forwarding {{ vrf }}
- ip address {{ ip }} {{ mask }}
-!{{ _end_ }}
-</group>
-
-<!--group specific outputs:-->
-<out
-name="out_csv2"
-path="interfaces2.trunks2"
-format="csv"
-returner="terminal"
-sep=","
-missing="undefined"
-/>
-
 <out 
-name="test_csv_is_equal"
+name="test4-1"
 load="text"
-function="is_equal"
-description="test csv outputter"
->
-description,interface,ip,mask,trunk_vlans,vrf
+returner="self"
+functions="is_equal"
+description="test global csv outputter"
+>description,interface,ip,mask,trunk_vlans,vrf
 some description,GigabitEthernet3/3,undefined,undefined,138,166-173,undefined
 undefined,GigabitEthernet3/4,undefined,undefined,100-105,undefined
 undefined,GigabitEthernet3/5,1.1.1.1,255.255.255.255,459,531,704-707,ABC_VRF
-</out>
+some description,GigabitEthernet3/7,undefined,undefined,138,166-173,undefined
+undefined,GigabitEthernet3/8,undefined,undefined,100-105,undefined
+undefined,GigabitEthernet3/9,1.1.1.1,255.255.255.255,459,531,704-707,ABC_VRF</out>
 
-<out
-name="out_tabulate2"
-path="interfaces2.trunks2"
-format="tabulate"
+<!--final output to put all results in tabulate table-->
+<output 
 returner="terminal"
+format="tabulate"
+format_attributes = "tablefmt='fancy_grid'"
 />
 </template>
+
+
 
 </template>

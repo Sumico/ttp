@@ -14,7 +14,7 @@ Each group tag (<g>, <grp>, <group>)can have a number of attributes, they used d
    * - `input`_  
      - Used to provide the name of input tag or OS path string to files location that needs to be parsed by this group
    * - `default`_   
-     - Contains default value that should be set to all variables
+     - Contains default value that should be set for all variables if nothing been matched
    * - `method`_   
      - Indicates parsing method, supported values are *group* or *table*
    * - `output`_   

@@ -53,7 +53,6 @@ class ttp():
         self.__data = []
         self.__templates = []
         self.__utils = _ttp_utils()
-        self.__results = []
         self.DEBUG = DEBUG
         self.data_path_prefix = data_path_prefix
         self.multiproc_threshold = 5242880 # 5Mbyte
@@ -192,7 +191,7 @@ class ttp():
         [template.run_outputs() for template in self.__templates]
 
 
-    def result(self, templates=None, returner='self', **kwargs):
+    def result(self, templates=[], returner='self', **kwargs):
         """
         Args:
             templates (list|str): names of the templates to return results for
@@ -210,6 +209,7 @@ class ttp():
                              if template.name in templates]
 
         # return results:
+        results = []
         if kwargs:
             kwargs['returner'] = returner
             outputter = _outputter_class(**kwargs)
@@ -306,7 +306,10 @@ class _ttp_functions():
 
     def output_is_equal(self, data, *args, **kwargs):
         data_to_compare_with = self.out_obj.attributes['load']
-        if data == data_to_compare_with:
+        if "_anonymous_" in data:
+            if data["_anonymous_"] == data_to_compare_with:
+                is_equal = True
+        elif data == data_to_compare_with:
             is_equal = True
         else:
             is_equal = False
@@ -608,6 +611,9 @@ class _ttp_utils():
         """Method to traverse dictionary data and return element
         at given path.
         """
+        if not isinstance(data, dict):
+            print("ERROR: ttp_utils.traverse_dict - data is not a dictionary, data: \n{}\n\n".format(data))
+            return data
         result = data
         for i in path:
             result = result.get(i, {})
@@ -627,7 +633,7 @@ class _ttp_utils():
             read True, if read False return (type, url,) or []
         """
         files=[]
-        # check if path is a path to file
+        # check if path is a path to file:
         if os.path.isfile(path):
             if read:
                 try:
@@ -638,7 +644,7 @@ class _ttp_utils():
                     print('Warning: Unicode read error, file "{}"'.format(path))
             else:
                 return [('file_name', path,)]
-        # check if path is directory
+        # check if path is a directory:
         elif os.path.isdir(path):
             files = [f for f in os.listdir(path) if os.path.isfile(path + f)]
             if extensions:
@@ -677,31 +683,33 @@ class _ttp_utils():
         include = element.attrib.get('include', '')
         text_data = element.text
         if text_data is None:
-            #text_data = ''
             return None
 
         def load_text(text_data, kwargs):
             return text_data
 
         def load_ini(text_data, kwargs):
-            import configparser
-            data = configparser.ConfigParser()
-            # read from ini files first
-            if include:
-                files = self.load_files(path=include, extensions=[], filters=[], read=False)
-                for datum in files:
+            if python_major_version is 3:
+                import configparser
+                data = configparser.ConfigParser()
+                # read from ini files first
+                if include:
+                    files = self.load_files(path=include, extensions=[], filters=[], read=False)
+                    for datum in files:
+                        try:
+                            data.read(datum[1])
+                        except:
+                            ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
+                # read from tag text next to make it more specific:
+                if text_data:
                     try:
-                        data.read(datum[1])
+                        data.read_string(text_data)
                     except:
                         ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
-            # read from lookup tag text to make it more specific
-            if text_data:
-                try:
-                    data.read_string(text_data)
-                except:
-                    ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
-            # convert configparser object into dictionary
-            result = {k: dict(data.items(k)) for k in list(data.keys())}
+                # convert configparser object into dictionary
+                result = {k: dict(data.items(k)) for k in list(data.keys())}
+            elif python_major_version is 2:
+                result = {"DEFAULT": {}}
             if not result["DEFAULT"]: # delete empty DEFAULT section
                 result.pop("DEFAULT")
             return result
@@ -723,14 +731,14 @@ class _ttp_utils():
               print("ERROR: Unable to load Python formatted data\n'{}'".format(text_data))
 
         def load_yaml(text_data, kwargs):
-            from yaml import load
+            from yaml import safe_load
             data = {}
             if include:
                 files = self.load_files(path=include, extensions=[], filters=[], read=True)
                 for datum in files:
                     text_data += "\n" + datum[1]
             try:
-                data = load(text_data)
+                data = safe_load(text_data)
                 return data
             except:
                 raise SystemExit("ERROR: Unable to load YAML formatted data\n'{}'".format(text_data))
@@ -749,6 +757,9 @@ class _ttp_utils():
                 raise SystemExit("ERROR: Unable to load YAML formatted data\n'{}'".format(text_data))
 
         def load_csv(text_data, kwargs):
+            """Method to load csv data and convert it to dictionary
+            using given key-header-column as keys or first column as keys
+            """
             from csv import reader
             key = element.attrib.get('key', None)
             data = {}
@@ -867,11 +878,11 @@ class _template_class():
         """
         if not result:
             return
-        elif 'non_hierarch_tmplt' in result:
-            if isinstance(result['non_hierarch_tmplt'], list):
-                self.results += result['non_hierarch_tmplt']
+        elif '_anonymous_' in result:
+            if isinstance(result['_anonymous_'], list):
+                self.results += result['_anonymous_']
             else:
-                self.results += [result['non_hierarch_tmplt']]
+                self.results += [result['_anonymous_']]
         else:
             if isinstance(result, list):
                 self.results += result
@@ -1048,8 +1059,8 @@ class _template_class():
                 data_path_prefix=self.data_path_prefix)
             )
 
-        def parse_non_hierarch_tmplt(element):
-            elem = ET.XML('<g name="non_hierarch_tmplt">\n{}\n</g>'.format(element.text))
+        def parse__anonymous_(element):
+            elem = ET.XML('<g name="_anonymous_">\n{}\n</g>'.format(element.text))
             parse_group(elem)
 
         def invalid(C):
@@ -1109,7 +1120,7 @@ class _template_class():
 
             # check if template has children:
             if not list(template_ET):
-                parse_non_hierarch_tmplt(template_ET)
+                parse__anonymous_(template_ET)
             else:
                 parse_hierarch_tmplt(template_ET)
 
@@ -1165,8 +1176,19 @@ class _group_class():
         self.vars     = vars
         # extract data:
         self.get_attributes(element.attrib)
+        self.set_anonymous_path()
         self.get_regexes(element.text)
         self.get_children(list(element))
+
+    def set_anonymous_path(self):
+        """Mthod to set anonyous path for top group without name
+        attribute.
+        """
+        if self.top is True:
+            if self.path == []:
+                self.path = ["_anonymous_"]
+                self.name = "_anonymous_"
+        
 
     def get_attributes(self, data):
 
@@ -1184,8 +1206,8 @@ class _group_class():
             if self.top: self.outputs += [(i.strip()) for i in O.split(',')]
 
         def extract_name(O):
-            self.path=self.path + O.split(self.pathchar)
-            self.name='.'.join(self.path)
+            self.path = self.path + O.split(self.pathchar)
+            self.name = '.'.join(self.path)
 
         def extract_contains(O):
             self.funcs.append({
@@ -1231,9 +1253,9 @@ class _group_class():
             varaibles_matches.append({'variables': match, 'line': line})
 
         for i in varaibles_matches:
-            regex=''
-            variables={}
-            action='ADD'
+            regex = ''
+            variables = {}
+            action = 'ADD'
             is_line = False
             skip_regex = False
             for variable in i['variables']:
@@ -2254,11 +2276,17 @@ class _outputter_class():
             f.write(D)
 
     def returner_terminal(self, D):
-        if isinstance(D, str) or isinstance(D, unicode):
-            print(D)
-        else:
-            print(str(D).replace('\\n', '\n'))
-
+        if python_major_version is 2:
+            if isinstance(D, str) or isinstance(D, unicode):
+                print(D)
+            else:
+                print(str(D).replace('\\n', '\n'))
+        elif python_major_version is 3:
+            if isinstance(D, str):
+                print(D)
+            else:
+                print(str(D).replace('\\n', '\n'))
+                
     def formatter_raw(self, data):
         """Method returns parsing results as python list or dictionary.
         """
