@@ -525,7 +525,9 @@ hostname,interface,description
 
 
 Intfs_ips_XML = """
-<vars include="./vars/vars.txt" load="python"/>
+<vars>
+hostname = "gethostname"
+</vars>
 
 <input name="Cisco_IOS" load="python">
 url = "./IOS/"
@@ -548,7 +550,7 @@ filters = ["cns11-gc", "intfs"]
 router bgp {{ bgp_as | record('bgpAS') | default('ABC') }}
 </g>
 
-<g name="{{ hostname }}.interfaces.{{ Interface }}" containsall="ip" default="None" input="Cisco_IOS" output="IPAM">
+<g name="{{ hostname }}.interfaces.{{ Interface }}" containsall="ip" default="None" input="Cisco_IOS">
 ##====================CISCO IOS====================
 interface {{ Interface | resuball('IfsNormalize') }}
  description {{description | ORPHRASE }}
@@ -559,7 +561,7 @@ interface {{ Interface | resuball('IfsNormalize') }}
 !{{_end_}}
 </g>
 
-<g name="{{ hostname }}.interfaces.{{ Interface }}" containsall="ip" default="None" output="IPAM" input="Cisco_IOS-XR">
+<g name="{{ hostname }}.interfaces.{{ Interface }}" containsall="ip" default="None" input="Cisco_IOS-XR">
 ##====================CISCO IOS-XR==================
 interface {{ Interface | resuball('IfsNormalize') }}
  description {{description | ORPHRASE }}
@@ -570,7 +572,7 @@ interface {{ Interface | resuball('IfsNormalize') }}
 !{{_end_}}
 </g>
 
-<g name="{{ hostname }}.interfaces.{{ Interface }}" containsall="ip" default="None" output="IPAM" input="./NX-OS/">
+<g name="{{ hostname }}.interfaces.{{ Interface }}" containsall="ip" default="None" input="./NX-OS/">
 ##====================CISCO NX-OS==================
 interface {{ Interface | resuball('IfsNormalize') }}
   description {{description | ORPHRASE }}
@@ -591,8 +593,8 @@ interface {{ Interface | resuball('IfsNormalize') }}
 
 <out
 name="Intfs_ips_XML"
-type="json"
-destination="file"
+format="json"
+returner="terminal"
 />
 """
 

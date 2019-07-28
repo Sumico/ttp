@@ -2434,16 +2434,12 @@ def cli_tool():
 -dp, --data-prefix         Prefix to add to template inputs' urls
 -t, --template  template   Name of the template in "templates.py"
 -o, --outputer  output     Specify output format'''
-    argparser = argparse.ArgumentParser(description="Template Text Parser.",
-                               formatter_class=argparse.RawDescriptionHelpFormatter)
+    argparser = argparse.ArgumentParser(description="Template Text Parser.", formatter_class=argparse.RawDescriptionHelpFormatter)
     argparser.add_argument('-T', '--Timing', action='store_true', dest='TIMING', default=False, help='Print timing')
     argparser.add_argument('-debug', action='store_true', dest='DEBUG', default=False, help='Print debug information')
     argparser.add_argument('--one', action='store_true', dest='ONE', default=False, help='Parse all in single process')
     argparser.add_argument('--multi', action='store_true', dest='MULTI', default=False, help='Parse multiprocess')
-    run_options=argparser.add_argument_group(
-        title='run options',
-        description=description_text
-    )
+    run_options=argparser.add_argument_group(title='run options', description=description_text)
     run_options.add_argument('-d', '--data', action='store', dest='DATA', default='', type=str, help=argparse.SUPPRESS)
     run_options.add_argument('-dp', '--data-prefix', action='store', dest='data_prefix', default='', type=str, help=argparse.SUPPRESS)
     run_options.add_argument('-t', '--template', action='store', dest='TEMPLATE', default='', type=str, help=argparse.SUPPRESS)
@@ -2456,7 +2452,7 @@ def cli_tool():
     DEBUG = args.DEBUG           # boolean, set debug to true/false
     output = args.output         # string, set output format
     TIMING = args.TIMING         # boolean, enabled timing
-    DP = args.data_prefix        # string, to add to templates' inputs' urls
+    DP = args.data_prefix        # string, to add to templates' inputs urls
     ONE = args.ONE               # boolean to indicate if run in single process
     MULTI = args.MULTI           # boolean to indicate if run in multi process
 
