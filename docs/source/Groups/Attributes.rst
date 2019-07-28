@@ -32,7 +32,9 @@ input
 ------------------------------------------------------------------------------
 ``input="input1, input2, ... , inputN"``
 
-* inputN (optional) - comma separated string that contains names of the input tags that should be used to source data for this group. Order of inputs defined not preserved, i.e. even though input2 comes after input1, input2 data might be run first by the group, followed by input1 data.
+* inputN (optional) - comma separated string that contains names of the input tags that should be used to source data for this group. Order of inputs defined not preserved, i.e. even though input2 comes after input1, input2 data might be run first by the group, followed by input1 data. Input value can also be Operating System fully qualified path to location of text file(s) that should be parsed by this group.
+
+.. note:: Input attributed only supported byt top group, nested groups' input attributes are ignored.
 
 **Example**
 
@@ -171,4 +173,6 @@ output
 ------------------------------------------------------------------------------
 ``output="output1, output2, ... , outputN"``
 
-* outputN (optional) - comma separated string of output tags names that should be used to run group results through. 	
+* outputN (optional) - comma separated string of output tag names that should be used to run group results through. The sequence of outputs provided *are preserved* and run sequentially, meaning that output2 will run only after output1.
+
+.. note:: only top group supports output attribute, nested groups' output attributes are ignored.

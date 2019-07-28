@@ -1633,3 +1633,26 @@ interface {{ interface }}
 !{{_end_}}
 </group>
 """
+
+test151="""
+<input load="text">
+NAME: "Chassis", DESCR: "Cisco ISR4331 Chassis"
+PID: ISR4331/K9        , VID: V04, SN: FDO2126A1JS
+
+NAME: "Power Supply Module 0", DESCR: "250W AC Power Supply for Cisco ISR 4330"
+PID: PWR-4330-AC       , VID: V02, SN: PST2122N02Q
+
+NAME: "Fan Tray", DESCR: "Cisco ISR4330 Fan Assembly"
+PID: ACS-4330-FANASSY  , VID:    , SN:            
+
+</input>
+
+<group name="inventory" default="Undefined">
+NAME: "{{ item_name | ORPHRASE }}", DESCR: "{{ description | ORPHRASE }}"
+PID: {{ part_id }}       , VID:{{ ignore("[\S ]+?") }}, SN: {{ serial }}
+## PID: {{ part_id }}       , VID: {{ ignore }}, SN: {{ serial }}
+## PID: {{ part_id }}       , VID:               , SN: {{ serial }}
+PID: {{ part_id }}       , VID:               , SN:
+PID:                     , VID:               , SN: {{ serial }}
+</group>
+"""

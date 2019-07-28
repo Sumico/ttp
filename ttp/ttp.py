@@ -459,8 +459,12 @@ class _ttp_functions():
         return data, None
 
     def match_set(self, data, value, match_line):
+        vars = self.pobj.vars['globals']['vars']
         if data.rstrip() == match_line:
-            return value, None
+            if value in vars:
+                return vars[value], None
+            else:
+                return value, None
         else:
             return data, False
 
@@ -722,10 +726,14 @@ class _ttp_utils():
                     text_data += "\n" + datum[1]
             try:
                 if python_major_version is 2:
-                    from utils.ttp_load_py2 import load_python
+                    from compatibility_utils.ttp_load_py2 import load_python
+                    data = load_python(text_data, kwargs)
                 elif python_major_version is 3:
-                    from utils.ttp_load_py3 import load_python
-                data = load_python(text_data, kwargs)
+                    exec(compile(text_data, '<string>', 'exec'), {"__builtins__" : None}, data)
+                    # run eval in case if data still empty as we might have python dictionary or list
+                    # expressed as string
+                    if not data:
+                        data = eval(text_data, None, None)
                 return data
             except:
               print("ERROR: Unable to load Python formatted data\n'{}'".format(text_data))
@@ -1245,6 +1253,8 @@ class _group_class():
             # skip empty lines and comments:
             if not line.strip(): continue
             elif line.startswith('##'): continue
+            # strip leading spaces as they will be reconstructed in regex
+            line = line.rstrip()
             # parse line against variable regexes
             match=re.findall('{{([\S\s]+?)}}', line)
             if not match:
@@ -2411,7 +2421,7 @@ class _outputter_class():
 TTP CLI PROGRAMM
 ==============================================================================
 """
-if __name__ == '__main__':
+def cli_tool():
     import argparse
     try:
         import templates as ttp_templates
@@ -2420,6 +2430,10 @@ if __name__ == '__main__':
         templates_exist = False
 
     # form arg parser menu:
+    description_text='''-d, --data      url        Data files location
+-dp, --data-prefix         Prefix to add to template inputs' urls
+-t, --template  template   Name of the template in "templates.py"
+-o, --outputer  output     Specify output format'''
     argparser = argparse.ArgumentParser(description="Template Text Parser.",
                                formatter_class=argparse.RawDescriptionHelpFormatter)
     argparser.add_argument('-T', '--Timing', action='store_true', dest='TIMING', default=False, help='Print timing')
@@ -2428,10 +2442,7 @@ if __name__ == '__main__':
     argparser.add_argument('--multi', action='store_true', dest='MULTI', default=False, help='Parse multiprocess')
     run_options=argparser.add_argument_group(
         title='run options',
-        description='''-d, --data      url        Data files location
--dp, --data-prefix         Prefix to add to template inputs' urls
--t, --template  template   Name of the template in "templates.py"
--o, --outputer  output     Specify output format'''
+        description=description_text
     )
     run_options.add_argument('-d', '--data', action='store', dest='DATA', default='', type=str, help=argparse.SUPPRESS)
     run_options.add_argument('-dp', '--data-prefix', action='store', dest='data_prefix', default='', type=str, help=argparse.SUPPRESS)
@@ -2483,3 +2494,6 @@ if __name__ == '__main__':
         print("Error: Unsuported cli output format '{}', supported [yaml, json, raw, pprint]".format(output.lower()))
 
     timing("Done")
+	
+if __name__ == '__main__':
+    cli_tool()

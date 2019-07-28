@@ -171,7 +171,7 @@ record
 
 * name (mandatory) - a string containing variable name
 
-Records match results in variable with given name after all functions run
+Records match results in template variable with given name after all functions run finished for match result. That recorded variable can be referenced within other functions such as `let`_ 
 
 let
 ------------------------------------------------------------------------------
@@ -413,37 +413,67 @@ Result:
     
 set
 ------------------------------------------------------------------------------
-``{{ name | set('value') }}``
+``{{ name | set('var_set_value') }}``
 
-* value (mandatory) - string to set as a value for variable
+* var_set_value (mandatory) - string to set as a value for variable, can be a tring or a name of template variable.
 
-Not all configuration statements have variables or values associated with them, but rather serve as an indicator if particular feature is disabled or enabled, to match such a cases *set* function can be used 
+Not all configuration statements have variables or values associated with them, but rather serve as an indicator if particular feature disabled or enabled, to match such a cases *set* function can be used. This function allows to assign "var_set_value" to match variable, "var_set_value" considered to be a reference to template variable name, if no template variable with "var_set_value" found, "var_set_value" itself will be assigned to match variable.
 
 **Example**
 
 Data
 ::
-    interface GigabitEthernet3/3
-     shutdown
+    interface GigabitEthernet3/4
+     switchport mode access 
+     switchport trunk encapsulation dot1q
      switchport mode trunk
+     switchport nonegotiate
+     shutdown
+    !
+    interface GigabitEthernet3/7
+     switchport mode access 
+     switchport mode trunk
+     switchport nonegotiate
+    !
  
 Template
 ::
+    <vars>
+    mys_set_var = "my_set_value"
+    </vars>
+    
+    <group name="interfacesset">
     interface {{ interface }}
-     shutdown {{ interface_disabled | set('True') }}
-     switchport mode trunk {{ switchport_mode | set('Trunk') }} {{ trunk_vlans | set('all') }}
+     switchport mode access {{ mode_access | set("True") }}
+     switchport trunk encapsulation dot1q {{ encap | set("dot1q") }}
+     switchport mode trunk {{ mode | set("Trunk") }} {{ vlans | set("all_vlans") }}
+     shutdown {{ disabled | set("True") }} {{ test_var | set("mys_set_var") }}
+    !{{ _end_ }}
+    </group>
 
 Result
 ::
     {
-        "interface": "GigabitEthernet3/3"  
-        "interface_disabled": "True"  
-        "switchport_mode": "Trunk"  
-        "trunk_vlans": "all"
+        "interfacesset": [
+            {
+                "disabled": "True",
+                "encap": "dot1q",
+                "interface": "GigabitEthernet3/4",
+                "mode": "Trunk",
+                "mode_access": "True",
+                "test_var": "my_set_value",
+                "vlans": "all_vlans"
+            },
+            {
+                "interface": "GigabitEthernet3/7",
+                "mode": "Trunk",
+                "mode_access": "True",
+                "vlans": "all_vlans"
+            }
+        ]
     }
     
-.. note:: Multiple set statements are supported within the line, however, no other variables can be specified except with *set*, as match performed based on the string preceeding variables with *set* function, for instance below will not work: |br|
- switchport mode {{ mode }} {{ switchport_mode | set('Trunk') }} {{ trunk_vlans | set('all') }} 
+.. note:: Multiple set statements are supported within the line, however, no other variables can be specified except with *set*, as match performed based on the string preceeding variables with *set* function, for instance below will not work: ``switchport mode {{ mode }} {{ switchport_mode | set('Trunk') }} {{ trunk_vlans | set('all') }}``
 
 replaceall
 ------------------------------------------------------------------------------

@@ -4,6 +4,9 @@ Inputs
    :maxdepth: 2
    :caption: Contents:
    
+Input attributes
+----------------
+
 Inputs can used to specify data location and how it should be loaded or filtered. Inputs can be attached to groups for pasrsing, say that this particualr iput data should be parsed by this set of groups only. That can help to increase the overall performance as only data belonging to parsticular group will be parsed. 
 
 .. list-table:: input attributes
@@ -29,17 +32,17 @@ groups
 ------------------------------------------------------------------------------
 ``groups="group1, group2, ... , groupN"``
 
-* groupN (optional) - Default value is "all", comma separated string of group names that should be used to parse given input data. If value is "all" - input data will be parsed by each group
+* groupN (optional) - Default value is "all", comma separated string of group names that should be used to parse given input data. If value is "all" - input data will be parsed by each group.
 
 load
 ------------------------------------------------------------------------------
 ``load="loader_name"``
 
-* loader_name (optional) - name of the loader that should be used to load input tag text data, supported values are python, yaml, json or text. If text used as a loader, text data within input tag itself used as an input data and parsed by a set of given groups or by all groups.
+* loader_name (optional) - name of the loader that should be used to load input tag text data, supported values are ``python, yaml, json or text``, if text used as a loader, text data within input tag itself used as an input data and parsed by a set of given groups or by all groups.
 
 **Example**
 
-Below template contains data that should be parsed within input itself, that is useful for example for testing purposes.
+Below template contains data that should be parsed within input itself, that is useful for testing purposes.
 
 Template:
 
@@ -85,3 +88,33 @@ Result:
             }
         }
     ]
+	
+Input parameters
+----------------
+
+Apart from input attriutes specified in <input> tag, text payload of <input> tag can be used to pass additional parameters. These parameters used to provide additional information that should be used during input data loading.
+
+.. list-table:: input parameters
+   :widths: 10 90
+   :header-rows: 1
+
+   * - Parametr
+     - Description
+   * - `url`_   
+     - Single url string or list of urls of input data location 
+   * - `extensions`_   
+     - Extensions of files to load input data from, e.g. "txt" or "log" or "conf"
+   * - `filters`_   
+     - Regular expression or list of regexes to use to filter input data files based on their names
+	 
+url
+------------------------------------------------------------------------------
+``url="url-1"`` or ``url=["url-1", "url-2", ... , "url-N"]``
+
+TBD
+	 
+extensions
+------------------------------------------------------------------------------
+``extensions="extension-1"`` or ``extensions=["extension-1", "extension-2", ... , "extension-N"]``
+
+TBD

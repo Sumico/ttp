@@ -255,6 +255,10 @@ description="test dynamic path"
 
 
 <!--test set function-->
+<vars>
+mys_set_var = "my_set_value"
+</vars>
+
 <input 
 name="test1-7" 
 load="text" 
@@ -264,6 +268,7 @@ interface GigabitEthernet3/4
  switchport trunk encapsulation dot1q
  switchport mode trunk
  switchport nonegotiate
+ shutdown
 !
 interface GigabitEthernet3/7
  switchport mode access 
@@ -277,7 +282,7 @@ interface {{ interface }}
  switchport mode access {{ mode_access | set("True") }}
  switchport trunk encapsulation dot1q {{ encap | set("dot1q") }}
  switchport mode trunk {{ mode | set("Trunk") }} {{ vlans | set("all_vlans") }}
- shutdown {{ disabled | set("True") }}
+ shutdown {{ disabled | set("True") }} {{ test_var | set("mys_set_var") }}
 !{{ _end_ }}
 </group>
 
@@ -286,7 +291,25 @@ functions="is_equal"
 description="test set function"
 load="python"
 >
-{'interfacesset': [{'interface': 'GigabitEthernet3/4', 'mode_access': 'True', 'encap': 'dot1q', 'mode': 'Trunk', 'vlans': 'all_vlans'}, {'interface': 'GigabitEthernet3/7', 'mode_access': 'True', 'mode': 'Trunk', 'vlans': 'all_vlans'}]}
+{
+    "interfacesset": [
+        {
+            "disabled": "True",
+            "encap": "dot1q",
+            "interface": "GigabitEthernet3/4",
+            "mode": "Trunk",
+            "mode_access": "True",
+            "test_var": "my_set_value",
+            "vlans": "all_vlans"
+        },
+        {
+            "interface": "GigabitEthernet3/7",
+            "mode": "Trunk",
+            "mode_access": "True",
+            "vlans": "all_vlans"
+        }
+    ]
+}
 </output>
 
 
@@ -635,9 +658,6 @@ interface GigabitEthernet3/5
  ip address 1.1.1.1 255.255.255.255
  vrf forwarding ABC_VRF
 !
-</input>
-
-<input name="test4-1-1" load="text" groups="interfaces.trunks">
 interface GigabitEthernet3/7
  switchport trunk allowed vlan add 138,166-173 
  description some description

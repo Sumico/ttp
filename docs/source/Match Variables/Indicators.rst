@@ -21,6 +21,8 @@ Indicators or directives are strings of text that serve to change parsing logic 
      - Explicitly indicates end of the group
    * - `_line_`_ 
      - If present any line will be matched
+   * - `ignore`_ 
+     - Substitute string at given position with regular expression without matching results
 
 _exact_
 ------------------------------------------------------------------------------
@@ -187,3 +189,9 @@ _line_
 ``{{ name | _line_ }}``
 
 TBD
+
+ignore
+------------------------------------------------------------------------------
+``{{ ignore }}`` or ``{{ ignore("regular_expression") }}``
+
+* regular_expression (optional) - regex to use to substitute portion of the string, default is "\S+", meaning any non-space sharacter one or more times

@@ -1,4 +1,10 @@
 def load_python(text_data, kwargs):
+    """
+    Function to provide compatibility with python 2.6 for loading text formwatted in 
+    python using exec buil-in method. Exec syntaxis in pyton 2.6 different
+    comared to python3.x and python3 spits "Invlaid Syntaxis error" while trying to 
+    run code below.
+    """
     data = {}
     # below can run on python2.7 as exec is a statements not function for python2.7:
     exec compile(text_data, '<string>', 'exec') in {"__builtins__" : None}, data
