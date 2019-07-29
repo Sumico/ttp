@@ -45,6 +45,8 @@ Action functions act upon match result to transform it to desired state.
      - find match value in lookup table and return result
    * - `rlookup`_ 
      - find rlookup table key in match result and return assiciated values
+   * - `item`_ 
+     - returns item at given index on match result
  
 Condition functions can perform various checks with match results and returns either True or False depending on check results.
 
@@ -1031,3 +1033,15 @@ lessthan
 * value(mandatory) - integer value to compare with
 
 This faunction checks if match and supplied value are digits and performs comparison, if match is smaller than provided value returns True and False otherwise
+
+item
+------------------------------------------------------------------------------
+``{{ name | item(item_index) }}``
+
+* item_index(mandatory) - integer, index of item to return
+
+Return item value at given index of iterable. If match result (iterable) is string, *item* returns letter at given index, if match been transformad to list by 
+the moment *item* function runs, returns list item at given index. item_index can be positive or negative digit, same rules as for retrieving list items applies 
+e.g. if item_index is -1, last item will be returned.
+
+In addition, ttp preforms index out of range checks, returning last or first item if item_index exceeds length of match result.

@@ -463,6 +463,44 @@ load="json"
 }
 </output>
 
+
+<input name="test1-11" load="text">
+-------------------------
+Device ID: switch-2.lab.com
+Interface: GigabitEthernet4/6,  Port ID (outgoing port): GigabitEthernet1/5
+
+-------------------------
+Device ID: switch-1.lab.com
+Interface: GigabitEthernet1/1,  Port ID (outgoing port): GigabitEthernet0/1
+</input>
+
+<group name="cdp_test_item" input="test1-11" output="test1-11">
+Device ID: {{ peer_hostname | split('.') | item(0) }} 
+Interface: {{ Interface | item(-40) }},  Port ID (outgoing port): {{ peer_interface | item(40) }}
+</group>
+
+<output name="test1-11"
+functions="is_equal"
+description="test variables 'item' function"
+load="json"
+>
+{
+    "cdp_test_item": [
+        {
+            "Interface": "G",
+            "peer_hostname": "switch-2",
+            "peer_interface": "5"
+        },
+        {
+            "Interface": "G",
+            "peer_hostname": "switch-1",
+            "peer_interface": "1"
+        }
+    ]
+}
+</output>
+
+
 <!--output to print raw python result to screen
 <output
 name="print_python"

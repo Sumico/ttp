@@ -1619,13 +1619,22 @@ interface Vlan777
   ip address 192.168.0.1/24
   vrf MGMT
 !
+interface Vlan778
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+interface Vlan779
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
 </input>
 
 <vars>
 my_var = "L2VC"
 </vars>
 
-<group>
+<group default="None">
 interface {{ interface }}
   description {{ description }}
   ip address {{ ip }}/{{ mask }}
@@ -1656,5 +1665,65 @@ PID: {{ part_id }}       , VID:{{ ignore("[\S ]+?") }}, SN: {{ serial }}
 ## PID: {{ part_id }}       , VID:               , SN: {{ serial }}
 PID: {{ part_id }}       , VID:               , SN:
 PID:                     , VID:               , SN: {{ serial }}
+</group>
+"""
+
+test152="""
+<input load="text">
+-------------------------
+Device ID: switch-2.lab.com
+Interface: GigabitEthernet4/6,  Port ID (outgoing port): GigabitEthernet1/5
+
+-------------------------
+Device ID: switch-1.lab.com
+Interface: GigabitEthernet1/1,  Port ID (outgoing port): GigabitEthernet0/1
+</input>
+
+<g name="cdp">
+Device ID: {{ peer_hostname | split('.') | item(0) }} 
+Interface: {{ Interface | item(-40) }},  Port ID (outgoing port): {{ peer_interface | item(40) }}
+</g>
+"""
+
+
+test153="""
+<input load="text">
+interface Vlan777
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+interface Vlan778
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+interface Vlan779
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<vars>
+my_var = "L2VC"
+</vars>
+
+<macro load="python" name="check">
+def macro(data):
+    if data['interface'] == "Vlan779":
+        data['key_vlan'] = True
+    return data
+</macro>
+
+<group default="None">
+interface {{ interface }}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+!{{_end_}}
+{{ interface_role | let("Uplink") }}
+{{ provider | let("my_var") }}
+{{ macro(check) }}
+{{ key_vlan | let(False) }}
 </group>
 """
