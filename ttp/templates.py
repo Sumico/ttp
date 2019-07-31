@@ -1727,3 +1727,83 @@ interface {{ interface }}
 {{ key_vlan | let(False) }}
 </group>
 """
+
+test154="""
+<input load="text">
+VRF TPGMPLS (VRF Id = 4); default RD 7545:24;
+  Old CLI format, supports IPv4 only
+  Flags: 0xC
+  Interfaces:
+    Te0/3/0.401              Te0/3/0.302              Te0/3/0.315             
+    Te0/3/0.316              Te0/3/0.327              Te0/3/0.371             
+    Te0/3/0.373              Te0/3/0.15               Te0/3/0.551             
+    Te0/3/0.552              Te0/3/0.2527             Te0/3/0.711             
+    Te0/3/0.500              Te0/3/0.325              Te0/3/0.324   
+    Te0/3/0.32787 
+Address family ipv4 unicast (Table ID = 0x4):
+  Flags: 0x0
+  Export VPN route-target communities
+    RT:7545:24              
+  Import VPN route-target communities
+    RT:7545:24               RT:7545:7544             RT:9942:17
+    RT:9942:31546            RT:7545:89900            RT:7545:650
+    RT:7545:89564            RT:7545:89611           
+  No import route-map
+  No global export route-map
+  No export route-map
+  Route limit 4000, warning limit 80% (3200), current count 1609
+  VRF label distribution protocol: not configured
+  VRF label allocation mode: per-prefix
+</input>
+<group name="vrf.{{ vrf_name }}"> 
+VRF {{ vrf_name }} (VRF Id = {{ vrf_id}}); default RD {{ vrf_rd }};
+<group name="interfaces">
+  Interfaces: {{ _start_ }}
+    {{ interfaces | joinmatches(",") | ROW | resub(" +", ",", 5) | split(',') }}
+    {{ interfaces | joinmatches(",") | split(',') }}
+</group>
+<group name="afis.{{ afi }}">
+Address family {{ afi }} unicast (Table ID = {{ ignore }}):
+<group name="export_rt">
+  Export VPN route-target communities {{ _start_ }}
+    {{ export_rt | joinmatches(",") | ROW | resub(" +", ",", 5) | split(',') }}
+    {{ export_rt | joinmatches(",") | split(',') }}
+</group>
+<group name="import_rt">
+  Import VPN route-target communities {{ _start_ }}
+    {{ import_rt | joinmatches(",") | ROW | resub(" +", ",", 5) | split(',') }}
+    {{ import_rt | joinmatches(",") | split(',') }}
+</group>
+  Import route-map: {{ import_route_map | default(None) }}
+  Export route-map: {{ export_route_map | default(None) }}
+  Route limit {{ route_limit }}, warning limit {{ route_limit_warning }}% (3200), current count {{ routes_count }}
+  VRF label distribution protocol: {{ label_dist_proto | ORPHRASE }}
+  VRF label allocation mode: {{ label_alloc_mode }}
+</group>
+</group>
+"""
+
+test155="""
+<input load="text">
+interface Port-Chanel11
+  description Storage
+!
+interface Loopback0
+  description RID
+  ip address 10.0.0.3/24
+!
+interface Vlan777
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<group>
+interface {{ interface }}
+  description {{ description | append(" some append") }}
+  ip address {{ ip | split('.') | append(777) | prepend(555) }}/{{ mask | prepend("mask - ") }}
+  vrf {{ vrf }}
+!{{_end_}}
+</group>
+"""

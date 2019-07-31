@@ -261,6 +261,7 @@ class _ttp_patterns():
     def __init__(self):
         self.patterns={
         'PHRASE'   : '(\S+ {1})+?\S+',
+        'ROW'      : '(\S+ +)+?\S+',
         'ORPHRASE' : '\S+|(\S+ {1})+?\S+',
         'DIGIT'    : '\d+',
         'IP'       : '(?:[0-9]{1,3}\.){3}[0-9]{1,3}',
@@ -415,8 +416,8 @@ class _ttp_functions():
                 return data, True
         return data, False
 
-    def match_resub(self, data, old, new):
-        return re.sub(old, new, data, count=1), None
+    def match_resub(self, data, old, new, count=1):
+        return re.sub(old, new, data, count=count), None
 
     def match_join(self, data, char):
         if isinstance(data, list):
@@ -427,6 +428,19 @@ class _ttp_functions():
     def match_append(self, data, char):
         if isinstance(data, str):
             return (data + char), None
+        elif isinstance(data, list):
+            data.append(char)
+            return data, None
+        else:
+            return data, None
+    
+    def match_prepend(self, data, char):
+        print(data, char)
+        if isinstance(data, str):
+            return (char + data), None
+        elif isinstance(data, list):
+            data.insert(0, char)
+            return data, None
         else:
             return data, None
 
@@ -572,7 +586,7 @@ class _ttp_functions():
             return data, {'lookup': {add_field: found_value}}
         else:
             return found_value, None
-			
+            
     def match_item(self, data, item_index):
         """Method to return item of iterable at given index
         """
@@ -585,10 +599,10 @@ class _ttp_functions():
             return data[-1], None
         # negative item_index not out of range 
         elif 0 >= item_index and abs(item_index) <= len(data) - 1: 
-            return data[item_index], None	
+            return data[item_index], None    
         # negative item_index out of range - return first item
         elif 0 >= item_index and abs(item_index) >= len(data): 
-            return data[0], None	
+            return data[0], None    
 
     def variable_gethostname(self, data, data_name, *args, **kwargs):
         """Description: Method to find hostname in show
@@ -1500,6 +1514,7 @@ class _variable_class():
         # regex formatters:
         're'       : lambda data: self.var_res.append(data['args'][0]),
         'PHRASE'   : lambda data: self.var_res.append(self.REs.patterns['PHRASE']),
+        'ROW'      : lambda data: self.var_res.append(self.REs.patterns['ROW']),
         'ORPHRASE' : lambda data: self.var_res.append(self.REs.patterns['ORPHRASE']),
         'DIGIT'    : lambda data: self.var_res.append(self.REs.patterns['DIGIT']),
         'IP'       : lambda data: self.var_res.append(self.REs.patterns['IP']),
@@ -1699,8 +1714,14 @@ class _parser_class():
                             data, flag = getattr(self.functions, 'match_' + func_name)(data, *args, **kwargs)
                         except AttributeError:
                             try: # try data bilt-in finction. e.g. if data is string, can run data.upper()
-                                data = getattr(data, func_name)(*args, **kwargs)
-                                flag = True
+                                run_result = getattr(data, func_name)(*args, **kwargs)
+                                if run_result is False:
+                                    flag = False
+                                elif run_result is True:
+                                    flag = True
+                                else:
+                                    data = run_result
+                                    flag = True        
                             except AttributeError as e:
                                 flag = False
                                 self.functions.invalid(func_name, scope='variable', skip=True)
@@ -1872,10 +1893,25 @@ class _results_class():
                 # if same results captured by multiple regexes, need to do further descision checks:
                 else:
                     for item in result:
-                        re=item[0]
-                        if re['IS_LINE'] == False:
-                            result_data=item[1]
+                        item_re = item[0]
+                        # pick up first start re:
+                        if item_re['ACTION'].startswith('START'):
+                            re = item[0]
+                            result_data = item[1]
                             break
+                        # pick up re with the same path as current group:
+                        elif item_re["GROUP"].path == self.record["PATH"]:
+                            re = item[0]
+                            result_data = item[1]
+                            break
+                        # if IS_LINE - assign it but continue iterating:
+                        elif item_re['IS_LINE'] is True:
+                            re = item[0]
+                            result_data = item[1]
+                        # old logic - pick up first non IS_LINE re:
+                        # elif re['IS_LINE'] == False:
+                        #     result_data = item[1]
+                        #     break
                 group = re['GROUP']
                 # check if result is false, lock the group if so:
                 if result_data == False:
@@ -2077,7 +2113,10 @@ class _results_class():
                 if isinstance(self.record['RESULT'][k], str):
                     self.record['RESULT'][k] += joinchar + RESULT[k] # join strings
                 elif isinstance(self.record['RESULT'][k], list):
-                    self.record['RESULT'][k] += RESULT[k]            # join lists
+                    if isinstance(RESULT[k], list):
+                        self.record['RESULT'][k] += RESULT[k]        # join lists
+                    elif isinstance(RESULT[k], str):
+                        self.record['RESULT'][k].append(RESULT[k])   # append to list
             else:
                 self.record['RESULT'][k] = RESULT[k]                 # if first result
 
@@ -2506,6 +2545,6 @@ def cli_tool():
         print("Error: Unsuported cli output format '{}', supported [yaml, json, raw, pprint]".format(output.lower()))
 
     timing("Done")
-	
+    
 if __name__ == '__main__':
     cli_tool()
