@@ -1180,12 +1180,12 @@ router bgp {{ asn }}
     neighbor {{ peer_ip }}
       remote-as {{ peer_asn }}
       description {{ peer_description }}
-	  <group name="afi.{{ afi }}.unicast">
+      <group name="afi.{{ afi }}.unicast">
       address-family {{ afi }} unicast
         route-map {{ rpl_in }} in
         route-map {{ rpl_out }} out
-	  </group>
-	</group>
+      </group>
+    </group>
    </group>
 </group>
 """
@@ -1704,27 +1704,24 @@ interface Vlan779
 !
 </input>
 
-<vars>
-my_var = "L2VC"
-</vars>
+<macro>
+def check(data):
+    if data == "Vlan779":
+        return data + "1000"
+</macro>
 
-<macro load="python" name="check">
-def macro(data):
-    if data['interface'] == "Vlan779":
-        data['key_vlan'] = True
-    return data
+<macro>
+def check2(data):
+    if "778" in data:
+        return {"data": data, "key_vlan": True, "field2": 5678}
 </macro>
 
 <group default="None">
-interface {{ interface }}
+interface {{ interface | macro("check") | macro("check2")}}
   description {{ description }}
   ip address {{ ip }}/{{ mask }}
   vrf {{ vrf }}
 !{{_end_}}
-{{ interface_role | let("Uplink") }}
-{{ provider | let("my_var") }}
-{{ macro(check) }}
-{{ key_vlan | let(False) }}
 </group>
 """
 
@@ -1804,6 +1801,147 @@ interface {{ interface }}
   description {{ description | append(" some append") }}
   ip address {{ ip | split('.') | append(777) | prepend(555) }}/{{ mask | prepend("mask - ") }}
   vrf {{ vrf }}
+!{{_end_}}
+</group>
+"""
+
+
+test156="""
+<input load="text">
+interface Loopback0
+ description RID
+ ip address 1.0.0.3 255.255.255.0
+!
+interface Vlan777
+ description Management
+ ip address 192.168.0.1 255.255.255.248
+ vrf MGMT
+!
+interface Vlan778
+ description Management
+ ip address 192.168.0.2 24
+ vrf MGMT
+!
+</input>
+
+<group>
+interface {{ interface }}
+ description {{ description | append(" some append") }}
+ ip address {{ ip | to_ip | is_private | to_str }} {{ mask | to_cidr | to_str }}
+ vrf {{ vrf }}
+!{{_end_}}
+</group>
+"""
+
+test157="""
+<input load="text">
+interface Loopback0
+ description RID
+ ip address 1.0.0.3/255.255.255.0
+!
+interface Vlan777
+ description Management
+ ip address 192.168.0.3 255.255.255.248
+ vrf MGMT
+!
+interface Vlan778
+ description Management
+ ip address 192.168.0.0/24
+ vrf MGMT
+!
+interface Vlan779
+ description Management
+ ip address 192.168.0.1 24
+ vrf MGMT
+!
+</input>
+
+<group>
+interface {{ interface }}
+ description {{ description | append(" some append") }}
+ ip address {{ ip | ORPHRASE | to_ip | is_private | to_str }}
+ vrf {{ vrf }}
+!{{_end_}}
+</group>
+"""
+
+
+
+test158="""
+<input load="text">
+interface Loopback0
+ description RID
+ ip address 1.0.0.3 255.255.255.0
+!
+interface Vlan777
+ description Management
+ ip address fe::80 255.255.255.248
+ vrf MGMT
+!
+</input>
+
+<group>
+interface {{ interface }}
+ description {{ description | append(" some append") }}
+ ip address {{ ip  | ip_info }} {{ mask | to_cidr }}
+ vrf {{ vrf }}
+!{{_end_}}
+</group>
+"""
+
+
+test159="""
+<input load="text">
+interface Loopback0
+ description RID
+ ip address 1.0.0.3/24
+!
+interface Vlan777
+ description Management
+ ip address 192.168.0.3 255.255.255.248
+ vrf MGMT
+!
+interface Vlan777
+ description Management
+ ip address fe::98/64
+ vrf MGMT
+!
+</input>
+
+<group>
+interface {{ interface }}
+ description {{ description | append(" some append") }}
+ ip address {{ ip | ORPHRASE | to_ip | ip_info }}
+ vrf {{ vrf }}
+!{{_end_}}
+</group>
+"""
+
+
+
+test160="""
+<input load="text">
+interface Loopback0
+ description RID
+ ip address 1.0.0.3/24
+!
+interface Vlan777
+ description Management
+ ip address 192.168.0.3 255.255.255.248
+ vrf MGMT
+!
+interface Vlan777
+ description Management
+ ip address fe::98/64
+ vrf MGMT
+!
+</input>
+
+<group>
+interface {{ interface }}
+ description {{ description | append(" some append") }}
+ ip address {{ ip | ORPHRASE | cidr_match("192.168.0.0/16") }} {{ mask }}
+ vrf {{ vrf }}
 !{{_end_}}
 </group>
 """

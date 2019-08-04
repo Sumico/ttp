@@ -624,6 +624,76 @@ load="json"
 </output>
 
 
+
+<input load="text" name="test1-13">
+interface Vlan777
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+interface Vlan778
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+interface Vlan779
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+<macro>
+def check(data):
+    if data == "Vlan779":
+        return data + "1000"
+</macro>
+<macro>
+def check2(data):
+    if "778" in data:
+        return {"data": data, "key_vlan": True, "field2": 5678}
+</macro>
+<group name="interfaces_macro" default="None" input="test1-13" output="test1-13">
+interface {{ interface | macro("check") | macro("check2")}}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+!{{_end_}}
+</group>
+<output name="test1-13"
+functions="is_equal"
+description="test match variable macro function"
+load="json"
+>
+{
+"interfaces_macro":[
+{
+    "description": "Management",
+    "interface": "Vlan777",
+    "ip": "192.168.0.1",
+    "mask": "24",
+    "vrf": "MGMT"
+},
+{
+    "description": "Management",
+    "interface": {
+        "data": "Vlan778",
+        "field2": 5678,
+        "key_vlan": true
+    },
+    "ip": "192.168.0.1",
+    "mask": "24",
+    "vrf": "MGMT"
+},
+{
+    "description": "None",
+    "interface": "Vlan7791000",
+    "ip": "192.168.0.1",
+    "mask": "24",
+    "vrf": "MGMT"
+}
+]
+}
+</output>
+
 <!--output to print raw python result to screen
 <output
 name="print_python"

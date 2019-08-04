@@ -267,12 +267,13 @@ Result:
     
 resub
 ------------------------------------------------------------------------------
-``{{ name | resub(old, new) }}``
+``{{ name | resub(old, new, count) }}``
 
 * old (mandatory) - pattern to be replaced
 * new (mandatory) - pattern to be replaced with
+* count(optional) - digit, default is 1, indicates count of replacements to do
 
-Performs re.sub(old, new, match, count=1) on match result and returns produced value
+Performs re.sub(old, new, match, count) on match result and returns produced value
 
 **Example**
 

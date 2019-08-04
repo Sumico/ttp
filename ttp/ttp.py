@@ -143,7 +143,8 @@ class ttp():
             results_queue = Queue()
 
             workers = [_worker(tasks, results_queue, lookups=template.lookups,
-                              vars=template.vars, groups=template.groups)
+                              vars=template.vars, groups=template.groups, 
+                              macro=template.macro)
                        for i in range(num_processes)]
             [w.start() for w in workers]
 
@@ -173,7 +174,8 @@ class ttp():
         for template in self.__templates:
             parserObj = _parser_class(lookups=template.lookups,
                                      vars=template.vars,
-                                     groups=template.groups)
+                                     groups=template.groups,
+                                     macro=template.macro)
             if self.__data:
                 [template.set_input(data=i[0], input_name=i[1], groups=i[2])
                  for i in self.__data]
@@ -227,11 +229,11 @@ class _worker(Process):
     """Class used in multiprocessing to parse data
     """
 
-    def __init__(self, task_queue, results_queue, lookups, vars, groups):
+    def __init__(self, task_queue, results_queue, lookups, vars, groups, macro):
         Process.__init__(self)
         self.task_queue = task_queue
         self.results_queue = results_queue
-        self.parser_obj = _parser_class(lookups, vars, groups)
+        self.parser_obj = _parser_class(lookups, vars, groups, macro)
 
     def run(self):
         while True:
@@ -293,10 +295,11 @@ class _ttp_functions():
         # 'group_exclude_all/exclude_any'  : to exclude group if group contains certain values
         # 'index(int)' : index to get from string converted into list with split
     """
-    def __init__(self, parser_obj=None, results_obj=None, out_obj=None):
+    def __init__(self, parser_obj=None, results_obj=None, out_obj=None, macro=None):
         self.pobj = parser_obj
         self.robj = results_obj
         self.out_obj = out_obj
+        self.macro = macro
 
     def invalid(self, name, scope, skip=True):
         if skip == True:
@@ -307,13 +310,12 @@ class _ttp_functions():
 
     def output_is_equal(self, data, *args, **kwargs):
         data_to_compare_with = self.out_obj.attributes['load']
+        is_equal = False
         if "_anonymous_" in data:
             if data["_anonymous_"] == data_to_compare_with:
-                is_equal = True
+                is_equal = True               
         elif data == data_to_compare_with:
             is_equal = True
-        else:
-            is_equal = False
         return {
             'output_name'        : self.out_obj.name,
             'output_description' : self.out_obj.attributes.get('description', 'None'),
@@ -558,7 +560,7 @@ class _ttp_functions():
             return data, None
         # decide to replace match result or add new field:
         if add_field is not False:
-            return data, {'lookup': {add_field: found_value}}
+            return data, {'new_field': {add_field: found_value}}
         else:
             return found_value, None
 
@@ -583,7 +585,7 @@ class _ttp_functions():
         if found_value is None:
             return data, None
         elif add_field is not False:
-            return data, {'lookup': {add_field: found_value}}
+            return data, {'new_field': {add_field: found_value}}
         else:
             return found_value, None
             
@@ -603,6 +605,134 @@ class _ttp_functions():
         # negative item_index out of range - return first item
         elif 0 >= item_index and abs(item_index) >= len(data): 
             return data[0], None    
+            
+    def match_macro(self, data, macro_name):
+        result = None
+        if macro_name in self.macro:
+            result = self.macro[macro_name](data)
+        # process macro result
+        if result is True:
+            return data, True
+        elif result is False:
+            return data, False
+        elif result is None:
+            return data, None
+        else:
+            return result, None
+
+    def match_to_str(self, data):
+        return str(data), None
+        
+    def match_to_list(self, data):
+        return list(data), None
+        
+    def match_to_int(self, data):
+        return int(data), None
+
+    def match_is_ip(self, data, *args):
+        try:
+            self.match_to_ip(data, *args)
+            return data, True
+        except:
+            return data, False
+            
+    def match_to_ip(self, data, *args):
+        if "ipv4" in args:
+            if "/" in data or " " in data:
+                return ipaddress.IPv4Interface(data.replace(" ", "/")), None
+            else:
+                return ipaddress.IPv4Address(data), None
+        elif "ipv6" in args:
+            if "/" in data:
+                return ipaddress.IPv6Interface(data), None
+            else:
+                return ipaddress.IPv6Address(data), None
+        elif "/" in data or " " in data:
+            return ipaddress.ip_interface(data.replace(" ", "/")), None
+        else:
+            return ipaddress.ip_address(data), None
+                
+    def match_to_net(self, data, *args):
+        if "ipv4" in args:
+            return ipaddress.IPv4Network(data), None
+        elif "ipv6" in args:
+            return ipaddress.IPv6Network(data), None
+        else:
+            return ipaddress.ip_network(data), None
+        
+    def match_to_cidr(self, data):
+        try:
+            ret = ipaddress.IPv4Network("0.0.0.0/{}".format(data)).prefixlen
+            return ret, None
+        except ipaddress.NetmaskValueError:
+            print("ERROR: '{}' is not a valid netmask".format(data))
+            return data, None   
+            
+    def match_ip_info(self, data, *args):
+        if isinstance(data, str):
+            ip_obj = self.match_to_ip(data, *args)[0]
+        else:
+            ip_obj = data
+        if isinstance(ip_obj, ipaddress.IPv4Interface) or isinstance(ip_obj, ipaddress.IPv6Interface):
+            ret = {
+                'compressed': ip_obj.compressed, 
+                'exploded': ip_obj.exploded, 
+                'hostmask': str(ip_obj.hostmask), 
+                'ip': str(ip_obj.ip), 
+                'is_link_local': ip_obj.is_link_local, 
+                'is_loopback': ip_obj.is_loopback, 
+                'is_multicast': ip_obj.is_multicast, 
+                'is_private': ip_obj.is_private, 
+                'is_reserved': ip_obj.is_reserved, 
+                'is_unspecified': ip_obj.is_unspecified, 
+                'max_prefixlen': ip_obj.max_prefixlen, 
+                'netmask': str(ip_obj.netmask), 
+                'network': str(ip_obj.network), 
+                'version': ip_obj.version, 
+                'with_hostmask': ip_obj.with_hostmask, 
+                'with_netmask': ip_obj.with_netmask, 
+                'with_prefixlen': ip_obj.with_prefixlen,  
+                'broadcast_address': str(ip_obj.network.broadcast_address), 
+                'network_address': str(ip_obj.network.network_address), 
+                'num_addresses': ip_obj.network.num_addresses, 
+                'hosts': ip_obj.network.num_addresses - 2,
+                'prefixlen': ip_obj.network.prefixlen        
+            }
+        elif isinstance(ip_obj, ipaddress.IPv4Address) or isinstance(ip_obj, ipaddress.IPv6Address):
+            ret = {
+                'ip' : str(ip_obj),
+                'compressed': ip_obj.compressed, 
+                'exploded': ip_obj.exploded , 
+                'is_link_local': ip_obj.is_link_local, 
+                'is_loopback': ip_obj.is_loopback, 
+                'is_multicast': ip_obj.is_multicast, 
+                'is_private': ip_obj.is_private, 
+                'is_reserved': ip_obj.is_reserved, 
+                'is_unspecified': ip_obj.is_unspecified, 
+                'max_prefixlen': ip_obj.max_prefixlen, 
+                'version': ip_obj.version                
+            }
+        else:
+            ret = data
+        return ret, None
+        
+    def match_cidr_match(self, data, prefix):
+        if isinstance(data, str):
+            ip_obj = self.match_to_ip(data)[0]
+        else:
+            ip_obj = data 
+        ip_net = self.match_to_net(prefix)[0] 		
+        if isinstance(ip_obj, ipaddress.IPv4Interface) or isinstance(ip_obj, ipaddress.IPv6Interface):
+            check = ip_obj.network.overlaps(ip_net)
+        elif isinstance(ip_obj, ipaddress.IPv4Address) or isinstance(ip_obj, ipaddress.IPv6Address):
+            if ip_obj.version is 4:
+                ip_obj = ipaddress.IPv4Interface("{}/32".format(str(ip_obj)))
+            elif ip_obj.version is 6:
+                ip_obj = ipaddress.IPv6Interface("{}/128".format(str(ip_obj)))
+            check = ip_obj.network.overlaps(ip_net)
+        else:
+            check = None
+        return data, check
 
     def variable_gethostname(self, data, data_name, *args, **kwargs):
         """Description: Method to find hostname in show
@@ -793,7 +923,7 @@ class _ttp_utils():
                 data = loads(text_data)
                 return data
             except:
-                raise SystemExit("ERROR: Unable to load YAML formatted data\n'{}'".format(text_data))
+                raise SystemExit("ERROR: Unable to load JSON formatted data\n'{}'".format(text_data))
 
         def load_csv(text_data, kwargs):
             """Method to load csv data and convert it to dictionary
@@ -835,7 +965,7 @@ class _ttp_utils():
             'peer | orphrase | exclude(-VM-)' -> [{'peer': []}, {'orphrase': []}, {'exclude': ['-VM-']}]
         Args:
             line (str): string that contains variable attributes i.e. "contains('vlan') | upper | split('.')"
-        Returns:
+      s  Returns:
             List of opts dictionaries containing extracted attributes
         """
         def get_args_kwargs(*args, **kwargs):
@@ -853,7 +983,11 @@ class _ttp_utils():
             options = itemDict['options']
             # create options list from options string using eval:
             if options:
-                args_kwargs = eval("get_args_kwargs({})".format(options))
+                try:
+                    args_kwargs = eval("get_args_kwargs({})".format(options))
+                except NameError:
+                    raise SystemExit("""ERROR: Failed to load arg/kwargs from line '{}' for options '{}' - possibly wrong syntaxis, 
+make sure that all string arguments are within quotes, e.g. split(',') not split(,)""".format(line, options))
                 opts.update(args_kwargs)
             else:
                 options = []
@@ -884,6 +1018,7 @@ class _template_class():
         self.results = []
         self.name = None
         self.attributes = {}
+        self.macro = {} # dictionary of macro name and macro function
 
         # load template from string:
         self.load_template_xml(template_text)
@@ -1098,6 +1233,15 @@ class _template_class():
                 data_path_prefix=self.data_path_prefix)
             )
 
+        def parse_macro(element):
+            funcs = {}
+            # extract macro with all the __builtins__ provided
+            try:
+                exec(compile(element.text, '<string>', 'exec'), funcs)
+                self.macro.update(funcs)
+            except SyntaxError as e:
+                print("ERROR: Syntax error, failed to load macro:{}".format(element.text))
+            
         def parse__anonymous_(element):
             elem = ET.XML('<g name="_anonymous_">\n{}\n</g>'.format(element.text))
             parse_group(elem)
@@ -1111,7 +1255,7 @@ class _template_class():
             tags = {
                 'vars': [], 'groups': [],
                 'inputs': [], 'outputs': [],
-                'lookups': []
+                'lookups': [], 'macro': []
             }
 
             # functions to append tag elements to tags dictionary:
@@ -1129,7 +1273,8 @@ class _template_class():
             'in'        : lambda C: tags['inputs'].append(C),
             'input'     : lambda C: tags['inputs'].append(C),
             'lookup'    : lambda C: tags['lookups'].append(C),
-            'template'  : parse_template
+            'template'  : parse_template,
+            'macro'     : parse_macro
             }
 
             # fill in tags dictionary:
@@ -1500,6 +1645,17 @@ class _variable_class():
                     extract_funcs[name](i)
                 else:
                     self.functions.append(i)
+        
+        def import_ipaddress(data):
+            if "ipaddress" not in globals():
+                try:
+                    globals()["ipaddress"] = __import__("ipaddress")
+                except ImportError:
+                    if python_major_version is 2:
+                        print("ERROR: Python2 no ipaddress module installed, install: python2 -m pip install py2-ipaddress")
+                    elif python_major_version is 3:
+                        print("ERROR: Python3 no ipaddress module installed, install: python3 -m pip install ipaddress")
+            self.functions.append(data)
 
         extract_funcs = {
         'let'           : extract_let,
@@ -1511,6 +1667,9 @@ class _variable_class():
         'set'           : extract_set,
         'default'       : extract_default,
         'joinmatches'   : extract_joinmatches,
+        'to_ip'  : import_ipaddress, 'to_cidr' : import_ipaddress,
+        'to_net' : import_ipaddress, 'ip_info' : import_ipaddress,
+        'is_ip'  : import_ipaddress, 'cidr_match': import_ipaddress,
         # regex formatters:
         're'       : lambda data: self.var_res.append(data['args'][0]),
         'PHRASE'   : lambda data: self.var_res.append(self.REs.patterns['PHRASE']),
@@ -1619,11 +1778,11 @@ TTP PARSER OBJECT
 class _parser_class():
     """Parser Object to run parsing of data and constructong resulted dictionary/list
     """
-    def __init__(self, lookups, vars, groups):
+    def __init__(self, lookups, vars, groups, macro):
         self.lookups = lookups
         self.original_vars = vars
         self.groups = groups
-        self.functions = _ttp_functions(parser_obj=self)
+        self.functions = _ttp_functions(parser_obj=self, macro=macro)
         self.utils = _ttp_utils()
 
 
@@ -1714,23 +1873,27 @@ class _parser_class():
                             data, flag = getattr(self.functions, 'match_' + func_name)(data, *args, **kwargs)
                         except AttributeError:
                             try: # try data bilt-in finction. e.g. if data is string, can run data.upper()
-                                run_result = getattr(data, func_name)(*args, **kwargs)
+                                attrib = getattr(data, func_name)
+                                if callable(attrib):
+                                    run_result = attrib(*args, **kwargs)
+                                else:
+                                    run_result = attrib
                                 if run_result is False:
                                     flag = False
                                 elif run_result is True:
                                     flag = True
                                 else:
                                     data = run_result
-                                    flag = True        
+                                    flag = None        
                             except AttributeError as e:
                                 flag = False
                                 self.functions.invalid(func_name, scope='variable', skip=True)
-                        if flag is False:
+                        if flag is True or flag is None:
+                            continue
+                        elif flag is False:
                             result = False # if flag False - checks produced negative result
                             break
-                        elif flag is True:
-                            continue    # if checks was successful
-                        elif flag:
+                        elif isinstance(flag, dict):
                             flags.update(flag)
 
                     if result is False:
@@ -1738,8 +1901,8 @@ class _parser_class():
 
                     result.update({var_name: data})
 
-                    if 'lookup' in flags:
-                        result.update(flags['lookup'])
+                    if 'new_field' in flags:
+                        result.update(flags['new_field'])
 
                 # skip not start regexes that evaluated to False
                 if result is False and not regex['ACTION'].startswith('START'):
