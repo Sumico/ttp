@@ -1945,3 +1945,154 @@ interface {{ interface }}
 !{{_end_}}
 </group>
 """
+
+test161="""
+<input load="text">
+interface Vlan777
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+interface Vlan778
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+interface Vlan779
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<macro>
+def check(data):
+    if data == "Vlan779":
+        return data + "1000"
+</macro>
+
+<macro>
+def check2(data):
+    if "778" in data:
+        return data, {"key_vlan": True, "field2": 5678}
+</macro>
+
+<group default="None">
+interface {{ interface | macro("check") | macro("check2")}}
+  description {{ description }}
+  ip address {{ ip }}/{{ mask }}
+  vrf {{ vrf }}
+!{{_end_}}
+</group>
+"""
+
+
+test162="""
+<input load="text">
+interface Vlan777
+  description Management
+  switchport trunk allowed vlans none
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+interface Vlan778
+  description Management
+  switchport trunk allowed vlans 23,24,37
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<group name="vlans_trunk">
+interface {{ interface }}
+  description {{ description }}
+  switchport trunk allowed vlans {{ trunk_vlans | notequal("none") | default([]) | split(",") }}
+  vrf {{ vrf }}
+!{{_end_}} 
+</group>
+"""
+
+
+test163="""
+<input load="text">
+interface Vlan777
+  description Management
+  switchport trunk allowed vlans none
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+interface Vlan778
+  description Management
+  switchport trunk allowed vlans 23,24,37
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<group name="vlans_trunk">
+interface {{ interface }}
+  description {{ description }}
+  switchport trunk allowed vlans {{ trunk_vlans | notequal("none")| split(",") }}
+  switchport trunk allowed vlans none {{ trunk_vlans | set([]) }}
+  vrf {{ vrf }}
+!{{_end_}} 
+</group>
+"""
+
+
+test164="""
+<input load="text">
+interface Vlan777
+  description Management
+  switchport trunk allowed vlans none
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+interface Vlan778
+  description Management
+  switchport trunk allowed vlans 23,24,37
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<macro>
+def empty_list_if_none(data):
+    if data == "none":
+        return []
+    else:
+        return data
+</macro>
+
+<group name="vlans_trunk">
+interface {{ interface }}
+  description {{ description }}
+  switchport trunk allowed vlans {{ trunk_vlans | macro("empty_list_if_none") | split(",") }}
+  vrf {{ vrf }}
+!{{_end_}} 
+</group>
+"""
+
+
+test165="""
+<input load="text">
+interface Vlan777 bla
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+interface Vlan778 somebla
+  description Management
+  switchport trunk allowed vlans 23,24,37   bla2, bla2, bla2
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<group name="vlans_trunk">
+interface {{ interface }} {{ ignore("WORD") }}
+  description {{ description }}
+  switchport trunk allowed vlans {{ trunk_vlans | split(",") }}   {{ ignore("ORPHRASE") }}
+  vrf {{ vrf }}
+!{{_end_}} 
+</group>
+"""

@@ -5,7 +5,7 @@
 Indicators
 ================
 
-Indicators or directives are strings of text that serve to change parsing logic or indicate certain events.
+Indicators or directives can be used to change parsing logic or indicate certain events.
 	 
 .. list-table:: indicators
    :widths: 10 90

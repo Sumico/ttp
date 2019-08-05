@@ -47,6 +47,22 @@ Action functions act upon match result to transform it to desired state.
      - find rlookup table key in match result and return assiciated values
    * - `item`_ 
      - returns item at given index on match result
+   * - `macro`_ 
+     - runs match result aginst given macro
+   * - `to_list`_ 
+     - transforms result to python list
+   * - `to_int`_ 
+     - transforms result to integer
+   * - `to_str`_ 
+     - transforms result to python string
+   * - `to_ip`_ 
+     - transforms result to python ipaddress module IPvXAddress or IPvXInterface object
+   * - `to_net`_ 
+     - transforms result to python ipaddress module IPvXNetwork object
+   * - `to_cidr`_ 
+     - transforms netmask to cidr (prefix length) notation
+   * - `ip_info`_ 
+     - produces a dictionary with information about give ip address or subnet
  
 Condition functions can perform various checks with match results and returns either True or False depending on check results.
 
@@ -80,6 +96,10 @@ Condition functions can perform various checks with match results and returns ei
      - checks if match is greater than given value
    * - `lessthan`_ 
      - checks if match is less than given value
+   * - `is_ip`_ 
+     - tries to convert match result to ipaddress object and returns True if so, False otherwise
+   * - `cidr_match`_ 
+     - transforms result to ipaddress object and checks if it overlaps with given prefix
      
 Python builtins
 ------------------------------------------------------------------------------
@@ -1046,3 +1066,13 @@ the moment *item* function runs, returns list item at given index. item_index ca
 e.g. if item_index is -1, last item will be returned.
 
 In addition, ttp preforms index out of range checks, returning last or first item if item_index exceeds length of match result.
+
+macro
+------------------------------------------------------------------------------
+``{{ name | macro(macro_name) }}``
+
+* macro_name(mandatory) - name of macro function to pass match result through
+
+Macro brings Python scripting capabilities to match results processing and validation, as it allows to run python defined functions against match result. 
+
+.. warning:: macro uses python ``exec`` function to parse code payload without imposing any restrictions, hence it is dangerous to run templates from untrusted sources as they can have macro defined in them that can be used to execute any arbitrary code on the system.

@@ -5,7 +5,7 @@
 Patterns
 ==============
 
-Match Patterns or regex formatters help to specify regular expressions that should be used to match certain variables. 
+Match patterns or regex formatters help to specify regular expressions that should be used to match certain variables. 
 	 
 .. list-table:: indicators
    :widths: 10 90
@@ -13,6 +13,8 @@ Match Patterns or regex formatters help to specify regular expressions that shou
    
    * - Name
      - Description  
+   * - `re`_ 
+     - TBD
    * - `PHRASE`_ 
      - TBD
    * - `ORPHRASE`_ 
@@ -21,6 +23,20 @@ Match Patterns or regex formatters help to specify regular expressions that shou
      - TBD
    * - `_line_`_ 
      - TBD
+   * - `ROW`_ 
+     - TBD
+   * - `DIGIT`_ 
+     - TBD
+   * - `IP`_ 
+     - TBD
+   * - `PREFIX`_ 
+     - TBD
+   * - `IPV6`_ 
+     - TBD
+   * - `PREFIXV6`_ 
+     - TBD
+   * - `MAC`_ 
+     - TBD	 
 	 
 PHRASE
 ------------------------------------------------------------------------------

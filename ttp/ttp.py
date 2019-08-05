@@ -301,12 +301,12 @@ class _ttp_functions():
         self.out_obj = out_obj
         self.macro = macro
 
-    def invalid(self, name, scope, skip=True):
+    def invalid(self, data, name, scope, skip=True):
         if skip == True:
-            print("Error: {} function '{}' not found".format(scope, name))
+            print("Error: data - {}, {} function '{}' not found".format(data, scope, name))
         else:
-            print("Error: {} function '{}' not found, valid functions are: \n{}".format(
-                scope, name, getattr(self, scope).keys() ))
+            print("Error: data - {}, {} function '{}' not found, valid functions are: \n{}".format(
+                data, scope, name, getattr(self, scope).keys() ))
 
     def output_is_equal(self, data, *args, **kwargs):
         data_to_compare_with = self.out_obj.attributes['load']
@@ -437,7 +437,6 @@ class _ttp_functions():
             return data, None
     
     def match_prepend(self, data, char):
-        print(data, char)
         if isinstance(data, str):
             return (char + data), None
         elif isinstance(data, list):
@@ -477,8 +476,9 @@ class _ttp_functions():
     def match_set(self, data, value, match_line):
         vars = self.pobj.vars['globals']['vars']
         if data.rstrip() == match_line:
-            if value in vars:
-                return vars[value], None
+            if isinstance(value, str):
+                if value in vars:
+                    return vars[value], None
             else:
                 return value, None
         else:
@@ -617,17 +617,23 @@ class _ttp_functions():
             return data, False
         elif result is None:
             return data, None
-        else:
-            return result, None
+        elif isinstance(result, tuple):
+            if len(result) == 2:
+                if isinstance(result[1], dict):
+                    return result[0], {"new_field": result[1]}
+        return result, None
 
     def match_to_str(self, data):
         return str(data), None
         
     def match_to_list(self, data):
-        return list(data), None
+        return [data], None
         
     def match_to_int(self, data):
-        return int(data), None
+        try:
+            return int(data), None
+        except ValueError:
+            return data, None
 
     def match_is_ip(self, data, *args):
         try:
@@ -637,34 +643,47 @@ class _ttp_functions():
             return data, False
             
     def match_to_ip(self, data, *args):
+        # for py2 support need to convert data to unicode:
+        if python_major_version is 2:
+            ipaddr_data = unicode(data)
+        elif python_major_version is 3:
+            ipaddr_data = data
         if "ipv4" in args:
-            if "/" in data or " " in data:
-                return ipaddress.IPv4Interface(data.replace(" ", "/")), None
+            if "/" in ipaddr_data or " " in ipaddr_data:
+                return ipaddress.IPv4Interface(ipaddr_data.replace(" ", "/")), None
             else:
-                return ipaddress.IPv4Address(data), None
+                return ipaddress.IPv4Address(ipaddr_data), None
         elif "ipv6" in args:
-            if "/" in data:
-                return ipaddress.IPv6Interface(data), None
+            if "/" in ipaddr_data:
+                return ipaddress.IPv6Interface(ipaddr_data), None
             else:
-                return ipaddress.IPv6Address(data), None
-        elif "/" in data or " " in data:
-            return ipaddress.ip_interface(data.replace(" ", "/")), None
+                return ipaddress.IPv6Address(ipaddr_data), None
+        elif "/" in ipaddr_data or " " in ipaddr_data:
+            return ipaddress.ip_interface(ipaddr_data.replace(" ", "/")), None
         else:
-            return ipaddress.ip_address(data), None
+            return ipaddress.ip_address(ipaddr_data), None
                 
     def match_to_net(self, data, *args):
+        # for py2 support need to convert data to unicode:
+        if python_major_version is 2:
+            ipaddr_data = unicode(data)
+        elif python_major_version is 3:
+            ipaddr_data = data
         if "ipv4" in args:
-            return ipaddress.IPv4Network(data), None
+            return ipaddress.IPv4Network(ipaddr_data), None
         elif "ipv6" in args:
-            return ipaddress.IPv6Network(data), None
+            return ipaddress.IPv6Network(ipaddr_data), None
         else:
-            return ipaddress.ip_network(data), None
+            return ipaddress.ip_network(ipaddr_data), None
         
     def match_to_cidr(self, data):
+        """Method to convet 255.255.255.0 like mask to CIDR prefix len 
+        such as 24
+        """
         try:
-            ret = ipaddress.IPv4Network("0.0.0.0/{}".format(data)).prefixlen
+            ret = sum([bin(int(x)).count('1') for x in data.split('.')])
             return ret, None
-        except ipaddress.NetmaskValueError:
+        except:
             print("ERROR: '{}' is not a valid netmask".format(data))
             return data, None   
             
@@ -721,14 +740,24 @@ class _ttp_functions():
             ip_obj = self.match_to_ip(data)[0]
         else:
             ip_obj = data 
-        ip_net = self.match_to_net(prefix)[0] 		
+        ip_net = self.match_to_net(prefix)[0]         
         if isinstance(ip_obj, ipaddress.IPv4Interface) or isinstance(ip_obj, ipaddress.IPv6Interface):
             check = ip_obj.network.overlaps(ip_net)
         elif isinstance(ip_obj, ipaddress.IPv4Address) or isinstance(ip_obj, ipaddress.IPv6Address):
             if ip_obj.version is 4:
-                ip_obj = ipaddress.IPv4Interface("{}/32".format(str(ip_obj)))
+                # for py2 support need to convert data to unicode:
+                if python_major_version is 2:
+                    ipaddr_data = unicode("{}/32".format(str(ip_obj)))
+                elif python_major_version is 3:
+                    ipaddr_data = "{}/32".format(str(ip_obj))
+                ip_obj = ipaddress.IPv4Interface(ipaddr_data)
             elif ip_obj.version is 6:
-                ip_obj = ipaddress.IPv6Interface("{}/128".format(str(ip_obj)))
+                # for py2 support need to convert data to unicode:
+                if python_major_version is 2:
+                    ipaddr_data = unicode("{}/128".format(str(ip_obj)))
+                elif python_major_version is 3:
+                    ipaddr_data = "{}/128".format(str(ip_obj))
+                ip_obj = ipaddress.IPv6Interface(ipaddr_data)
             check = ip_obj.network.overlaps(ip_net)
         else:
             check = None
@@ -888,13 +917,9 @@ class _ttp_utils():
             try:
                 if python_major_version is 2:
                     from compatibility_utils.ttp_load_py2 import load_python
-                    data = load_python(text_data, kwargs)
                 elif python_major_version is 3:
-                    exec(compile(text_data, '<string>', 'exec'), {"__builtins__" : None}, data)
-                    # run eval in case if data still empty as we might have python dictionary or list
-                    # expressed as string
-                    if not data:
-                        data = eval(text_data, None, None)
+                    from compatibility_utils.ttp_load_py3 import load_python
+                data = load_python(text_data, kwargs)
                 return data
             except:
               print("ERROR: Unable to load Python formatted data\n'{}'".format(text_data))
@@ -1237,7 +1262,11 @@ class _template_class():
             funcs = {}
             # extract macro with all the __builtins__ provided
             try:
-                exec(compile(element.text, '<string>', 'exec'), funcs)
+                if python_major_version is 2:
+                    from compatibility_utils.ttp_load_py2 import load_python
+                elif python_major_version is 3:
+                    from compatibility_utils.ttp_load_py3 import load_python
+                funcs = load_python(element.text, builtins=__builtins__)
                 self.macro.update(funcs)
             except SyntaxError as e:
                 print("ERROR: Syntax error, failed to load macro:{}".format(element.text))
@@ -1656,6 +1685,13 @@ class _variable_class():
                     elif python_major_version is 3:
                         print("ERROR: Python3 no ipaddress module installed, install: python3 -m pip install ipaddress")
             self.functions.append(data)
+            
+        def extract_re(data):
+            pattern = data['args'][0]
+            if pattern in self.REs.patterns:
+                self.var_res.append(self.REs.patterns[pattern])
+            else:
+                self.var_res.append(pattern)
 
         extract_funcs = {
         'let'           : extract_let,
@@ -1667,11 +1703,11 @@ class _variable_class():
         'set'           : extract_set,
         'default'       : extract_default,
         'joinmatches'   : extract_joinmatches,
-        'to_ip'  : import_ipaddress, 'to_cidr' : import_ipaddress,
+        'to_ip'  : import_ipaddress,
         'to_net' : import_ipaddress, 'ip_info' : import_ipaddress,
         'is_ip'  : import_ipaddress, 'cidr_match': import_ipaddress,
         # regex formatters:
-        're'       : lambda data: self.var_res.append(data['args'][0]),
+        're'       : extract_re,
         'PHRASE'   : lambda data: self.var_res.append(self.REs.patterns['PHRASE']),
         'ROW'      : lambda data: self.var_res.append(self.REs.patterns['ROW']),
         'ORPHRASE' : lambda data: self.var_res.append(self.REs.patterns['ORPHRASE']),
@@ -1719,7 +1755,11 @@ class _variable_class():
             if len(data['args']) == 0:
                 self.regex = self.regex.replace(esc_var, '\S+', 1)
             elif len(data['args']) == 1:
-                self.regex = self.regex.replace(esc_var, data['args'][0], 1)
+                pattern = data['args'][0]
+                if pattern in self.REs.patterns:
+                    self.regex = self.regex.replace(esc_var, "(?:{})".format(self.REs.patterns[pattern]), 1)
+                else:
+                    self.regex = self.regex.replace(esc_var, "(?:{})".format(pattern), 1)
 
         def regex_deleteVar(data):
             result = None
@@ -1886,8 +1926,8 @@ class _parser_class():
                                     data = run_result
                                     flag = None        
                             except AttributeError as e:
-                                flag = False
-                                self.functions.invalid(func_name, scope='variable', skip=True)
+                                flag = None
+                                self.functions.invalid(data, func_name, scope='variable', skip=True)
                         if flag is True or flag is None:
                             continue
                         elif flag is False:
