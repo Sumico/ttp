@@ -429,20 +429,30 @@ interface Vlan777
   ip address 192.168.0.1/24
   vrf MGMT
 !
+interface Vlan778
+  description Management
+  switchport mode trunk
+  switchport trunk allowed vlans 23,24,37
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
 </input>
 
 <vars>
 my_var = "L2VC"
 </vars>
 
-<group name="interfaces_with_let" input="test1-10" output="test1-10">
+<group name="interfaces_with_set" input="test1-10" output="test1-10">
 interface {{ interface }}
   description {{ description }}
-  ip address {{ ip }}/{{ mask }}
+  switchport mode trunk {{ mode | set("trunk") }} {{ vlans_trunk | set("1-4096") }}
+  switchport trunk allowed vlans {{ trunk_vlans | split(",") }}
   vrf {{ vrf }}
-  {{ interface_role | let("Uplink") }}
-  {{ provider | let("my_var") }}
-!{{_end_}}
+  {{ var1 | set("my_value1") }}
+{{ var2 | set("my_value2") }}
+{{ var3 | set("my_value3") }} {{ var4 | set("my_value4") }}
+{{ var5 | set("my_var") }}
+!{{_end_}} 
 </group>
 
 <output name="test1-10"
@@ -451,15 +461,35 @@ description="test variables let function"
 load="json"
 >
 {
-    "interfaces_with_let": {
-        "description": "Management",
-        "interface": "Vlan777",
-        "interface_role": "Uplink",
-        "ip": "192.168.0.1",
-        "mask": "24",
-        "provider": "L2VC",
-        "vrf": "MGMT"
-    }
+    "interfaces_with_set": [
+        {
+            "description": "Management",
+            "interface": "Vlan777",
+            "var1": "my_value1",
+            "var2": "my_value2",
+            "var3": "my_value3",
+            "var4": "my_value4",
+            "var5": "L2VC",
+            "vrf": "MGMT"
+        },
+        {
+            "description": "Management",
+            "interface": "Vlan778",
+            "mode": "trunk",
+            "trunk_vlans": [
+                "23",
+                "24",
+                "37"
+            ],
+            "var1": "my_value1",
+            "var2": "my_value2",
+            "var3": "my_value3",
+            "var4": "my_value4",
+            "var5": "L2VC",
+            "vlans_trunk": "1-4096",
+            "vrf": "MGMT"
+        }
+    ]
 }
 </output>
 

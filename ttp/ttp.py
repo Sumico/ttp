@@ -43,7 +43,7 @@ class ttp():
         self.multiproc_threshold (int): overall data size in bytes beyond which to use
             multiple processes
     """
-    def __init__(self, data='', template='', DEBUG=False, data_path_prefix=''):
+    def __init__(self, data='', template='', DEBUG=False, data_path_prefix='', vars={}):
         """
         Args:
             self.__data (list): list of dictionaries, each dict key is file name, value - data/text
@@ -56,6 +56,7 @@ class ttp():
         self.DEBUG = DEBUG
         self.data_path_prefix = data_path_prefix
         self.multiproc_threshold = 5242880 # 5Mbyte
+        self.vars = vars # dictionary of variables to add to each template vars
 
         # check if data given, if so - load it:
         if data is not '':
@@ -95,7 +96,8 @@ class ttp():
             template_obj = _template_class(
                 template_text=i[1],
                 DEBUG=self.DEBUG,
-                data_path_prefix=self.data_path_prefix)
+                data_path_prefix=self.data_path_prefix, 
+                ttp_vars=self.vars)
             # if templates are empty - no 'template' tags in template:
             if template_obj.templates == []:
                 self.__templates.append(template_obj)
@@ -342,6 +344,19 @@ class _ttp_functions():
                         return data, False
                 return data, None
         return data, False
+        
+    def group_macro(self, data, macro_name):
+        result = None
+        if macro_name in self.macro:
+            result = self.macro[macro_name](data)
+        # process macro result
+        if result is True:
+            return data, True
+        elif result is False:
+            return data, False
+        elif result is None:
+            return data, None
+        return result, None
 
     def match_joinmatches(self, data, *args, **kwargs):
         return data, None
@@ -479,8 +494,7 @@ class _ttp_functions():
             if isinstance(value, str):
                 if value in vars:
                     return vars[value], None
-            else:
-                return value, None
+            return value, None
         else:
             return data, False
 
@@ -1027,13 +1041,17 @@ TTP TEMPLATE CLASS
 class _template_class():
     """Template class to hold template data
     """
-    def __init__(self, template_text, DEBUG=False, data_path_prefix=''):
+    def __init__(self, template_text, DEBUG=False, data_path_prefix='', ttp_vars={}):
         self.DEBUG = DEBUG
         self.PATHCHAR = '.'          # character to separate path items, like ntp.clock.time, '.' is pathChar here
         self.outputs = []            # list htat contains global outputs
         self.groups_outputs = []     # list that contains groups specific outputs
         # _vars_to_results_ is a dict of {pathN:[var_key1, var_keyN]} data
+		# to indicate variables and patch where they should be saved in results
         self.vars = {"_vars_to_results_":{}}
+        # add vars from ttp class that supplied during ttp object instantiation
+        self.ttp_vars = ttp_vars
+        self.vars.update(ttp_vars)
         self.groups = []
         self.inputs = {}
         self.lookups = {}
@@ -1255,7 +1273,8 @@ class _template_class():
             self.templates.append(_template_class(
                 template_text=ET.tostring(element, encoding="UTF-8"),
                 DEBUG=self.DEBUG,
-                data_path_prefix=self.data_path_prefix)
+                data_path_prefix=self.data_path_prefix,
+                ttp_vars=self.ttp_vars)
             )
 
         def parse_macro(element):
@@ -1423,31 +1442,59 @@ class _group_class():
             self.name = '.'.join(self.path)
 
         def extract_contains(O):
-            self.funcs.append({
-                'name': 'contains',
-                'args': [i.strip() for i in O.split(',')]
-            })
+            if isinstance(O, str):
+                self.funcs.append({
+                    'name': 'contains',
+                    'args': [i.strip() for i in O.split(',')]
+                })
+            elif isinstance(O, dict):
+                self.funcs.append(O) 
 
         def extract_containsall(O):
-            self.funcs.append({
-                'name': 'containsall',
-                'args': [i.strip() for i in O.split(',')]
-            })
+            if isinstance(O, str):
+                self.funcs.append({
+                    'name': 'containsall',
+                    'args': [i.strip() for i in O.split(',')]
+                })
+            elif isinstance(O, dict):
+                self.funcs.append(O) 
+            
+        def extract_macro(O):
+            if isinstance(O, str):
+                self.funcs.append({
+                    'name': 'macro',
+                    'args': [i.strip() for i in O.split(',')]
+                })
+            elif isinstance(O, dict):
+                self.funcs.append(O)            
+     
+        def extract_functions(O):
+            funcs = self.utils.get_attributes(O)
+            for i in funcs:
+                name = i['name']
+                if name in functions: functions[name](i)
+                else: print('ERROR: Uncknown group function: "{}"'.format(name))
 
         # group attributes extract functions dictionary:
-        opt_funcs={
-        'contains' : extract_contains,
-        'containsall' : extract_containsall,
+        options = {
         'method'      : extract_method,
         'input'       : extract_input,
         'output'      : extract_output,
         'name'        : extract_name,
         'default'     : extract_default
         }
+        functions = {
+        'contains'    : extract_contains,
+        'containsall' : extract_containsall,        
+        'macro'       : extract_macro,
+        'functions'   : extract_functions,
+        'fun'         : extract_functions    
+        }
 
-        for name, options in data.items():
-            if name.lower() in opt_funcs: opt_funcs[name.lower()](options)
-            else: print('ERROR: Uncknown group attribute: {}="{}"'.format(name, options))
+        for name, attributes in data.items():
+            if name.lower() in options: options[name.lower()](attributes)
+            elif name.lower() in functions: functions[name.lower()](attributes)
+            else: print('ERROR: Uncknown group attribute: {}="{}"'.format(name, attributes))
 
 
     def get_regexes(self, data, tail=False):
@@ -1477,10 +1524,10 @@ class _group_class():
                 variableObj = _variable_class(variable, i['line'], DEBUG=self.debug, group=self)
 
                 # check if need to skip appending regex dict to regexes list
-                # have to skip it for 'let' function
+                # have to skip it for unconditional 'set' function
                 if variableObj.skip_regex_dict == True:
                     skip_regex = True
-                    break
+                    continue
 
                 # creade variable dict:
                 if variableObj.skip_variable_dict is False:
@@ -1633,8 +1680,14 @@ class _variable_class():
 
         def extract_set(data):
             match_line=re.sub('{{([\S\s]+?)}}', '', self.LINE).rstrip()
-            data['kwargs']['match_line'] = '\n' + match_line
-            self.functions.append(data)
+            # handle conditional set when we have line to match
+            if match_line:
+                data['kwargs']['match_line'] = '\n' + match_line
+                self.functions.append(data)
+            # handle unconditional set without line to match
+            else:
+                self.group.defaults.update({self.var_name: data['args'][0]})
+                self.skip_regex_dict = True                
 
         def extract_default(data):
             if self.var_name in self.skip_defaults:
@@ -1652,10 +1705,6 @@ class _variable_class():
             self.functions.append(data)
             self.SAVEACTION='JOIN'
             self.IS_LINE=True
-
-        def extract_let(data):
-            self.group.defaults.update({self.var_name: data['args'][0]})
-            self.skip_regex_dict = True
 
         def extract_ignore(data):
             self.skip_variable_dict = True
@@ -1680,21 +1729,10 @@ class _variable_class():
                 try:
                     globals()["ipaddress"] = __import__("ipaddress")
                 except ImportError:
-                    if python_major_version is 2:
-                        print("ERROR: Python2 no ipaddress module installed, install: python2 -m pip install py2-ipaddress")
-                    elif python_major_version is 3:
-                        print("ERROR: Python3 no ipaddress module installed, install: python3 -m pip install ipaddress")
+                    print("ERROR: no ipaddress module installed, install: python -m pip install ipaddress")
             self.functions.append(data)
-            
-        def extract_re(data):
-            pattern = data['args'][0]
-            if pattern in self.REs.patterns:
-                self.var_res.append(self.REs.patterns[pattern])
-            else:
-                self.var_res.append(pattern)
 
         extract_funcs = {
-        'let'           : extract_let,
         'ignore'        : extract_ignore,
         '_start_'       : extract__start_,
         '_end_'         : extract__end_,
@@ -1707,7 +1745,7 @@ class _variable_class():
         'to_net' : import_ipaddress, 'ip_info' : import_ipaddress,
         'is_ip'  : import_ipaddress, 'cidr_match': import_ipaddress,
         # regex formatters:
-        're'       : extract_re,
+        're'       : lambda data: self.var_res.append(self.REs.patterns[data['args'][0]]),
         'PHRASE'   : lambda data: self.var_res.append(self.REs.patterns['PHRASE']),
         'ROW'      : lambda data: self.var_res.append(self.REs.patterns['ROW']),
         'ORPHRASE' : lambda data: self.var_res.append(self.REs.patterns['ORPHRASE']),
@@ -1720,7 +1758,7 @@ class _variable_class():
         'WORD'     : lambda data: self.var_res.append(self.REs.patterns['WORD']),
         '_line_'   : lambda data: self.var_res.append(self.REs.patterns['_line_']),
         }
-
+        # handle _start_, _line_ etc.
         if self.var_name in extract_funcs:
             extract_funcs[self.var_name](self.var_dict)
         # go over attribute extract function:
@@ -1824,6 +1862,7 @@ class _parser_class():
         self.groups = groups
         self.functions = _ttp_functions(parser_obj=self, macro=macro)
         self.utils = _ttp_utils()
+        self.macro = macro
 
 
     def set_data(self, D):
@@ -1852,7 +1891,7 @@ class _parser_class():
         self.vars={
             'globals': {
                 # need to copy as additional var can be recorded,
-                # that can lead to change of original vars dictionary
+                # that can lead to changes in original vars dictionary
                 'vars' : self.original_vars.copy()
             }
         }
@@ -1934,7 +1973,11 @@ class _parser_class():
                             result = False # if flag False - checks produced negative result
                             break
                         elif isinstance(flag, dict):
-                            flags.update(flag)
+                            # update new_field data preserving previously got new_field
+                            if "new_field" in flags and "new_field" in flag:
+                                flags["new_field"].update(flag["new_field"])
+                            else:
+                                flags.update(flag)
 
                     if result is False:
                         break
@@ -2017,12 +2060,12 @@ class _parser_class():
                         (run_re(group, results={}), group.outputs,)
                     )
 
-        # sort results global groups:
+        # sort global groups results:
         [ raw_results.append(
           [group_result[key] for key in sorted(list(group_result.keys()))]
           ) for group_result in unsort_rslts if group_result ]
         # form results for global groups:
-        RSLTSOBJ = _results_class()
+        RSLTSOBJ = _results_class(macro=self.macro)
         RSLTSOBJ.form_results(self.vars['globals']['vars'], raw_results)
         self.results = RSLTSOBJ.RESULTS
 
@@ -2031,9 +2074,9 @@ class _parser_class():
             ([group_result[0][key] for key in sorted(list(group_result[0].keys()))],
             group_result[1],) # tuple item that contains group.outputs
         ) for group_result in grps_unsort_rslts if group_result[0] ]
-        # form results for groups specific results with running group through outputs:
+        # form results for groups specific results with running groups through outputs:
         for grp_raw_result in grps_raw_results:
-            RSLTSOBJ = _results_class()
+            RSLTSOBJ = _results_class(macro=self.macro)
             RSLTSOBJ.form_results(self.vars['globals']['vars'], [grp_raw_result[0]])
             grp_result = RSLTSOBJ.RESULTS
             for output in grp_raw_result[1]:
@@ -2060,16 +2103,16 @@ class _results_class():
     Args:
         self.dyn_path_cache (dict): used to store dynamic path variables
     """
-    def __init__(self):
+    def __init__(self, macro):
         self.RESULTS = {}
         self.GRPLOCK = {'LOCK': False, 'GROUP': ()} # GROUP - path tuple of locked group
         self.record={
             'RESULT'     : {},
             'PATH'       : [],
-            'CONDITIONS' : []
+            'FUNCTIONS' : []
         }
         self.dyn_path_cache={}
-        self.functions = _ttp_functions(results_obj=self)
+        self.functions = _ttp_functions(results_obj=self, macro=macro)
 
     def form_results(self, vars, results):
         self.vars=vars
@@ -2138,7 +2181,7 @@ class _results_class():
                     RESULT     = result_data,
                     PATH       = list(group.path),
                     DEFAULTS   = group.runs,
-                    CONDITIONS = group.funcs,
+                    FUNCTIONS = group.funcs,
                     REDICT     = re
                 )
         # check the last group:
@@ -2159,7 +2202,7 @@ class _results_class():
             }
             self.SAVE_CURELEMENTS()
         # set record to default value:
-        self.record={'RESULT': {}, 'PATH': [], 'CONDITIONS': []}
+        self.record={'RESULT': {}, 'PATH': [], 'FUNCTIONS': []}
 
 
     def value_to_list(self, DATA, PATH, RESULT):
@@ -2256,30 +2299,30 @@ class _results_class():
                 E.update(RSLT)
 
 
-    def START(self, RESULT, PATH, DEFAULTS={}, CONDITIONS=[], REDICT=''):
+    def START(self, RESULT, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
         if self.record['RESULT'] and self.PROCESSGRP() != False:
             self.SAVE_CURELEMENTS()
         self.record = {
             'RESULT'     : DEFAULTS.copy(),
             'DEFAULTS'   : DEFAULTS,
             'PATH'       : PATH,
-            'CONDITIONS' : CONDITIONS
+            'FUNCTIONS' : FUNCTIONS
         }
         self.record['RESULT'].update(RESULT)
 
 
-    def STARTEMPTY(self, RESULT, PATH, DEFAULTS={}, CONDITIONS=[], REDICT=''):
+    def STARTEMPTY(self, RESULT, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
         if self.record['RESULT'] and self.PROCESSGRP() != False:
             self.SAVE_CURELEMENTS()
         self.record = {
             'RESULT'     : DEFAULTS.copy(),
             'DEFAULTS'   : DEFAULTS,
             'PATH'       : PATH,
-            'CONDITIONS' : CONDITIONS
+            'FUNCTIONS' : FUNCTIONS
         }
 
 
-    def ADD(self, RESULT, PATH, DEFAULTS={}, CONDITIONS=[], REDICT=''):
+    def ADD(self, RESULT, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
         if self.GRPLOCK['LOCK'] == True: return
 
         if self.record['PATH'] == PATH: # if same path - save into self.record
@@ -2298,7 +2341,7 @@ class _results_class():
                 ELEMENT[-1].update(RESULT)
 
 
-    def JOIN(self, RESULT, PATH, DEFAULTS={}, CONDITIONS=[], REDICT=''):
+    def JOIN(self, RESULT, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
         joinchar = '\n'
         for varname, varvalue in RESULT.items():
             for item in REDICT['VARIABLES'][varname].functions:
@@ -2324,7 +2367,7 @@ class _results_class():
                 self.record['RESULT'][k] = RESULT[k]                 # if first result
 
 
-    def END(self, RESULT, PATH, DEFAULTS={}, CONDITIONS=[], REDICT=''):
+    def END(self, RESULT, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
         # action to end current group by locking it
         self.GRPLOCK['LOCK'] = True
         self.GRPLOCK['GROUP'] = list(PATH)
@@ -2355,7 +2398,7 @@ class _results_class():
     def PROCESSGRP(self):
         """Method to process group results
         """
-        for item in self.record['CONDITIONS']:
+        for item in self.record['FUNCTIONS']:
             func_name = item['name']
             args = item['args']
             try: # try group function

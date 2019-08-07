@@ -2096,3 +2096,71 @@ interface {{ interface }} {{ ignore("WORD") }}
 !{{_end_}} 
 </group>
 """
+
+
+test166="""
+<input load="text">
+interface Vlan777
+  description Management
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+interface Vlan778
+  description Management
+  switchport mode trunk
+  switchport trunk allowed vlans 23,24,37
+  ip address 192.168.0.1/24
+  vrf MGMT
+!
+</input>
+
+<vars>
+my_var = "L2VC"
+</vars>
+
+<group name="vlans_trunk">
+interface {{ interface }}
+  description {{ description }}
+  switchport mode trunk {{ mode | set("trunk") }} {{ vlans_trunk | set("1-4096") }}
+  switchport trunk allowed vlans {{ trunk_vlans | split(",") }}
+  vrf {{ vrf }}
+  {{ var1 | set("my_value1") }}
+{{ var2 | set("my_value2") }}
+{{ var3 | set("my_value3") }} {{ var4 | set("my_value4") }}
+{{ var5 | set("my_var") }}
+!{{_end_}} 
+</group>
+"""
+
+
+test167="""
+<input load="text">
+interface Vlan777
+  description Management-1
+  switchport mode trunk
+!
+interface Vlan778
+  description Management-2
+  switchport mode trunk
+  switchport trunk allowed vlans 23,24,37
+!
+</input>
+
+<macro>
+def check_trunk_vlans(data):
+    if data.get("mode", None):
+        if data["mode"] is "trunk":
+            if "trunk_vlans" not in data:
+                data["trunk_vlans"] = "all"
+    return data
+</macro>
+
+<group name="vlans_trunk" macro="check_trunk_vlans">
+interface {{ interface }}
+  description {{ description }}
+  switchport mode trunk {{ mode | set("trunk") }}
+  switchport trunk allowed vlans {{ trunk_vlans | split(",") }}
+  vrf {{ vrf }}
+!{{_end_}} 
+</group>
+"""
