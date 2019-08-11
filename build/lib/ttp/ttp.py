@@ -67,7 +67,6 @@ class ttp():
         if template is not '':
             self.add_template(data=template)
             
-			
     def add_lookup(self, name, text_data, include=None, load="python", key=None):
         """Method to load lookup table data
         Args::
@@ -82,7 +81,6 @@ class ttp():
         self.lookups.update({name: lookup_data})
         [template.add_lookup({name: lookup_data}) for template in self.__templates]
 
-		
     def add_vars(self, data):
         """Method to add vars to ttp and its templates
         """

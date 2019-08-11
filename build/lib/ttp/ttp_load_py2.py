@@ -1,4 +1,4 @@
-def load_python(text_data, builtins=None):
+def load_python_exec(text_data, builtins=None):
     """
     Function to provide compatibility with python 2.6 for loading text formwatted in 
     python using exec buil-in method. Exec syntaxis in pyton 2.6 different

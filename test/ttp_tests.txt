@@ -724,6 +724,148 @@ load="json"
 }
 </output>
 
+
+
+<input load="text" name="test1-14">
+interface Vlan123
+ description Desks vlan
+ ip address 192.168.123.1 255.255.255.0
+!
+interface GigabitEthernet1/1
+ description to core-1
+!
+interface Vlan222
+ description Phones vlan
+ ip address 192.168.222.1 255.255.255.0
+!
+interface Loopback0
+ description Routing ID loopback
+!
+</input>
+
+ <macro>
+def check_if_svi(data):
+    if "Vlan" in data:
+        return data, {"is_svi": True}
+    else:
+       return data, {"is_svi": False}
+        
+def check_if_loop(data):
+    if "Loopback" in data:
+        return data, {"is_loop": True}
+    else:
+       return data, {"is_loop": False}
+ </macro>
+ 
+ <macro>
+def description_mod(data):
+    # To revert words order in descripotion
+    words_list = data.split(" ")
+    words_list_reversed = list(reversed(words_list))
+    words_reversed = " ".join(words_list_reversed) 
+    return words_reversed
+ </macro>
+ 
+<group name="interfaces_macro_more" input="test1-14" output="test1-14">
+interface {{ interface | macro("check_if_svi") | macro("check_if_loop") }}
+ description {{ description | ORPHRASE | macro("description_mod")}}
+ ip address {{ ip }} {{ mask }}
+</group>
+
+<output name="test1-14"
+functions="is_equal"
+description="test more match variable macro functions"
+load="json"
+>
+{
+     "interfaces_macro_more": [
+         {
+             "description": "vlan Desks",
+             "interface": "Vlan123",
+             "ip": "192.168.123.1",
+             "is_loop": false,
+             "is_svi": true,
+             "mask": "255.255.255.0"
+         },
+         {
+             "description": "core-1 to",
+             "interface": "GigabitEthernet1/1",
+             "is_loop": false,
+             "is_svi": false
+         },
+         {
+             "description": "vlan Phones",
+             "interface": "Vlan222",
+             "ip": "192.168.222.1",
+             "is_loop": false,
+             "is_svi": true,
+             "mask": "255.255.255.0"
+         },
+         {
+             "description": "loopback ID Routing",
+             "interface": "Loopback0",
+             "is_loop": true,
+             "is_svi": false
+         }
+     ]
+ }
+ </output>
+ 
+ 
+<input load="text" name="test1-15">
+router bgp 65100
+  neighbor 10.145.1.9
+    remote-as 65101
+  !
+  neighbor 192.168.101.1
+    remote-as 65102
+</input>
+
+<lookup name="ASNs" load="csv">
+ASN,as_name,as_description
+65101,Customer_1,Private ASN for CN451275
+65102,CPEs,Private ASN for FTTB CPEs
+</lookup>
+
+<group name="bgp_config" input="test1-15" output="test1-15">
+router bgp {{ bgp_as }}
+ <group name="peers">
+  neighbor {{ peer }}
+    remote-as {{ remote_as | lookup('ASNs', add_field='asn_details') }}
+ </group>
+</group>   
+
+<output name="test1-15"
+functions="is_equal"
+description="test csv lookup"
+load="json"
+>
+{
+    "bgp_config": {
+        "bgp_as": "65100",
+        "peers": [
+            {
+                "asn_details": {
+                    "as_description": "Private ASN for CN451275",
+                    "as_name": "Customer_1"
+                },
+                "peer": "10.145.1.9",
+                "remote_as": "65101"
+            },
+            {
+                "asn_details": {
+                    "as_description": "Private ASN for FTTB CPEs",
+                    "as_name": "CPEs"
+                },
+                "peer": "192.168.101.1",
+                "remote_as": "65102"
+            }
+        ]
+    }
+}
+</output>
+
+ 
 <!--output to print raw python result to screen
 <output
 name="print_python"
@@ -790,7 +932,7 @@ description="test vars path forming and saving in results"
             {
                 "bla": {
                     "filename": "text_data",
-                    "hostname": false
+                    "hostname": "router1"
                 }
             }
         ]

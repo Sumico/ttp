@@ -48,9 +48,9 @@ Action functions act upon match result to transform it to desired state.
    * - `item`_ 
      - returns item at given index on match result
    * - `macro`_ 
-     - runs match result aginst given macro
+     - runs match result aginst macro function
    * - `to_list`_ 
-     - transforms result to python list
+     - creates empty list nd appends match result to it
    * - `to_int`_ 
      - transforms result to integer
    * - `to_str`_ 
@@ -1073,6 +1073,91 @@ macro
 
 * macro_name(mandatory) - name of macro function to pass match result through
 
-Macro brings Python scripting capabilities to match results processing and validation, as it allows to run python defined functions against match result. 
+Macro brings Python langiage capabilities to match results processing and validation during ttp module execution, as it allows to run custom functions against match results. Macro functions referenced by their name in match variable definitions or as a group *macro* attribute.
 
 .. warning:: macro uses python ``exec`` function to parse code payload without imposing any restrictions, hence it is dangerous to run templates from untrusted sources as they can have macro defined in them that can be used to execute any arbitrary code on the system.
+
+Macro function must accept at least one attribute to hold results data, for match variable that data is match result string for group it is a dictionary of data matched by this group.
+
+For match variables, depending on data returned by macro function, ttp will behave differently according to these rules:
+
+* If macro returns True or False - original data unchanged, macro handled as condition functions, invalidating result on False and keeps processing result on True
+* If macro returns None - data processing continues, no additional logic associated
+* If macro returns single item - that item replaces original data supplied to macro and processed further
+* If macro return tuple of two elements - fist element must be string - match result, second - dictionary of additional fields to add to results
+
+Gor groups these are valid options for returned data:
+
+* If macro returns True or False - original data unchanged, macro handled as condition functions, invalidating result on False and keeps processing result on True
+* If macro returns None - data processing continues, no additional logic associated
+* If macro returns single item - that item replaces original data supplied to macro and processed further
+
+**Example**
+
+In this example maro functions referenced by match variables.
+
+Data
+::
+ interface Vlan123
+  description Desks vlan
+  ip address 192.168.123.1 255.255.255.0
+ !
+ interface GigabitEthernet1/1
+  description to core-1
+ !
+ interface Vlan222
+  description Phones vlan
+  ip address 192.168.222.1 255.255.255.0
+ !
+ interface Loopback0
+  description Routing ID loopback
+ 
+Template
+::
+ <macro>
+ def check_if_svi(data):
+     if "Vlan" in data:
+		return data, {"is_svi": True}
+	 else:
+		return data, {"is_svi": False}
+		
+ def check_if_loop(data):
+     if "Loopback" in data:
+		return data, {"is_loop": True}
+	 else:
+		return data, {"is_loop": False}
+ </macro>
+ 
+ <macro>
+ def description_mod(data):
+	"""To revert words order in descripotion
+	"""
+	words = data.split(" ")
+	words_reversed = list(reversed(words))
+	return words_reversed
+ </macro>
+ 
+ <group name="SVIs">
+ interface {{ interface | macro("check_if_svi") | macro("check_if_loop") }}
+  description {{ description | ORPHRASE | macro("description_mod")}}
+  ip address {{ ip }} {{ mask }}
+ </group>
+ 
+Result
+::
+ {
+     "SVIs": [
+         {
+             "description": "Desks vlan",
+             "interface": "Vlan123",
+             "ip": "192.168.123.1",
+             "mask": "255.255.255.0"
+         },
+         {
+             "description": "Phones vlan",
+             "interface": "Vlan222",
+             "ip": "192.168.222.1",
+             "mask": "255.255.255.0"
+         }
+     ]
+ }
