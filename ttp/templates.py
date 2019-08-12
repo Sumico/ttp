@@ -2213,3 +2213,109 @@ interface {{ interface | macro("check_if_svi") | macro("check_if_loop") }}
  ip address {{ ip }} {{ mask }}
 </group>
 """
+
+test169="""
+<input load="text">
+interface Vlan123
+ ip address 192.168.123.1 255.255.255.0
+!
+interface Loopback0
+ description Routing ID loopback
+!
+</input>
+ 
+ <macro>
+def description_mod(data):
+    # To revert words order in descripotion
+    words_list = data.get("description", "").split(" ")
+    words_list_reversed = list(reversed(words_list))
+    words_reversed = " ".join(words_list_reversed) 
+    data["description"] = words_reversed
+    return data
+ </macro>
+ 
+<group name="interfaces_macro" macro="description_mod">
+interface {{ interface }}
+ description {{ description | ORPHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+"""
+
+
+test170="""
+<input load="text">
+interface Vlan123
+ ip address 192.168.123.1 255.255.255.0
+!
+interface GigabitEthernet1/1
+ description to core-1
+!
+interface Vlan222
+ description Phones vlan
+!
+interface Loopback0
+ description Routing ID loopback
+!
+</input>
+
+ <macro>
+def check_if_svi(data):
+    if "Vlan" in data["interface"]:
+        data["is_svi"] = True
+    else:
+        data["is_svi"] = False
+    return data
+        
+def check_if_loop(data):
+    if "Loopback" in data["interface"]:
+        data["is_loop"] = True
+    else:
+        data["is_loop"] = True
+    return data
+ </macro>
+ 
+ <macro>
+def description_mod(data):
+    # To revert words order in descripotion
+    words_list = data.get("description", "").split(" ")
+    words_list_reversed = list(reversed(words_list))
+    words_reversed = " ".join(words_list_reversed) 
+    data["description"] = words_reversed
+    return data
+ </macro>
+ 
+<group name="interfaces_macro" macro="description_mod, check_if_svi, check_if_loop">
+interface {{ interface }}
+ description {{ description | ORPHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+"""
+
+
+test171="""
+<input load="text">
+interface Vlan123
+ ip address 192.168.123.1 255.255.255.0
+!
+interface GigabitEthernet1/1
+ description to core-1
+!
+interface Vlan222
+ description Phones vlan
+!
+interface Loopback0
+ description Routing ID loopback
+!
+</input>
+
+<lookup name="AUX" load="ini">
+[interfaces]
+Vlan222 : add value to result
+</lookup>
+
+<group name="interfaces">
+interface {{ interface | rlookup("AUX.interfaces", "looked_up_data")}}
+ description {{ description | ORPHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+"""

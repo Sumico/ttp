@@ -67,8 +67,8 @@ class ttp():
         if template is not '':
             self.add_template(data=template)
             
-			
-    def add_lookup(self, name, text_data, include=None, load="python", key=None):
+            
+    def add_lookup(self, name, text_data="", include=None, load="python", key=None):
         """Method to load lookup table data
         Args::
             name(str): name of lookup table to reference in templates
@@ -82,7 +82,7 @@ class ttp():
         self.lookups.update({name: lookup_data})
         [template.add_lookup({name: lookup_data}) for template in self.__templates]
 
-		
+        
     def add_vars(self, data):
         """Method to add vars to ttp and its templates
         """
@@ -923,27 +923,51 @@ class _ttp_utils():
         def load_ini(text_data, **kwargs):
             if python_major_version is 3:
                 import configparser
-                data = configparser.ConfigParser()
+                cfgparser = configparser.ConfigParser()
+                # to make cfgparser keep the case, e.g. VlaN222 will not become vlan222:
+                cfgparser.optionxform = str
                 # read from ini files first
                 if include:
                     files = self.load_files(path=include, extensions=[], filters=[], read=False)
                     for datum in files:
                         try:
-                            data.read(datum[1])
+                            cfgparser.read(datum[1])
                         except:
                             ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
                 # read from tag text next to make it more specific:
                 if text_data:
                     try:
-                        data.read_string(text_data)
+                        cfgparser.read_string(text_data)
                     except:
                         ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
                 # convert configparser object into dictionary
-                result = {k: dict(data.items(k)) for k in list(data.keys())}
+                result = {k: dict(cfgparser.items(k)) for k in list(cfgparser.keys())}
             elif python_major_version is 2:
-                result = {"DEFAULT": {}}
-            if not result["DEFAULT"]: # delete empty DEFAULT section
-                result.pop("DEFAULT")
+                import ConfigParser
+                import StringIO
+                cfgparser = ConfigParser.ConfigParser()
+                # to make cfgparser keep the case, e.g. VlaN222 will not become vlan222:
+                cfgparser.optionxform = str
+                # read from ini files first
+                if include:
+                    files = self.load_files(path=include, extensions=[], filters=[], read=False)
+                    for datum in files:
+                        try:
+                            cfgparser.read(datum[1])
+                        except:
+                            ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
+                # read from tag text next to make it more specific:
+                if text_data:
+                    buf_text_data = StringIO.StringIO(text_data)
+                    try:
+                        cfgparser.readfp(buf_text_data)
+                    except:
+                        ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
+                # convert configparser object into dictionary
+                result = {k: dict(cfgparser.items(k)) for k in list(cfgparser.sections())}
+            if "DEFAULT" in result:
+                if not result["DEFAULT"]: # delete empty DEFAULT section
+                    result.pop("DEFAULT")
             return result
 
         def load_python(text_data, **kwargs):
@@ -1514,10 +1538,11 @@ class _group_class():
             
         def extract_macro(O):
             if isinstance(O, str):
-                self.funcs.append({
-                    'name': 'macro',
-                    'args': [i.strip() for i in O.split(',')]
-                })
+                for i in O.split(','):
+                    self.funcs.append({
+                        'name': 'macro',
+                        'args': [i.strip()]
+                    })
             elif isinstance(O, dict):
                 self.funcs.append(O)            
      

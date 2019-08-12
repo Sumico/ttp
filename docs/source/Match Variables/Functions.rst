@@ -1092,72 +1092,93 @@ Gor groups these are valid options for returned data:
 * If macro returns None - data processing continues, no additional logic associated
 * If macro returns single item - that item replaces original data supplied to macro and processed further
 
+.. note:: Macro function contained within ``<macro>`` tag, each function loaded and saved into the dictionary of function name and function object, as a result cross referencing macro functions is not supported.
+
 **Example**
 
-In this example maro functions referenced by match variables.
+In this example maro functions referenced in match variables.
 
-Data
-::
- interface Vlan123
-  description Desks vlan
-  ip address 192.168.123.1 255.255.255.0
- !
- interface GigabitEthernet1/1
-  description to core-1
- !
- interface Vlan222
-  description Phones vlan
-  ip address 192.168.222.1 255.255.255.0
- !
- interface Loopback0
-  description Routing ID loopback
- 
 Template
 ::
- <macro>
- def check_if_svi(data):
-     if "Vlan" in data:
-		return data, {"is_svi": True}
-	 else:
-		return data, {"is_svi": False}
-		
- def check_if_loop(data):
-     if "Loopback" in data:
-		return data, {"is_loop": True}
-	 else:
-		return data, {"is_loop": False}
- </macro>
+    <input load="text">
+    interface Vlan123
+     description Desks vlan
+     ip address 192.168.123.1 255.255.255.0
+    !
+    interface GigabitEthernet1/1
+     description to core-1
+    !
+    interface Vlan222
+     description Phones vlan
+     ip address 192.168.222.1 255.255.255.0
+    !
+    interface Loopback0
+     description Routing ID loopback
+    !
+    </input>
+    
+    <macro>
+    def check_if_svi(data):
+        if "Vlan" in data:
+            return data, {"is_svi": True}
+        else:
+           return data, {"is_svi": False}
+            
+    def check_if_loop(data):
+        if "Loopback" in data:
+            return data, {"is_loop": True}
+        else:
+           return data, {"is_loop": False}
+    </macro>
+     
+    <macro>
+    def description_mod(data):
+        # To revert words order in descripotion
+        words_list = data.split(" ")
+        words_list_reversed = list(reversed(words_list))
+        words_reversed = " ".join(words_list_reversed) 
+        return words_reversed
+    </macro>
  
- <macro>
- def description_mod(data):
-	"""To revert words order in descripotion
-	"""
-	words = data.split(" ")
-	words_reversed = list(reversed(words))
-	return words_reversed
- </macro>
- 
- <group name="SVIs">
- interface {{ interface | macro("check_if_svi") | macro("check_if_loop") }}
-  description {{ description | ORPHRASE | macro("description_mod")}}
-  ip address {{ ip }} {{ mask }}
- </group>
+    <group name="interfaces_macro">
+    interface {{ interface | macro("check_if_svi") | macro("check_if_loop") }}
+     description {{ description | ORPHRASE | macro("description_mod")}}
+     ip address {{ ip }} {{ mask }}
+    </group>
  
 Result
 ::
- {
-     "SVIs": [
-         {
-             "description": "Desks vlan",
-             "interface": "Vlan123",
-             "ip": "192.168.123.1",
-             "mask": "255.255.255.0"
-         },
-         {
-             "description": "Phones vlan",
-             "interface": "Vlan222",
-             "ip": "192.168.222.1",
-             "mask": "255.255.255.0"
-         }
-     ]
- }
+    [
+        {
+            "interfaces_macro": [
+                {
+                    "description": "vlan Desks",
+                    "interface": "Vlan123",
+                    "ip": "192.168.123.1",
+                    "is_loop": false,
+                    "is_svi": true,
+                    "mask": "255.255.255.0"
+                },
+                {
+                    "description": "core-1 to",
+                    "interface": "GigabitEthernet1/1",
+                    "is_loop": false,
+                    "is_svi": false
+                },
+                {
+                    "description": "vlan Phones",
+                    "interface": "Vlan222",
+                    "ip": "192.168.222.1",
+                    "is_loop": false,
+                    "is_svi": true,
+                    "mask": "255.255.255.0"
+                },
+                {
+                    "description": "loopback ID Routing",
+                    "interface": "Loopback0",
+                    "is_loop": true,
+                    "is_svi": false
+                }
+            ]
+        }
+    ]

@@ -865,6 +865,64 @@ load="json"
 }
 </output>
 
+
+
+<input load="text" name="test1-16">
+interface Vlan123
+ ip address 192.168.123.1 255.255.255.0
+!
+interface GigabitEthernet1/1
+ description to core-1
+!
+interface Vlan222
+ description Phones vlan
+!
+interface Loopback0
+ description Routing ID loopback
+!
+</input>
+
+<lookup name="AUX" load="ini">
+[interfaces]
+Vlan222 : add value to result
+</lookup>
+
+<group name="interfaces_ini_rlookup" input="test1-16" output="test1-16">
+interface {{ interface | rlookup("AUX.interfaces", "looked_up_data")}}
+ description {{ description | ORPHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+
+<output name="test1-16"
+functions="is_equal"
+description="test ini rlookup"
+load="json"
+>
+{
+    "interfaces_ini_rlookup": [
+        {
+            "interface": "Vlan123",
+            "ip": "192.168.123.1",
+            "mask": "255.255.255.0"
+        },
+        {
+            "description": "to core-1",
+            "interface": "GigabitEthernet1/1"
+        },
+        {
+            "description": "Phones vlan",
+            "interface": "Vlan222",
+            "looked_up_data": "add value to result"
+        },
+        {
+            "description": "Routing ID loopback",
+            "interface": "Loopback0"
+        }
+    ]
+}
+</output>
+
+
  
 <!--output to print raw python result to screen
 <output
