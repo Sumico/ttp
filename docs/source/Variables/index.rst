@@ -16,10 +16,13 @@ Variable tag attributes
 
    * - Attribute
      - Description
+   * - `name`_   
+     - String of dot-separated path items
    * - `load`_   
      - Indicates which loader to use to read tag data, default is *python*
    * - `include`_   
      - Specifies location of the file with variables data to load`_
+	
 
 load
 ------------------------------------------------------------------------------
@@ -33,29 +36,35 @@ Supported loaders:
 * yaml - relies on PyYAML to load YAML structured data
 * json - used to load json formatted variables data
 * ini - *configparser* Python standart module used to read variables from ini structured file
+* csv - csv formatted data loaded with Python *csv* standart library module
 
 **Example**
 
 Template
 ::
-
+    <input load="text">
+    interface GigabitEthernet1/1
+     ip address 192.168.123.1 255.255.255.0
+    !
+    </input>
+    
     <!--Python formatted variables data-->
-    <v>
-    domains = ['.lab.local', '.static.on.net', '.abc']
-    </v>
+    <vars name="vars">
+    python_domains = ['.lab.local', '.static.on.net', '.abc']
+    </vars>
     
     <!--YAML formatted variables data-->
-    <vars load="yaml">
-    domains:
+    <vars load="yaml" name="vars">
+    yaml_domains:
       - '.lab.local'
       - '.static.on.net'
       - '.abc'
     </vars>
     
     <!--Json formatted variables data-->
-    <vars load="json">
+    <vars load="json" name="vars">
     {
-        "data": [
+        "json_domains": [
             ".lab.local",
             ".static.on.net",
             ".abc"
@@ -64,9 +73,43 @@ Template
     </vars>
     
     <!--INI formatted variables data-->
-    <variables load="ini">
-    [domains]
-    '.lab.local'
-    '.static.on.net'
-    '.abc'
+    <variables load="ini" name="vars">
+    [ini_domains]
+    1: '.lab.local'
+    2: '.static.on.net'
+    3: '.abc'
     </variables>
+    
+    <!--CSV formatted variables data-->
+    <variables load="csv" name="vars.csv">
+    id, domain
+    1,  .lab.local
+    2,  .static.on.net
+    3,  .abc
+    </variables>
+    
+    <group name="interfaces">
+    interface {{ interface }}
+     ip address {{ ip }} {{ mask }}	
+    </group>
+	
+Result as displayed by Python pprint outputter
+::
+    [   {   'interfaces': {   'interface': 'GigabitEthernet1/1',
+                              'ip': '192.168.123.1',
+                              'mask': '255.255.255.0'},
+            'vars': {   'csv_data': {   '1': {' domain': '  .lab.local'},
+                                        '2': {' domain': '  .static.on.net'},
+                                        '3': {' domain': '  .abc'}},
+                        'ini_data': {   '1': "'.lab.local'",
+                                        '2': "'.static.on.net'",
+                                        '3': "'.abc'"},
+                        'json_data': ['.lab.local', '.static.on.net', '.abc'],
+                        'python_data': ['.lab.local', '.static.on.net', '.abc'],
+                        'yaml_data': ['.lab.local', '.static.on.net', '.abc']}}]
+						
+YAML, JSON and Python formats are suitalble for encoding any arbitrary data and loaded as is.
+
+INI structured data loaded into python nested dictionary, where top level keys represent ini section names each havin nested dictionary of variables. 
+
+CSV data also transformed into dictionary using first column values to fill in dictionary keys, unless specified otherwise using *key* attribute

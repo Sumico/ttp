@@ -39,11 +39,11 @@ class ttp():
         template : text, file object of python open method or a string which is OS
             path to text file
         DEBUG (bool): if True will print debug data to the terminal
-        data_path_prefix (str): Contains path prefix to load data from for template inputs
+        base_path (str): Contains path prefix to load data from for template inputs
         self.multiproc_threshold (int): overall data size in bytes beyond which to use
             multiple processes
     """
-    def __init__(self, data='', template='', DEBUG=False, data_path_prefix='', vars={}):
+    def __init__(self, data='', template='', DEBUG=False, base_path='', vars={}):
         """
         Args:
             self.__data (list): list of dictionaries, each dict key is file name, value - data/text
@@ -54,7 +54,7 @@ class ttp():
         self.__templates = []
         self.__utils = _ttp_utils()
         self.DEBUG = DEBUG
-        self.data_path_prefix = data_path_prefix
+        self.base_path = base_path
         self.multiproc_threshold = 5242880 # 5Mbyte
         self.vars = vars # dictionary of variables to add to each template vars
         self.lookups = {}
@@ -120,7 +120,7 @@ class ttp():
             template_obj = _template_class(
                 template_text=i[1],
                 DEBUG=self.DEBUG,
-                data_path_prefix=self.data_path_prefix, 
+                base_path=self.base_path, 
                 ttp_vars=self.vars)
             # if templates are empty - no 'template' tags in template:
             if template_obj.templates == []:
@@ -235,7 +235,6 @@ class ttp():
         if templates:
             templates_obj = [template for template in self.__templates
                              if template.name in templates]
-
         # return results:
         results = []
         if kwargs:
@@ -313,13 +312,10 @@ class _ttp_functions():
     Notes:
         functions to implement
         # 'variable_wrap'         : add \n at given position to wrap long text
-        # 'variable_is_ip'        : to check that data is valid ip address - isip(4) for v4 or isip(6) for v6 or any
         # 'variable_is_mac'       : to check that data is valid  mac-address
         # 'variable_is_word'      : check if no spaces in data - same as notcontains(' ')
-        # 'variable_to_ip'        : convert to IP object to do something with it like prefix matching, e.g. check if 1.1.1.1 is part of 1.1.0.0/16
-        # 'variable_to_list/to_digit/to_string' : convert variable to list, difit or string
-        # 'group_exclude_all/exclude_any'  : to exclude group if group contains certain values
-        # 'index(int)' : index to get from string converted into list with split
+        # 'variable_to_digit' : convert variable to digit
+        # 'group_exclude_all/exclude'  : to exclude group if group contains certain values
     """
     def __init__(self, parser_obj=None, results_obj=None, out_obj=None, macro=None):
         self.pobj = parser_obj
@@ -665,7 +661,10 @@ class _ttp_functions():
         return str(data), None
         
     def match_to_list(self, data):
-        return [data], None
+        if isinstance(data, str):
+            return [data], None
+        else:
+            return data, None
         
     def match_to_int(self, data):
         try:
@@ -675,7 +674,7 @@ class _ttp_functions():
 
     def match_is_ip(self, data, *args):
         try:
-            self.match_to_ip(data, *args)
+            _ = self.match_to_ip(data, *args)
             return data, True
         except:
             return data, False
@@ -727,7 +726,10 @@ class _ttp_functions():
             
     def match_ip_info(self, data, *args):
         if isinstance(data, str):
-            ip_obj = self.match_to_ip(data, *args)[0]
+            try:
+                ip_obj = self.match_to_ip(data, *args)[0]
+            except ValueError:
+                return data, None
         else:
             ip_obj = data
         if isinstance(ip_obj, ipaddress.IPv4Interface) or isinstance(ip_obj, ipaddress.IPv6Interface):
@@ -774,14 +776,21 @@ class _ttp_functions():
         return ret, None
         
     def match_cidr_match(self, data, prefix):
+        # convert data to ipaddress object:
         if isinstance(data, str):
-            ip_obj = self.match_to_ip(data)[0]
+            try:
+                ip_obj = self.match_to_ip(data)[0]
+            except ValueError:
+                return data, None
         else:
             ip_obj = data 
+        # create ipaddress ipnetwork object out of prefix
         ip_net = self.match_to_net(prefix)[0]         
         if isinstance(ip_obj, ipaddress.IPv4Interface) or isinstance(ip_obj, ipaddress.IPv6Interface):
+            # if object is ipnetwork, can check it as is:
             check = ip_obj.network.overlaps(ip_net)
         elif isinstance(ip_obj, ipaddress.IPv4Address) or isinstance(ip_obj, ipaddress.IPv6Address):
+            # if object is ipaddress, need to convert it itno ipinterface with /32 mask:
             if ip_obj.version is 4:
                 # for py2 support need to convert data to unicode:
                 if python_major_version is 2:
@@ -1066,7 +1075,7 @@ class _ttp_utils():
         def get_args_kwargs(*args, **kwargs):
             return {'args': args, 'kwargs': kwargs}
 
-        RESULT=[]
+        result=[]
         ATTRIBUTES=[i.strip() for i in line.split('|')]
         for item in ATTRIBUTES:
             opts = {'args': (), 'kwargs': {}, 'name': ''}
@@ -1086,8 +1095,8 @@ make sure that all string arguments are within quotes, e.g. split(',') not split
                 opts.update(args_kwargs)
             else:
                 options = []
-            RESULT.append(opts)
-        return RESULT
+            result.append(opts)
+        return result
 
 """
 ==============================================================================
@@ -1097,7 +1106,7 @@ TTP TEMPLATE CLASS
 class _template_class():
     """Template class to hold template data
     """
-    def __init__(self, template_text, DEBUG=False, data_path_prefix='', ttp_vars={}):
+    def __init__(self, template_text, DEBUG=False, base_path='', ttp_vars={}):
         self.DEBUG = DEBUG
         self.PATHCHAR = '.'          # character to separate path items, like ntp.clock.time, '.' is pathChar here
         self.outputs = []            # list htat contains global outputs
@@ -1112,7 +1121,7 @@ class _template_class():
         self.inputs = {}
         self.lookups = {}
         self.templates = []
-        self.data_path_prefix = data_path_prefix
+        self.base_path = base_path
         self.utils = _ttp_utils()
         self.results = []
         self.name = None
@@ -1209,7 +1218,7 @@ class _template_class():
                     if self.inputs[input_name]['groups'][0].lower() == 'all':
                         self.inputs[input_name]['groups'].pop(0)
                 else:
-                    input_name = self.data_path_prefix + input_name.lstrip('.')
+                    input_name = self.base_path + input_name.lstrip('.')
                     data_items = self.utils.load_files(path=input_name, extensions=[],
                                                        filters=[], read=False)
                     # skip 'text_data' from data as it does not make sense here
@@ -1252,10 +1261,13 @@ class _template_class():
 
         def extract_name(O):
             self.name = O
+            
+        def extract_base_path(O):
+            self.base_path = O
 
         opt_funcs = {
-        'name'    : extract_name
-        # data_path_prefix
+        'name'      : extract_name,
+        'base_path' : extract_base_path
         # pathchar
         # debug
         }
@@ -1311,7 +1323,7 @@ class _template_class():
 
             # load data:
             for url in urls:
-                url = self.data_path_prefix + url.lstrip('.')
+                url = self.base_path + url.lstrip('.')
                 data += self.utils.load_files(url, extensions, filters, read=False)
 
             self.set_input(data=data, input_name=name, groups=groups)
@@ -1342,7 +1354,7 @@ class _template_class():
             self.templates.append(_template_class(
                 template_text=ET.tostring(element, encoding="UTF-8"),
                 DEBUG=self.DEBUG,
-                data_path_prefix=self.data_path_prefix,
+                base_path=self.base_path,
                 ttp_vars=self.ttp_vars)
             )
 
@@ -1483,6 +1495,7 @@ class _group_class():
         self.debug    = debug
         self.name     = ''
         self.vars     = vars
+        self.utils    = _ttp_utils()
         # extract data:
         self.get_attributes(element.attrib)
         self.set_anonymous_path()
@@ -1550,8 +1563,10 @@ class _group_class():
             funcs = self.utils.get_attributes(O)
             for i in funcs:
                 name = i['name']
-                if name in functions: functions[name](i)
-                else: print('ERROR: Uncknown group function: "{}"'.format(name))
+                if name in functions: 
+                    functions[name](i)
+                else: 
+                    print('ERROR: Uncknown group function: "{}"'.format(name))
 
         # group attributes extract functions dictionary:
         options = {
@@ -1595,7 +1610,7 @@ class _group_class():
         for i in varaibles_matches:
             regex = ''
             variables = {}
-            action = 'ADD'
+            action = 'add'
             is_line = False
             skip_regex = False
             for variable in i['variables']:
@@ -1618,8 +1633,8 @@ class _group_class():
                 if is_line == False:
                     is_line = variableObj.IS_LINE
 
-                # modify save action only if it is not START or STARTEMPTY already:
-                if "START" not in action:
+                # modify save action only if it is not start or startempty already:
+                if "start" not in action:
                     action = variableObj.SAVEACTION
 
             if skip_regex is True:
@@ -1638,16 +1653,16 @@ class _group_class():
             if tail == True:
                 self.re.append(re_dict)
             elif index == 0:
-                if not 'START' in re_dict['ACTION']:
-                    re_dict['ACTION'] ='START'
+                if not 'start' in re_dict['ACTION']:
+                    re_dict['ACTION'] ='start'
                 self.start_re.append(re_dict)
             elif self.method == 'table':
-                if not 'START' in re_dict['ACTION']:
-                    re_dict['ACTION'] = 'START'
+                if not 'start' in re_dict['ACTION']:
+                    re_dict['ACTION'] = 'start'
                 self.start_re.append(re_dict)
-            elif "START" in re_dict['ACTION']:
+            elif "start" in re_dict['ACTION']:
                 self.start_re.append(re_dict)
-            elif "END" in re_dict['ACTION']:
+            elif "end" in re_dict['ACTION']:
                 self.end_re.append(re_dict)
             else:
                 self.re.append(re_dict)
@@ -1714,7 +1729,7 @@ class _variable_class():
         self.functions = []                          # actions and conditions list
         self.DEBUG = DEBUG                           # to control debug behaviuor
 
-        self.SAVEACTION = 'ADD'                      # to store actioan to do with results during saving
+        self.SAVEACTION = 'add'                      # to store actioan to do with results during saving
         self.group = group                           # template object current group to save some vars
         self.IS_LINE = False                         # to indicate that variable is _line_ regex
         self.skip_variable_dict = False              # will be set to true for 'ignore'
@@ -1749,12 +1764,12 @@ class _variable_class():
         # Helper functions:
         #
         def extract__start_(data):
-            self.SAVEACTION='START'
+            self.SAVEACTION='start'
             if self.var_name == '_start_':
-                self.SAVEACTION='STARTEMPTY'
+                self.SAVEACTION='startempty'
 
         def extract__end_(data):
-            self.SAVEACTION='END'
+            self.SAVEACTION='end'
 
         def extract_set(data):
             match_line=re.sub('{{([\S\s]+?)}}', '', self.LINE).rstrip()
@@ -1777,11 +1792,11 @@ class _variable_class():
 
         def extract_joinmatches(data):
             self.functions.append(data)
-            self.SAVEACTION='JOIN'
+            self.SAVEACTION='join'
 
         def extract__line_(data):
             self.functions.append(data)
-            self.SAVEACTION='JOIN'
+            self.SAVEACTION='join'
             self.IS_LINE=True
 
         def extract_ignore(data):
@@ -2066,7 +2081,7 @@ class _parser_class():
                         result.update(flags['new_field'])
 
                 # skip not start regexes that evaluated to False
-                if result is False and not regex['ACTION'].startswith('START'):
+                if result is False and not regex['ACTION'].startswith('start'):
                     continue
 
                 # form result dictionary of dictionaries:
@@ -2145,7 +2160,7 @@ class _parser_class():
         # form results for global groups:
         RSLTSOBJ = _results_class(macro=self.macro)
         RSLTSOBJ.form_results(self.vars['globals']['vars'], raw_results)
-        self.results = RSLTSOBJ.RESULTS
+        self.results = RSLTSOBJ.resultS
 
         # sort results for group specific results:
         [ grps_raw_results.append(
@@ -2156,7 +2171,7 @@ class _parser_class():
         for grp_raw_result in grps_raw_results:
             RSLTSOBJ = _results_class(macro=self.macro)
             RSLTSOBJ.form_results(self.vars['globals']['vars'], [grp_raw_result[0]])
-            grp_result = RSLTSOBJ.RESULTS
+            grp_result = RSLTSOBJ.resultS
             for output in grp_raw_result[1]:
                 grp_result = output.run(data=grp_result)
             # transform results into list:
@@ -2172,7 +2187,7 @@ class _parser_class():
 
 """
 ==============================================================================
-TTP RESULTS FORMATTER OBJECT
+TTP resultS FORMATTER OBJECT
 ==============================================================================
 """
 class _results_class():
@@ -2182,10 +2197,10 @@ class _results_class():
         self.dyn_path_cache (dict): used to store dynamic path variables
     """
     def __init__(self, macro):
-        self.RESULTS = {}
+        self.resultS = {}
         self.GRPLOCK = {'LOCK': False, 'GROUP': ()} # GROUP - path tuple of locked group
         self.record={
-            'RESULT'     : {},
+            'result'     : {},
             'PATH'       : [],
             'FUNCTIONS' : []
         }
@@ -2195,14 +2210,15 @@ class _results_class():
     def form_results(self, vars, results):
         self.vars=vars
         saveFuncs={
-            'START'      : self.START,       # START - to start new group;
-            'ADD'        : self.ADD,         # ADD - to add data to group, defaul-normal action;
-            'STARTEMPTY' : self.STARTEMPTY,  # STARTEMPTY - to start new empty group in case if _start_ found;
-            'END'        : self.END,         # END - to explicitly signal the end of group to LOCK it;
-            'JOIN'       : self.JOIN         # JOIN - to join results for given variable, e.g. joinmatches;
+            'start'      : self.start,       # start - to start new group;
+            'add'        : self.add,         # add - to add data to group, defaul-normal action;
+            'startempty' : self.startempty,  # startempty - to start new empty group in case if _start_ found;
+            'end'        : self.end,         # end - to explicitly signal the end of group to LOCK it;
+            'join'       : self.join         # join - to join results for given variable, e.g. joinmatches;
         }
         # save _vars_to_results_ to results if any:
         if results: self.save_vars(vars)
+        
         # iterate over group results and form results structure:
         for group_results in results:
             # clear LOCK between groups as LOCK has intra group significanse only:
@@ -2219,7 +2235,7 @@ class _results_class():
                     for item in result:
                         item_re = item[0]
                         # pick up first start re:
-                        if item_re['ACTION'].startswith('START'):
+                        if item_re['ACTION'].startswith('start'):
                             re = item[0]
                             result_data = item[1]
                             break
@@ -2249,41 +2265,44 @@ class _results_class():
                     if group.path[:len(locked_group_path)] == locked_group_path and group.path != locked_group_path:
                         continue
                     # evaluate same level or parents - RSULTHPATH is the same
-                    elif re['ACTION'].startswith('START') and result_data is not False:
+                    elif re['ACTION'].startswith('start') and result_data is not False:
                         self.GRPLOCK['LOCK'] = False
                         self.GRPLOCK['GROUP'] = ()
                     else:
                         continue
                 # Save results:
                 saveFuncs[re['ACTION']](
-                    RESULT     = result_data,
+                    result     = result_data,
                     PATH       = list(group.path),
                     DEFAULTS   = group.runs,
-                    FUNCTIONS = group.funcs,
+                    FUNCTIONS  = group.funcs,
                     REDICT     = re
                 )
         # check the last group:
-        if self.record['RESULT'] and self.PROCESSGRP() is not False:
-            self.SAVE_CURELEMENTS()
+        if self.record['result'] and self.processgrp() is not False:
+            self.save_curelements()
 
 
     def save_vars(self, vars):
-        for path, vars_keys in vars['_vars_to_results_'].items():
-            # skip empty path:
-            if not path: continue
+        # need to sort keys first to introduce deterministic behaviour
+        sorted_pathes = sorted(list(vars['_vars_to_results_'].keys()))
+        for path_item in sorted_pathes:
+            # skip empty path items:
+            if not path_item: continue
+            vars_keys = vars['_vars_to_results_'][path_item]
             result = {}
             for key in vars_keys:
                 result[key] = vars[key]
             self.record = {
-                'RESULT'     : result,
-                'PATH'       : [i.strip() for i in path.split('.')],
+                'result'     : result,
+                'PATH'       : [i.strip() for i in path_item.split('.')],
             }
-            self.SAVE_CURELEMENTS()
+            self.save_curelements()
         # set record to default value:
-        self.record={'RESULT': {}, 'PATH': [], 'FUNCTIONS': []}
+        self.record={'result': {}, 'PATH': [], 'FUNCTIONS': []}
 
 
-    def value_to_list(self, DATA, PATH, RESULT):
+    def value_to_list(self, DATA, PATH, result):
         """recursive function to get value at given PATH and transform it into the list
         Example:
             DATA={1:{2:{3:{4:5, 6:7}}}} and PATH=(1,2,3)
@@ -2291,22 +2310,22 @@ class _results_class():
         Args:
             DATA (dict): data to add to the DATA
             PATH (list): list of path keys
-            RESULT : dict or list that contains results
+            result : dict or list that contains results
         Returns:
-            transformed DATA with list at given PATH and appended RESULTS to it
+            transformed DATA with list at given PATH and appended resultS to it
         """
         if PATH:
             name=str(PATH[0]).rstrip('*')
             if isinstance(DATA, dict):
                 if name in DATA:
-                    DATA[name]=self.value_to_list(DATA[name], PATH[1:], RESULT)
+                    DATA[name]=self.value_to_list(DATA[name], PATH[1:], result)
                     return DATA
             elif isinstance(DATA, list):
                 if name in DATA[-1]:
-                    DATA[-1][name]=self.value_to_list(DATA[-1][name], PATH[1:], RESULT)
+                    DATA[-1][name]=self.value_to_list(DATA[-1][name], PATH[1:], result)
                     return DATA
         else:
-            return [DATA, RESULT] # for resulting list - value at given PATH transformed into list with RESULT appended to it
+            return [DATA, result] # for resulting list - value at given PATH transformed into list with result appended to it
 
 
     def list_to_dict_fwd(self, KEYS):
@@ -2356,13 +2375,13 @@ class _results_class():
             return self.dict_by_path(PATH, ELEMENT[-1])       # run recursion with last item in the list
 
 
-    def SAVE_CURELEMENTS(self):
-        """Method to save current group results in self.RESULTS
+    def save_curelements(self):
+        """Method to save current group results in self.resultS
         """
-        RSLT = self.record['RESULT']
+        RSLT = self.record['result']
         PATH = self.record['PATH']
-        # get ELEMENT from self.RESULTS by PATH
-        E = self.dict_by_path(PATH=PATH, ELEMENT=self.RESULTS)
+        # get ELEMENT from self.resultS by PATH
+        E = self.dict_by_path(PATH=PATH, ELEMENT=self.resultS)
         if isinstance(E, list):
             E.append(RSLT)
         elif isinstance(E, dict):
@@ -2372,80 +2391,80 @@ class _results_class():
             # to match all the other cases, like templates without "**" in path:
             elif E != {}:
                 # transform ELEMENT dict to list and append data to it:
-                self.RESULTS = self.value_to_list(DATA=self.RESULTS, PATH=PATH, RESULT=RSLT)
+                self.resultS = self.value_to_list(DATA=self.resultS, PATH=PATH, result=RSLT)
             else:
                 E.update(RSLT)
 
 
-    def START(self, RESULT, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
-        if self.record['RESULT'] and self.PROCESSGRP() != False:
-            self.SAVE_CURELEMENTS()
+    def start(self, result, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
+        if self.record['result'] and self.processgrp() != False:
+            self.save_curelements()
         self.record = {
-            'RESULT'     : DEFAULTS.copy(),
+            'result'     : DEFAULTS.copy(),
             'DEFAULTS'   : DEFAULTS,
             'PATH'       : PATH,
             'FUNCTIONS' : FUNCTIONS
         }
-        self.record['RESULT'].update(RESULT)
+        self.record['result'].update(result)
 
 
-    def STARTEMPTY(self, RESULT, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
-        if self.record['RESULT'] and self.PROCESSGRP() != False:
-            self.SAVE_CURELEMENTS()
+    def startempty(self, result, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
+        if self.record['result'] and self.processgrp() != False:
+            self.save_curelements()
         self.record = {
-            'RESULT'     : DEFAULTS.copy(),
+            'result'     : DEFAULTS.copy(),
             'DEFAULTS'   : DEFAULTS,
             'PATH'       : PATH,
             'FUNCTIONS' : FUNCTIONS
         }
 
 
-    def ADD(self, RESULT, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
+    def add(self, result, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
         if self.GRPLOCK['LOCK'] == True: return
 
         if self.record['PATH'] == PATH: # if same path - save into self.record
-            self.record['RESULT'].update(RESULT)
+            self.record['result'].update(result)
         # if different path - that can happen if we have
-        # group ended and RESULT actually belong to another group, hence have
-        # save directly into RESULTS
+        # group ended and result actually belong to another group, hence have
+        # save directly into resultS
         else:
             processed_path = self.form_path(PATH)
             if processed_path is False:
                 return
-            ELEMENT = self.dict_by_path(PATH=processed_path, ELEMENT=self.RESULTS)
+            ELEMENT = self.dict_by_path(PATH=processed_path, ELEMENT=self.resultS)
             if isinstance(ELEMENT, dict):
-                ELEMENT.update(RESULT)
+                ELEMENT.update(result)
             elif isinstance(ELEMENT, list):
-                ELEMENT[-1].update(RESULT)
+                ELEMENT[-1].update(result)
 
 
-    def JOIN(self, RESULT, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
+    def join(self, result, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
         joinchar = '\n'
-        for varname, varvalue in RESULT.items():
+        for varname, varvalue in result.items():
             for item in REDICT['VARIABLES'][varname].functions:
                 if item['name'] == 'joinmatches':
                     if item['args']:
                         joinchar = item['args'][0]
                         break
         # join results:
-        for k in RESULT.keys():
-            if k in self.record['RESULT']:                           # if we already have results
+        for k in result.keys():
+            if k in self.record['result']:                           # if we already have results
                 if k in DEFAULTS:
-                    if self.record['RESULT'][k] == DEFAULTS[k]:      # check if we have default value
-                        self.record['RESULT'][k] = RESULT[k]         # replace default value with new value
+                    if self.record['result'][k] == DEFAULTS[k]:      # check if we have default value
+                        self.record['result'][k] = result[k]         # replace default value with new value
                         continue
-                if isinstance(self.record['RESULT'][k], str):
-                    self.record['RESULT'][k] += joinchar + RESULT[k] # join strings
-                elif isinstance(self.record['RESULT'][k], list):
-                    if isinstance(RESULT[k], list):
-                        self.record['RESULT'][k] += RESULT[k]        # join lists
-                    elif isinstance(RESULT[k], str):
-                        self.record['RESULT'][k].append(RESULT[k])   # append to list
+                if isinstance(self.record['result'][k], str):
+                    self.record['result'][k] += joinchar + result[k] # join strings
+                elif isinstance(self.record['result'][k], list):
+                    if isinstance(result[k], list):
+                        self.record['result'][k] += result[k]        # join lists
+                    elif isinstance(result[k], str):
+                        self.record['result'][k].append(result[k])   # append to list
             else:
-                self.record['RESULT'][k] = RESULT[k]                 # if first result
+                self.record['result'][k] = result[k]                 # if first result
 
 
-    def END(self, RESULT, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
+    def end(self, result, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
         # action to end current group by locking it
         self.GRPLOCK['LOCK'] = True
         self.GRPLOCK['GROUP'] = list(PATH)
@@ -2460,9 +2479,9 @@ class _results_class():
                 continue
             for m in match:
                 pattern='{{\s*' + m + '\s*}}'
-                if m in self.record['RESULT']:
-                    self.dyn_path_cache[m] = self.record['RESULT'][m]
-                    repl = self.record['RESULT'].pop(m)
+                if m in self.record['result']:
+                    self.dyn_path_cache[m] = self.record['result'][m]
+                    repl = self.record['result'].pop(m)
                     path[index] = re.sub(pattern, repl, item)
                 elif m in self.dyn_path_cache:
                     path[index] = re.sub(pattern, self.dyn_path_cache[m], item)
@@ -2473,14 +2492,14 @@ class _results_class():
         return path
 
 
-    def PROCESSGRP(self):
+    def processgrp(self):
         """Method to process group results
         """
         for item in self.record['FUNCTIONS']:
             func_name = item['name']
             args = item['args']
             try: # try group function
-                self.record['RESULT'], flags = getattr(self.functions, 'group_' + func_name)(self.record['RESULT'], *args)
+                self.record['result'], flags = getattr(self.functions, 'group_' + func_name)(self.record['result'], *args)
             except AttributeError:
                 flags = False
             # if conditions check been false, return False:
@@ -2714,7 +2733,6 @@ class _outputter_class():
         # get attributes:
         provided_headers = self.attributes.get('headers', [])
         path = self.attributes.get('path', [])
-        extras = self.attributes.get('extras', 'ignore')
         missing = self.attributes.get('missing', '')
         key = self.attributes.get('key', '')
         # normilize source_data to list:
@@ -2730,10 +2748,11 @@ class _outputter_class():
             elif isinstance(item, list):
                 data_to_table += item
             elif isinstance(item, dict):
-                # flatten dictionary data if key was given, e.g. if item looks like:
-                # { "Fa0": {"admin": "administratively down"},
+                # flatten dictionary data if key was given and set to "interface", 
+                # in that case if item looks like this dictionary:
+                # { "Fa0"  : {"admin": "administratively down"},
                 #   "Ge0/1": {"access_vlan": "24"}}
-                # it will become:
+                # it will become this list:
                 # [ {"admin": "administratively down", "interface": "Fa0"},
                 #   {"access_vlan": "24", "interface": "Ge0/1"} ]
                 if key:
@@ -2749,9 +2768,6 @@ class _outputter_class():
             # headers is a set, set.update only adds unique values to set
             [headers.update(list(item.keys())) for item in data_to_table]
             headers = sorted(list(headers))
-        # handle extras:
-        if extras is "add":
-            pass
         # save headers row in table:
         table.insert(0, headers)
         # fill in table with data:
@@ -2843,7 +2859,7 @@ def cli_tool():
     DEBUG = args.DEBUG           # boolean, set debug to true/false
     output = args.output         # string, set output format
     TIMING = args.TIMING         # boolean, enabled timing
-    DP = args.data_prefix        # string, to add to templates' inputs urls
+    BASE_PATH = args.data_prefix        # string, to add to templates' inputs urls
     ONE = args.ONE               # boolean to indicate if run in single process
     MULTI = args.MULTI           # boolean to indicate if run in multi process
 
@@ -2857,9 +2873,9 @@ def cli_tool():
         t0 = 0
 
     if templates_exist and TEMPLATE in vars(ttp_templates):
-        parser_Obj = ttp(data=DATA, template=vars(ttp_templates)[TEMPLATE], DEBUG=DEBUG, data_path_prefix=DP)
+        parser_Obj = ttp(data=DATA, template=vars(ttp_templates)[TEMPLATE], DEBUG=DEBUG, base_path=BASE_PATH)
     else:
-        parser_Obj = ttp(data=DATA, template=TEMPLATE, DEBUG=DEBUG, data_path_prefix=DP)
+        parser_Obj = ttp(data=DATA, template=TEMPLATE, DEBUG=DEBUG, base_path=BASE_PATH)
     timing("Template and data descriptors loaded")
 
     parser_Obj.parse(one=ONE, multi=MULTI)

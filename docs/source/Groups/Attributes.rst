@@ -18,7 +18,7 @@ Each group tag (<g>, <grp>, <group>)can have a number of attributes, they used d
    * - `method`_   
      - Indicates parsing method, supported values are *group* or *table*
    * - `output`_   
-     - Specify group specific outputs to run group result through	 
+     - Specify group specific outputs to run group result through     
 
 name
 ------------------------------------------------------------------------------
@@ -51,7 +51,7 @@ Template:
     interface {{ interface }}
      switchport trunk allowed vlan add {{ trunk_vlans }}
     </group>
-	
+    
 Result:
 
 .. code-block::
@@ -167,12 +167,12 @@ Result:
             ]
         }
     ]
-	
-	
+    
+    
 output
 ------------------------------------------------------------------------------
 ``output="output1, output2, ... , outputN"``
 
-* outputN (optional) - comma separated string of output tag names that should be used to run group results through. The sequence of outputs provided *are preserved* and run sequentially, meaning that output2 will run only after output1.
+* outputN - comma separated string of output tag names that should be used to run group results through. The sequence of outputs provided *are preserved* and run run in specified order, meaning that output2 will run only after output1.
 
 .. note:: only top group supports output attribute, nested groups' output attributes are ignored.

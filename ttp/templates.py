@@ -2244,9 +2244,6 @@ interface {{ interface }}
 
 test170="""
 <input load="text">
-interface Vlan123
- ip address 192.168.123.1 255.255.255.0
-!
 interface GigabitEthernet1/1
  description to core-1
 !
@@ -2270,7 +2267,7 @@ def check_if_loop(data):
     if "Loopback" in data["interface"]:
         data["is_loop"] = True
     else:
-        data["is_loop"] = True
+        data["is_loop"] = False
     return data
  </macro>
  
@@ -2318,4 +2315,244 @@ interface {{ interface | rlookup("AUX.interfaces", "looked_up_data")}}
  description {{ description | ORPHRASE }}
  ip address {{ ip }} {{ mask }}
 </group>
+"""
+
+
+test172="""
+<input load="text">
+interface GigabitEthernet1/1
+ description to core-1
+ ip address 192.168.123.1 255.255.255.0
+!
+interface Vlan222
+ description Phones vlan
+!
+interface Loopback0
+ description Routing ID loopback
+ ip address 192.168.222.1 255.255.255.0
+!
+</input>
+
+ <macro>
+def check_if_svi(data):
+    if "Vlan" in data["interface"]:
+        data["is_svi"] = True
+    else:
+        data["is_svi"] = False
+    return data
+        
+def check_if_loop(data):
+    if "Loopback" in data["interface"]:
+        data["is_loop"] = True
+    else:
+        data["is_loop"] = False
+    return data
+ </macro>
+ 
+ <macro>
+def description_mod(data):
+    # To revert words order in descripotion
+    words_list = data.get("description", "").split(" ")
+    words_list_reversed = list(reversed(words_list))
+    words_reversed = " ".join(words_list_reversed) 
+    data["description"] = words_reversed
+    return data
+ </macro>
+ 
+<group name="interfaces_macro" functions="contains('ip') | macro('description_mod') | macro('check_if_svi') | macro('check_if_loop')">
+interface {{ interface }}
+ description {{ description | ORPHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+"""
+
+test173="""
+<input load="text">
+interface GigabitEthernet1/1
+ ip address 192.168.123.1 255.255.255.0
+!
+</input>
+
+<!--Python formatted variables data-->
+<vars name="vars">
+python_data = ['.lab.local', '.static.on.net', '.abc']
+</vars>
+
+<!--YAML formatted variables data-->
+<vars load="yaml" name="vars">
+yaml_data:
+  - '.lab.local'
+  - '.static.on.net'
+  - '.abc'
+</vars>
+
+<!--Json formatted variables data-->
+<vars load="json" name="vars">
+{
+    "json_data": [
+        ".lab.local",
+        ".static.on.net",
+        ".abc"
+    ]
+}
+</vars>
+
+<!--INI formatted variables data-->
+<variables load="ini" name="vars">
+[ini_data]
+1: '.lab.local'
+2: '.static.on.net'
+3: '.abc'
+</variables>
+
+<!--CSV formatted variables data-->
+<variables load="csv" name="vars.csv_data">
+id, domain
+1,  .lab.local
+2,  .static.on.net
+3,  .abc
+</variables>
+
+<group name="interfaces">
+interface {{ interface }}
+ ip address {{ ip }} {{ mask }}	
+</group>
+"""
+
+
+test174="""
+<input load="text">
+interface Loopback0
+ ip address 1.0.0.3 255.255.255.0
+!
+interface Vlan777
+ ip address 192.168.0.1/24
+!
+</input>
+
+<group name="interfaces_ip_test1_19">
+interface {{ interface }}
+ ip address {{ ip | PHRASE | to_ip | with_prefixlen }}
+ ip address {{ ip | to_ip | with_netmask }}
+</group>
+"""
+
+
+test175="""
+<input load="text">
+RP/0/0/CPU0:XR4#show route
+i L2 10.0.0.2/32 [115/20] via 10.0.0.2, 00:41:40, tunnel-te100
+i L2 172.16.0.3/32 [115/10] via 10.1.34.3, 00:45:11, GigabitEthernet0/0/0/0.34
+i L2 1.1.23.0/24 [115/20] via 10.1.34.3, 00:45:11, GigabitEthernet0/0/0/0.34
+</input>
+
+<group name="routes">
+{{ code }} {{ subcode }} {{ net | to_net | is_private | to_str }} [{{ ad }}/{{ metric }}] via {{ nh_ip }}, {{ age }}, {{ nh_interface }}
+</group>
+"""
+
+test176="""
+<input load="text">
+interface Loopback0
+ ip address 1.0.0.3 255.255.255.0
+!
+interface Vlan777
+ ip address 192.168.0.1/24
+!
+interface Vlan777
+ ip address fe80::fd37/124
+!
+</input>
+
+<group name="interfaces">
+interface {{ interface }}
+ ip address {{ ip | to_ip | ip_info }} {{ mask }}
+ ip address {{ ip | to_ip | ip_info }}
+</group>
+"""
+
+
+test176="""
+<input load="text">
+interface Loopback0
+ ip address 192.168.0.113/24
+!
+interface Loopback1
+ ip address 192.168.1.113/24
+!
+interface Vlan777
+ ip address 2001::fd37/124
+!
+interface Vlan778
+ ip address 2002::fd37/124
+!
+</input>
+
+<group name="interfaces">
+interface {{ interface }}
+ ip address {{ ip | to_ip | ip_info }} {{ mask }}
+ ip address {{ ip | to_ip | ip_info }}
+</group>
+"""
+
+
+test177="""
+<input load="text">
+interface Loopback0
+ ip address 192.168.0.113/24
+!
+interface Loopback1
+ ip address 192.168.1.341/24
+!
+</input>
+
+<group name="interfaces">
+interface {{ interface }}
+ ip address {{ ip | is_ip }}
+</group>
+"""
+
+
+test178="""
+<input load="text">
+interface Loopback0
+ ip address 192.168.0.113/24
+!
+interface Loopback1
+ ip address 192.168.1.341/24
+!
+interface Loopback1
+ ip address 10.0.1.251/24
+!
+</input>
+
+<group name="interfaces">
+interface {{ interface }}
+ ip address {{ ip | cidr_match("192.168.0.0/16") }}
+</group>
+"""
+
+
+test179="""
+<template base_path="C:/Users/Denis/YandexDisk/Python/TPG/Text Template Parser/ttp/!USECASES/!GitHub">
+<input name="dataset-1" load="yaml" groups="interfaces1">
+url: "/Data/Inputs/data-1/"
+extensions: ["txt"]
+</input>
+
+<input name="dataset-2" load="python" groups="interfaces2">
+url = ["/Data/Inputs/data-2/"]
+filters = ["sw\-\d.*"]
+</input>
+
+<group name="interfaces1">
+interface {{ interface }}
+ switchport access vlan {{ access_vlan }}
+</group>
+
+<group name="interfaces2">
+interface {{ interface }}
+  ip address {{ ip  }}/{{ mask }}
+</group>
+</template>
 """

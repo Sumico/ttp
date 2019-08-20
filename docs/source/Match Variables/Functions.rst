@@ -1073,11 +1073,11 @@ macro
 
 * macro_name(mandatory) - name of macro function to pass match result through
 
-Macro brings Python langiage capabilities to match results processing and validation during ttp module execution, as it allows to run custom functions against match results. Macro functions referenced by their name in match variable definitions or as a group *macro* attribute.
+Macro brings Python language capabilities to match results processing and validation during ttp module execution, as it allows to run custom functions against match results. Macro functions referenced by their name in match variable definitions or as a group *macro* attribute.
 
 .. warning:: macro uses python ``exec`` function to parse code payload without imposing any restrictions, hence it is dangerous to run templates from untrusted sources as they can have macro defined in them that can be used to execute any arbitrary code on the system.
 
-Macro function must accept at least one attribute to hold results data, for match variable that data is match result string for group it is a dictionary of data matched by this group.
+Macro function must accept only one attribute to hold match results, for match variable data supplied to macro function is a match result string.
 
 For match variables, depending on data returned by macro function, ttp will behave differently according to these rules:
 
@@ -1085,12 +1085,6 @@ For match variables, depending on data returned by macro function, ttp will beha
 * If macro returns None - data processing continues, no additional logic associated
 * If macro returns single item - that item replaces original data supplied to macro and processed further
 * If macro return tuple of two elements - fist element must be string - match result, second - dictionary of additional fields to add to results
-
-Gor groups these are valid options for returned data:
-
-* If macro returns True or False - original data unchanged, macro handled as condition functions, invalidating result on False and keeps processing result on True
-* If macro returns None - data processing continues, no additional logic associated
-* If macro returns single item - that item replaces original data supplied to macro and processed further
 
 .. note:: Macro function contained within ``<macro>`` tag, each function loaded and saved into the dictionary of function name and function object, as a result cross referencing macro functions is not supported.
 
@@ -1182,3 +1176,382 @@ Result
             ]
         }
     ]
+	
+to_list
+------------------------------------------------------------------------------
+``{{ name | to_list }}``
+
+to_list transform match result in python list object in such a way that if match result is a string, empty lit will be created and result will be appended to it, if match result not a string by the time to_list fuction runs, this function does nothing.
+
+**Example**
+
+Template
+
+.. code-block:: html
+
+    <input load="text" name="test1-18">
+    interface GigabitEthernet1/1
+     description to core-1
+     ip address 192.168.123.1 255.255.255.0
+    !
+    </input> 
+    <group name="interfaces_functions_test1_18" 
+    input="test1-18"
+    output="test1-18"
+    >
+    interface {{ interface }}
+     description {{ description | ORPHRASE | split(" ") | to_list }}
+     ip address {{ ip | to_list }} {{ mask }}
+    </group>
+
+Result
+
+.. code-block::
+
+    [{
+        "interfaces_functions_test1_18": {
+            "description": [
+                "to",
+                "core-1"
+            ],
+            "interface": "GigabitEthernet1/1",
+            "ip": [
+                "192.168.123.1"
+            ],
+            "mask": "255.255.255.0"
+        }
+    }]
+
+to_str
+------------------------------------------------------------------------------
+``{{ name | to_str }}``
+
+This function transforms match result to string object runing python ``str(match_result)`` built-in function, that is useful for such a cases when match result been transformed to some other object during processing and it needs to be converted back to string.
+
+to_int
+------------------------------------------------------------------------------
+``{{ name | to_int }}``
+
+This function will try to transforms match result into integer object runing python ``int(match_result)`` built-in function, if it fails to do so, execution will continue, results will not e invalidated. to_int is useful if you need to convert string representaion of integer in actual integer object to run mathematical operation with it.
+
+to_ip
+------------------------------------------------------------------------------
+``{{ name | to_ip }}`` or ``{{ name | to_ip("ipv4") }}``
+
+* to_ip(version) - uses python ipaddress module to transform match result in one of ipaddress supported objects, by default will use ipaddress module built-in logic to determine version of IP address, optionally version can be provided using *ipv4* ot *ipv6* arguments to create IPv4Address or IPv6Address ipaddress module objects. In addtion ttp does the check to detect if slash "/" present - e.g. 137.168.1.3/27 - in match result or space " " present in match result - e.g. 137.168.1.3 255.255.255.224, if so it will create IPInterface, IPv4Interface or IPv6Interface object depending on provided arguments.
+
+After match result transformed into ipaddress' IPaddress or IPInterface object, built-in functions and attributes of these objects can be called using match variable functions chains.
+
+.. note:: reference ipaddress module documentation for complete list of functions and attributes
+
+**Example**
+
+It is often that devices use "ip address 137.168.1.3 255.255.255.224" syntaxis to configure interface's IP addresses, let's assume we need to convert it to "137.168.1.3/27" represenation and vice versa.
+
+Template
+
+.. code-block:: html
+
+    <input load="text">
+    interface Loopback0
+     ip address 1.0.0.3 255.255.255.0
+    !
+    interface Vlan777
+     ip address 192.168.0.1/24
+    !
+    </input>
+    
+    <group name="interfaces">
+    interface {{ interface }}
+     ip address {{ ip | PHRASE | to_ip | with_prefixlen }}
+     ip address {{ ip | to_ip | with_netmask }}
+    </group>
+	
+Result
+
+.. code-block::
+
+    [
+        {
+            "interfaces": [
+                {
+                    "interface": "Loopback0",
+                    "ip": "1.0.0.3/24"
+                },
+                {
+                    "interface": "Vlan777",
+                    "ip": "192.168.0.1/255.255.255.0"
+                }
+            ]
+        }
+    ]
+
+with_prefixlen and with_netmask are python ipaddress module IPv4Interface object's built-in functions. 
+
+to_net
+------------------------------------------------------------------------------
+``{{ name | to_net }}``
+
+This function leverages python built-in ipaddress module to transfor match result into IPNetwork object provided that match is a valid ipv4 or ipv6 network strings e.g. 192.168.0.0/24
+ or fe80:ab23::/64.
+ 
+**Example**
+
+Let's assume we need to get results for private routes only from below data, to_net can be used to transform match result into network object together with IPNetwork built-in function is_private to filter results.
+
+Template
+.. code-block:: html
+
+    <input load="text">
+    RP/0/0/CPU0:XR4#show route
+    i L2 10.0.0.2/32 [115/20] via 10.0.0.2, 00:41:40, tunnel-te100
+    i L2 172.16.0.3/32 [115/10] via 10.1.34.3, 00:45:11, GigabitEthernet0/0/0/0.34
+    i L2 1.1.23.0/24 [115/20] via 10.1.34.3, 00:45:11, GigabitEthernet0/0/0/0.34
+    </input>
+    
+    <group name="routes">
+    {{ code }} {{ subcode }} {{ net | to_net | is_private | to_str }} [{{ ad }}/{{ metric }}] via {{ nh_ip }}, {{ age }}, {{ nh_interface }}
+    </group>
+	
+Result
+
+.. code-block::
+
+    [
+        {
+            "routes": [
+                {
+                    "ad": "115",
+                    "age": "00:41:40",
+                    "code": "i",
+                    "metric": "20",
+                    "net": "10.0.0.2/32",
+                    "nh_interface": "tunnel-te100",
+                    "nh_ip": "10.0.0.2",
+                    "subcode": "L2"
+                },
+                {
+                    "ad": "115",
+                    "age": "00:45:11",
+                    "code": "i",
+                    "metric": "10",
+                    "net": "172.16.0.3/32",
+                    "nh_interface": "GigabitEthernet0/0/0/0.34",
+                    "nh_ip": "10.1.34.3",
+                    "subcode": "L2"
+                }
+            ]
+        }
+    ]
+
+is_private check invalidated public 1.1.23.0/24 subnet and only private networks were included in results.
+
+to_cidr
+------------------------------------------------------------------------------
+``{{ name | to_cidr }}``
+
+Function to convert subnet mask in prefix lenght representation, for instance if match result is "255.255.255.0", to_cidr function will return "24"
+
+ip_info
+------------------------------------------------------------------------------
+``{{ name | ip_info }}``
+
+Python ipaddress module helps to convert plain text string into IP addresses objects, as part of that process ipaddress module calculates a lot of additional information, ip_info function retrieves that information from that object and returns it in dictionary format.
+
+**Example**
+
+Below loopback0 IP address will be converted to IPv4Address object and ip_info will return information about that IP only, for other interfaces ttp will be able to create IPInterface objects, that apart from IP details contains infromtation about network.
+
+Template
+
+.. code-block:: html
+
+    <input load="text">
+    interface Loopback0
+     ip address 1.0.0.3 255.255.255.0
+    !
+    interface Vlan777
+     ip address 192.168.0.1/24
+    !
+    interface Vlan777
+     ip address fe80::fd37/124
+    !
+    </input>
+    
+    <group name="interfaces">
+    interface {{ interface }}
+     ip address {{ ip | to_ip | ip_info }} {{ mask }}
+     ip address {{ ip | to_ip | ip_info }}
+    </group>
+	
+Result
+
+.. code-block::
+
+    [
+        {
+            "interfaces": [
+                {
+                    "interface": "Loopback0",
+                    "ip": {
+                        "compressed": "1.0.0.3",
+                        "exploded": "1.0.0.3",
+                        "ip": "1.0.0.3",
+                        "is_link_local": false,
+                        "is_loopback": false,
+                        "is_multicast": false,
+                        "is_private": false,
+                        "is_reserved": false,
+                        "is_unspecified": false,
+                        "max_prefixlen": 32,
+                        "version": 4
+                    },
+                    "mask": "255.255.255.0"
+                },
+                {
+                    "interface": "Vlan777",
+                    "ip": {
+                        "broadcast_address": "192.168.0.255",
+                        "compressed": "192.168.0.1/24",
+                        "exploded": "192.168.0.1/24",
+                        "hostmask": "0.0.0.255",
+                        "hosts": 254,
+                        "ip": "192.168.0.1",
+                        "is_link_local": false,
+                        "is_loopback": false,
+                        "is_multicast": false,
+                        "is_private": true,
+                        "is_reserved": false,
+                        "is_unspecified": false,
+                        "max_prefixlen": 32,
+                        "netmask": "255.255.255.0",
+                        "network": "192.168.0.0/24",
+                        "network_address": "192.168.0.0",
+                        "num_addresses": 256,
+                        "prefixlen": 24,
+                        "version": 4,
+                        "with_hostmask": "192.168.0.1/0.0.0.255",
+                        "with_netmask": "192.168.0.1/255.255.255.0",
+                        "with_prefixlen": "192.168.0.1/24"
+                    }
+                },
+                {
+                    "interface": "Vlan777",
+                    "ip": {
+                        "broadcast_address": "fe80::fd3f",
+                        "compressed": "fe80::fd37/124",
+                        "exploded": "fe80:0000:0000:0000:0000:0000:0000:fd37/124",
+                        "hostmask": "::f",
+                        "hosts": 14,
+                        "ip": "fe80::fd37",
+                        "is_link_local": true,
+                        "is_loopback": false,
+                        "is_multicast": false,
+                        "is_private": true,
+                        "is_reserved": false,
+                        "is_unspecified": false,
+                        "max_prefixlen": 128,
+                        "netmask": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:fff0",
+                        "network": "fe80::fd30/124",
+                        "network_address": "fe80::fd30",
+                        "num_addresses": 16,
+                        "prefixlen": 124,
+                        "version": 6,
+                        "with_hostmask": "fe80::fd37/::f",
+                        "with_netmask": "fe80::fd37/ffff:ffff:ffff:ffff:ffff:ffff:ffff:fff0",
+                        "with_prefixlen": "fe80::fd37/124"
+                    }
+                }
+            ]
+        }
+    ]
+
+is_ip
+------------------------------------------------------------------------------
+``{{ name | is_ip }}``
+
+is_ip function tries to convert provided match result in Python ipaddress module IPAddress or IPInterface object, if that happens without any exceptions (errors), is_ip returns True and False otherwise.
+
+**Example**
+
+Template
+
+.. code-block:: html
+
+    <input load="text">
+    interface Loopback0
+     ip address 192.168.0.113/24
+    !
+    interface Loopback1
+     ip address 192.168.1.341/24
+    !
+    </input>
+    
+    <group name="interfaces">
+    interface {{ interface }}
+     ip address {{ ip | is_ip }}
+    </group>
+
+Result
+
+.. code-block::
+
+    [
+        {
+            "interfaces": [
+                {
+                    "interface": "Loopback0",
+                    "ip": "192.168.0.113/24"
+                },
+                {
+                    "interface": "Loopback1"
+                }
+            ]
+        }
+    ]
+	
+192.168.1.341/24 match result was invalidated as it is a not valid IP addrress.
+
+cidr_match
+------------------------------------------------------------------------------
+``{{ name | cidr_match(prefix) }}``
+
+This function allows to convert provided prefix in ipaddress IPNetwork object and convert match_result into IPInterface object, after that, cidr_match will run *overlaps* check to see if provided prefix and match result ip address overlapping. 
+
+**Example**
+
+In example below IP of Loopback1 interface is not overlapping with 192.168.0.0/16 range, hence it will be invalidated.
+
+Template
+
+.. code-block:: html
+
+    <input load="text">
+    interface Loopback0
+     ip address 192.168.0.113/24
+    !
+    interface Loopback1
+     ip address 10.0.1.251/24
+    !
+    </input>
+    
+    <group name="interfaces">
+    interface {{ interface }}
+     ip address {{ ip | cidr_match("192.168.0.0/16") }}
+    </group>
+
+Result
+
+.. code-block::
+
+    [{
+        "interfaces": [
+            {
+                "interface": "Loopback0",
+                "ip": "192.168.0.113/24"
+            },
+            {
+                "interface": "Loopback1"
+            }
+        ]
+    }]
