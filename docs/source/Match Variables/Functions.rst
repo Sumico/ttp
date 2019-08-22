@@ -193,57 +193,49 @@ record
 
 * name (mandatory) - a string containing variable name
 
-Records match results in template variable with given name after all functions run finished for match result. That recorded variable can be referenced within other functions such as `let`_ 
+Records match results in template variable with given name after all functions run finished for match result. That recorded variable can be referenced within other functions such as `set`_ 
 
 let
 ------------------------------------------------------------------------------
-``{{ variable | let(value) }}``
+``{{ variable | let(var_name, value) }}`` or ``{{ variable | let(value) }}``
 
 * value (mandatory) - a string containing value to be assigned to variable
 
-Statically assigns provided value to variable for in group results. Prior to assigning value as a static sting, template variables will be checked for matching varaible, if such a variable foun, its value will be used.
+Statically assigns provided value to variable with name var_name, if single argument provided, that argument considered to be a value and will be assigned to match variable replacing match result.
 
 **Example**
 
-In this example "interface_role" will be statically set to "Uplink", but value for "provider" variable will be taken from template variable "my_var" and set to "L2VC".
+Template
 
-Data:
-::
-    interface Vlan777
-      description Management
-      ip address 192.168.0.1/24
-      vrf MGMT
+.. code-block:: html
+
+    <input load="text">
+    interface Loopback0
+     description Management
+     ip address 192.168.0.113/24
     !
-
-Template:
-::
-    <vars>
-    my_var = "L2VC"
-    </vars>
-
-    <group>
+    </input>
+    
+    <group name="interfaces">
     interface {{ interface }}
-      description {{ description }}
-      ip address {{ ip }}/{{ mask }}
-      vrf {{ vrf }}
-      {{ interface_role | let("Uplink") }}
-      {{ provider | let("my_var") }}
-    !{{_end_}}
+     description {{ description | let("description_undefined") }}
+     ip address {{ ip | contains("24") | let("netmask", "255.255.255.0") }}
     </group>
 
-Result:
-::
+Result
+
     [
         {
-            "description": "Management",
-            "interface": "Vlan777",
-            "interface_role": "Uplink",
-            "ip": "192.168.0.1",
-            "mask": "24",
-            "provider": "L2VC",
-            "vrf": "MGMT"
+            "interfaces": {
+                "description": "description_undefined",
+                "interface": "Loopback0",
+                "ip": "192.168.0.113/24",
+                "netmask": "255.255.255.0"
+            }
         }
     ]
+
+.. code-block::
 
 truncate
 --------
@@ -438,11 +430,15 @@ set
 ------------------------------------------------------------------------------
 ``{{ name | set('var_set_value') }}``
 
-* var_set_value (mandatory) - string to set as a value for variable, can be a tring or a name of template variable.
+* var_set_value (mandatory) - string to set as a value for variable, can be a name of template variable.
 
-Not all configuration statements have variables or values associated with them, but rather serve as an indicator if particular feature disabled or enabled, to match such a cases *set* function can be used. This function allows to assign "var_set_value" to match variable, "var_set_value" considered to be a reference to template variable name, if no template variable with "var_set_value" found, "var_set_value" itself will be assigned to match variable.
+Not all configuration statements have variables or values associated with them, but can serve as an indicator if particular feature disabled or enabled, to match such a cases *set* function can be used. This function allows to assign "var_set_value" to match variable, "var_set_value" considered to be a reference to template variable name, if no template variable with "var_set_value" found, "var_set_value" itself will be assigned to match variable.
 
-**Example**
+It is also possible to use *set* function to introduce arbitrary key-value pairs in match result if set function used without any text in front of it.
+
+**Example-1**
+
+Conditional set function - set only will be invoked in case if preceding line matched. In below example " switchport trunk encapsulation dot1q" line will be searched for, if found then "encap" variable will have "dot1q" value set.
 
 Data
 ::
@@ -498,6 +494,48 @@ Result
     
 .. note:: Multiple set statements are supported within the line, however, no other variables can be specified except with *set*, as match performed based on the string preceeding variables with *set* function, for instance below will not work: ``switchport mode {{ mode }} {{ switchport_mode | set('Trunk') }} {{ trunk_vlans | set('all') }}``
 
+**Example-2**
+
+Unconditional set - in this example "interface_role" will be statically set to "Uplink", but value for "provider" variable will be taken from template variable "my_var" and set to "L2VC".
+
+Data:
+::
+    interface Vlan777
+      description Management
+      ip address 192.168.0.1/24
+      vrf MGMT
+    !
+
+Template:
+::
+    <vars>
+    my_var = "L2VC"
+    </vars>
+
+    <group>
+    interface {{ interface }}
+      description {{ description }}
+      ip address {{ ip }}/{{ mask }}
+      vrf {{ vrf }}
+      {{ interface_role | set("Uplink") }}
+      {{ provider | set("my_var") }}
+    !{{_end_}}
+    </group>
+
+Result:
+::
+    [
+        {
+            "description": "Management",
+            "interface": "Vlan777",
+            "interface_role": "Uplink",
+            "ip": "192.168.0.1",
+            "mask": "24",
+            "provider": "L2VC",
+            "vrf": "MGMT"
+        }
+    ]
+	
 replaceall
 ------------------------------------------------------------------------------
 ``{{ name | replaceall('value1', 'value2', ..., 'valueN') }}``

@@ -517,6 +517,13 @@ class _ttp_functions():
             return value, None
         else:
             return data, False
+            
+    def match_let(self, data, name_or_value, var_value="" ):
+        if not var_value:
+            data = name_or_value
+            return data, None
+        else:
+            return data, {'new_field': {name_or_value: var_value}}
 
     def match_replaceall(self, data, *args):
         vars = self.pobj.vars['globals']['vars']
@@ -1688,7 +1695,7 @@ class _group_class():
     def set_runs(self):
         """runs - default variable values during group
         parsing run, have to preserve original defaults
-        as values in defaults dictionried can change for 'let'
+        as values in defaults dictionried can change for 'set'
         function
         """
         self.runs = self.defaults.copy()
@@ -1733,7 +1740,7 @@ class _variable_class():
         self.group = group                           # template object current group to save some vars
         self.IS_LINE = False                         # to indicate that variable is _line_ regex
         self.skip_variable_dict = False              # will be set to true for 'ignore'
-        self.skip_regex_dict = False                 # will be set to true for 'let'
+        self.skip_regex_dict = False                 # will be set to true for 'set'
         self.var_res = []                            # list of variable regexes
         self.utils = _ttp_utils()                    # ttp utils
 
@@ -1835,7 +1842,7 @@ class _variable_class():
         'default'       : extract_default,
         'joinmatches'   : extract_joinmatches,
         'to_ip'  : import_ipaddress,
-        'to_net' : import_ipaddress, 'ip_info' : import_ipaddress,
+        'to_net' : import_ipaddress, 'ip_info'   : import_ipaddress,
         'is_ip'  : import_ipaddress, 'cidr_match': import_ipaddress,
         # regex formatters:
         're'       : lambda data: self.var_res.append(self.REs.patterns[data['args'][0]]),
@@ -2289,14 +2296,19 @@ class _results_class():
         for path_item in sorted_pathes:
             # skip empty path items:
             if not path_item: continue
-            vars_keys = vars['_vars_to_results_'][path_item]
+            vars_names = vars['_vars_to_results_'][path_item]
             result = {}
-            for key in vars_keys:
-                result[key] = vars[key]
+            for var_name in vars_names:
+                result[var_name] = vars[var_name]
             self.record = {
                 'result'     : result,
                 'PATH'       : [i.strip() for i in path_item.split('.')],
             }
+            processed_path = self.form_path(self.record['PATH'])
+            if processed_path:
+                self.record['PATH'] = processed_path
+            else:
+                continue
             self.save_curelements()
         # set record to default value:
         self.record={'result': {}, 'PATH': [], 'FUNCTIONS': []}

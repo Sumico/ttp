@@ -42,7 +42,7 @@ load
 
 **Example**
 
-Below template contains data that should be parsed within input itself, that is useful for testing purposes.
+Below template contains input with text data that should be parsed, that is useful for testing purposes or for small data sets.
 
 Template:
 
@@ -128,17 +128,20 @@ filters
 **Example**
 
 For instance we have this folders structure to store data that needs to be parsed:
-my
-|-- base
-    |-- path
-        |-- Data
-            |-- Inputs
-                |-- data-1/
-                   |-- sw-1.conf
-                   |-- sw-1.txt
-                |-- data-2/
-                   |-- sw-2.txt
-                   |-- sw3.txt                       
+
+.. code-block::
+
+    my
+    |-- base
+        |-- path
+            |-- Data
+                |-- Inputs
+                    |-- data-1/
+                       |-- sw-1.conf
+                       |-- sw-1.txt
+                    |-- data-2/
+                       |-- sw-2.txt
+                       |-- sw3.txt                       
 
 Where content:
 
@@ -174,15 +177,15 @@ Where content:
     interface Vlan230
       ip address 10.11.15.130/25
 
-Below template inputs structured in such a way that for "data-1" folder only files that have ".txt" extension will be parsed by group "interfaces1", for input named "dataset-2" only files with names matching given regular expression will be parsed by "interfaces2" group. Alos, base path provided that will be appended to *url* parametres within inputs, moreover, input parameters for "dataset-1" input structured using YAML representation, while "dataset-2" uses python language definition.
+Below template inputs structured in such a way that for "data-1" folder only files that have ".txt" extension will be parsed by group "interfaces1", for input named "dataset-2" only files with names matching given regular expression will be parsed by "interfaces2" group. Also, base path provided that will be appended to *url* parametres within inputs, moreover, input parameters for "dataset-1" input structured using YAML representation, while "dataset-2" uses python language definition.
 
-As a result of filtering within inputs, only "sw-1.txt" will be matched by "dataset-1" input because it is only file that has ".txt" extension, only  "sw-2.txt" will be matched by input "dataset-2" because "sw3.txt" not matched by "sw\-\d.*" regular expression.
+As a result of inputs filtering, only "sw-1.txt" will be matched by "dataset-1" input because it is the only file that has ".txt" extension, only  "sw-2.txt" will be matched by input "dataset-2" because "sw3.txt" not matched by "sw\-\d.*" regular expression.
 
 Template
 
 .. code-block:: html
 
-    <template base="/my/base/path/">
+    <template base_path="/my/base/path/">
     <input name="dataset-1" load="yaml" groups="interfaces1">
     url: "/Data/Inputs/data-1/"
     extensions: ["txt"]
@@ -205,6 +208,8 @@ Template
     </template>
     
 Result
+
+.. code-block::
 
     [
         {

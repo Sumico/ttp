@@ -2556,3 +2556,56 @@ interface {{ interface }}
 </group>
 </template>
 """
+
+
+test180="""
+<vars name="vars.info**.{{ hostname }}">
+# path will be formaed dynamically
+hostname='switch-1'
+serial='AS4FCVG456'
+model='WS-3560-PS'
+</vars>
+
+<vars name="vars.ip*">
+# variables that will be saved under {'vars': {'ip': []}} path
+IP="Undefined"
+MASK="255.255.255.255"
+</vars>
+
+<vars load="yaml">
+# set of vars that will not be included in results
+intf_mode: "l3"
+</vars>
+
+<input load="text">
+interface Vlan777
+ description Management
+ ip address 192.168.0.1 24
+ vrf MGMT
+!
+</input>
+
+<group name="interfaces">
+interface {{ interface }}
+ description {{ description }}
+ ip address {{ ip | record("IP") }} {{ mask }}
+ vrf {{ vrf }}
+ {{ mode | set("intf_mode") }}
+</group>
+"""
+
+
+test181="""
+<input load="text">
+interface Loopback0
+ description Management
+ ip address 192.168.0.113/24
+!
+</input>
+
+<group name="interfaces">
+interface {{ interface }}
+ description {{ description | let("description_undefined") }}
+ ip address {{ ip | contains("24") | let("netmask", "255.255.255.0") }}
+</group>
+"""
