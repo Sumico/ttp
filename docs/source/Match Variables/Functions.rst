@@ -103,7 +103,7 @@ Condition functions can perform various checks with match results and returns ei
      
 Python builtins
 ------------------------------------------------------------------------------
-Apart from functions provided by ttp, python objects builtin functions can be used as well. For instance string *upper* method can be used to convert match into apper case, or list *index* method to return index of certain value.
+Apart from functions provided by ttp, python objects builtin functions can be used as well. For instance string *upper* method can be used to convert match into upper case, or list *index* method to return index of certain value.
 
 **Example**
 
@@ -223,6 +223,8 @@ Template
     </group>
 
 Result
+
+.. code-block::
 
     [
         {

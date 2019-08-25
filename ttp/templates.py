@@ -830,9 +830,16 @@ interface {{ interface | contains("Vlan") }}
 """
 
 test10 = """
+<input load="text">
+interface Tunnel2422
+ description core-1
+!
+interface GigabitEthernet1/1
+ description core-11
+</input>
 <group name="interfaces">
 interface {{ interface | upper }}
- description {{ description | split('-') }}
+ description {{ description | split('-') | index("core") }}
 </group>
 """
 
@@ -2608,4 +2615,69 @@ interface {{ interface }}
  description {{ description | let("description_undefined") }}
  ip address {{ ip | contains("24") | let("netmask", "255.255.255.0") }}
 </group>
+"""
+
+
+test182="""
+<input load="text">
+router bgp 65100
+  neighbor 10.145.1.9
+    description vic-mel-core1
+  !
+  neighbor 192.168.101.1
+    description qld-bri-core1
+</input>
+
+<lookup name="locations" load="ini">
+[cities]
+-mel- : 7 Name St, Suburb A, Melbourne, Postal Code
+-bri- : 8 Name St, Suburb B, Brisbane, Postal Code
+</lookup>
+
+<group name="bgp_config">
+router bgp {{ bgp_as }}
+ <group name="peers">
+  neighbor {{ peer }}
+    description {{ description | rlookup('locations.cities', add_field='location') }}
+ </group>
+</group> 
+"""
+
+test183="""
+<lookup 
+name="aux_csv" 
+load="csv" 
+>
+ASN,as_name,as_description,prefix_num
+65100,Subs,Private ASN,734
+</lookup>
+
+<input load="text">
+router bgp 65100
+</input>
+
+<group name="bgp_config">
+router bgp {{ bgp_as | lookup("aux_csv", add_field="as_details") }}
+</group> 
+"""
+
+test184="""
+<lookup name="yaml_look" load="yaml">
+'65100':
+  as_description: Private ASN
+  as_name: Subs
+  prefix_num: '734'
+'65101':
+  as_description: Cust-1 ASN
+  as_name: Cust1
+  prefix_num: '156'
+</lookup>
+
+<input load="text">
+router bgp 65100
+</input>
+
+<group name="bgp_config">
+router bgp {{ bgp_as | lookup("yaml_look", add_field="as_details") }}
+</group> 
 """
