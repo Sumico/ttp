@@ -1325,6 +1325,41 @@ load="json"
 
 
 
+<input load="text" name="test1-25">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+ switchport trunk allowed vlan add 400,401,410
+</input>
+
+<vars>
+vlans_test_1_25 = [
+   "unrange(rangechar='-', joinchar=',')",
+   "split(',')",
+   "join(':')",
+   "joinmatches(':')"
+]
+</vars>
+
+<group name="interfaces_test_1_25" input="test1-25" output="test1-25">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans | chain('vlans_test_1_25') }}
+</group>
+
+<output name="test1-25"
+description="test chain function - list"
+functions="is_equal"
+load="json"
+>
+{
+    "interfaces_test_1_25": {
+        "interface": "GigabitEthernet3/3",
+        "trunk_vlans": "138:166:167:168:169:170:171:172:173:400:401:410"
+    }
+}
+</output>
+
+
+
 <!--output to print raw python result to screen
 <output
 name="print_python"

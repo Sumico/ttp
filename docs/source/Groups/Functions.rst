@@ -17,16 +17,16 @@ Condition functions help to evaluate group results and return *False* or *True*,
      - checks if group result contains matche at least for one of given variables
    * - `macro`_   
      - Name of the macros function to run against group result 
-   * - `functions`_   
+   * - `group functions`_   
      - String containing list of functions to run this group results through
-	 
+     
 containsall
 ------------------------------------------------------------------------------
 ``containsall="variable1, variable2, variableN"``
 
 * variable (mandatory) - a comma-separated string that contains match variable names. This function
-	checks if group results contain specified variable, if at least one variable not found in results, whole group
-	result discarded
+    checks if group results contain specified variable, if at least one variable not found in results, whole group
+    result discarded
 
 **Example**
 
@@ -79,8 +79,8 @@ contains
 ``contains="variable1, variable2, variableN"``
 
 * variable (mandatory) - a comma-separated string that contains match variable names. This function
-	checks if group results contains *any* of specified variable, if no variables found in results, whole group
-	result discarded, if at least one variable found in results, this check is satisfied.
+    checks if group results contains *any* of specified variable, if no variables found in results, whole group
+    result discarded, if at least one variable found in results, this check is satisfied.
 
 **Example**
 
@@ -134,7 +134,7 @@ Result:
             }
         ]
     }
-	
+    
 macro
 ------------------------------------------------------------------------------
 ``macro="name1, name2, ... , nameN"``
@@ -229,8 +229,8 @@ Result
             ]
         }
     ]
-	
-functions
+    
+group functions
 ------------------------------------------------------------------------------
 ``functions="function1('attributes') | function2('attributes') | ... | functionN('attributes')"``
 
@@ -252,7 +252,7 @@ Group2:
 
 .. code-block:: html
 
-    <group name="interfaces_macro" contains('ip') macro="description_mod, check_if_svi, check_if_loop">
+    <group name="interfaces_macro" contains="ip" macro="description_mod, check_if_svi, check_if_loop">
     interface {{ interface }}
      description {{ description | ORPHRASE }}
      ip address {{ ip }} {{ mask }}
@@ -282,7 +282,7 @@ Template
     !
     </input>
     
-     <macro>
+    <macro>
     def check_if_svi(data):
         if "Vlan" in data["interface"]:
             data["is_svi"] = True
@@ -296,9 +296,9 @@ Template
         else:
             data["is_loop"] = False
         return data
-     </macro>
+    </macro>
      
-     <macro>
+    <macro>
     def description_mod(data):
         # To revert words order in descripotion
         words_list = data.get("description", "").split(" ")
@@ -306,14 +306,14 @@ Template
         words_reversed = " ".join(words_list_reversed) 
         data["description"] = words_reversed
         return data
-     </macro>
+    </macro>
      
     <group name="interfaces_macro" functions="contains('ip') | macro('description_mod') | macro('check_if_svi') | macro('check_if_loop')">
     interface {{ interface }}
      description {{ description | ORPHRASE }}
      ip address {{ ip }} {{ mask }}
     </group>
-	
+    
 Result
 
 .. code-block::

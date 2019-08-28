@@ -822,10 +822,10 @@ class _ttp_functions():
         command output, uses symbols '# ', '<', '>' to find hostname
         """
         REs = [ # ios-xr prompt re must go before ios privilege prompt re
-            {'ios_exec': '\n(\S+)>.*(?=\n)'},   # e.g. 'hostname>'
-            {'ios_xr': '\n\S+:(\S+)#.*(?=\n)'}, # e.g. 'RP/0/4/CPU0:hostname#'
-            {'ios_priv': '\n(\S+)#.*(?=\n)'},   # e.g. 'hostname#'
-            {'huawei': '\n\S*<(\S+)>.*(?=\n)'}   # e.g. '<hostname>'
+            {'huawei': '\n\S*<(\S+)>.*(?=\n)'},   # e.g. '<hostname>'
+            {'ios_exec': '\n(\S+)>.*(?=\n)'},     # e.g. 'hostname>'
+            {'ios_xr': '\n\S+:(\S+)#.*(?=\n)'},   # e.g. 'RP/0/4/CPU0:hostname#'
+            {'ios_priv': '\n(\S+)#.*(?=\n)'}      # e.g. 'hostname#'
         ]
         for item in REs:
             name, regex = list(item.items())[0]
@@ -1133,7 +1133,8 @@ class _template_class():
         self.results = []
         self.name = None
         self.attributes = {}
-        self.macro = {} # dictionary of macro name and macro function
+        self.macro = {}                   # dictionary of macro name to function mapping
+        self.results_method = 'per_input' # how to join results
 
         # load template from string:
         self.load_template_xml(template_text)
@@ -1271,10 +1272,14 @@ class _template_class():
             
         def extract_base_path(O):
             self.base_path = O
+    
+        def extract_results_method(O):
+            self.results_method = O
 
         opt_funcs = {
         'name'      : extract_name,
-        'base_path' : extract_base_path
+        'base_path' : extract_base_path,
+        'results'   : extract_results_method
         # pathchar
         # debug
         }
@@ -1816,7 +1821,13 @@ class _variable_class():
             if variable_value is None:
                 print("ERROR: chain variable '{}' not found".format(data['args'][0]))
                 return
-            attributes =  self.utils.get_attributes(variable_value)
+            if isinstance(variable_value, str):
+                attributes =  self.utils.get_attributes(variable_value)
+            elif isinstance(variable_value, list):
+                attributes = []
+                for i in variable_value:
+                    i_attribs = self.utils.get_attributes(i)
+                    attributes += i_attribs
             for i in attributes:
                 name = i['name']
                 if name in extract_funcs:
@@ -2166,8 +2177,8 @@ class _parser_class():
           ) for group_result in unsort_rslts if group_result ]
         # form results for global groups:
         RSLTSOBJ = _results_class(macro=self.macro)
-        RSLTSOBJ.form_results(self.vars['globals']['vars'], raw_results)
-        self.results = RSLTSOBJ.resultS
+        RSLTSOBJ.make_results(self.vars['globals']['vars'], raw_results)
+        self.results = RSLTSOBJ.results
 
         # sort results for group specific results:
         [ grps_raw_results.append(
@@ -2177,8 +2188,8 @@ class _parser_class():
         # form results for groups specific results with running groups through outputs:
         for grp_raw_result in grps_raw_results:
             RSLTSOBJ = _results_class(macro=self.macro)
-            RSLTSOBJ.form_results(self.vars['globals']['vars'], [grp_raw_result[0]])
-            grp_result = RSLTSOBJ.resultS
+            RSLTSOBJ.make_results(self.vars['globals']['vars'], [grp_raw_result[0]])
+            grp_result = RSLTSOBJ.results
             for output in grp_raw_result[1]:
                 grp_result = output.run(data=grp_result)
             # transform results into list:
@@ -2194,7 +2205,7 @@ class _parser_class():
 
 """
 ==============================================================================
-TTP resultS FORMATTER OBJECT
+TTP results FORMATTER OBJECT
 ==============================================================================
 """
 class _results_class():
@@ -2204,7 +2215,7 @@ class _results_class():
         self.dyn_path_cache (dict): used to store dynamic path variables
     """
     def __init__(self, macro):
-        self.resultS = {}
+        self.results = {}
         self.GRPLOCK = {'LOCK': False, 'GROUP': ()} # GROUP - path tuple of locked group
         self.record={
             'result'     : {},
@@ -2214,7 +2225,7 @@ class _results_class():
         self.dyn_path_cache={}
         self.functions = _ttp_functions(results_obj=self, macro=macro)
 
-    def form_results(self, vars, results):
+    def make_results(self, vars, results):
         self.vars=vars
         saveFuncs={
             'start'      : self.start,       # start - to start new group;
@@ -2324,7 +2335,7 @@ class _results_class():
             PATH (list): list of path keys
             result : dict or list that contains results
         Returns:
-            transformed DATA with list at given PATH and appended resultS to it
+            transformed DATA with list at given PATH and appended results to it
         """
         if PATH:
             name=str(PATH[0]).rstrip('*')
@@ -2388,12 +2399,12 @@ class _results_class():
 
 
     def save_curelements(self):
-        """Method to save current group results in self.resultS
+        """Method to save current group results in self.results
         """
         RSLT = self.record['result']
         PATH = self.record['PATH']
-        # get ELEMENT from self.resultS by PATH
-        E = self.dict_by_path(PATH=PATH, ELEMENT=self.resultS)
+        # get ELEMENT from self.results by PATH
+        E = self.dict_by_path(PATH=PATH, ELEMENT=self.results)
         if isinstance(E, list):
             E.append(RSLT)
         elif isinstance(E, dict):
@@ -2403,7 +2414,7 @@ class _results_class():
             # to match all the other cases, like templates without "**" in path:
             elif E != {}:
                 # transform ELEMENT dict to list and append data to it:
-                self.resultS = self.value_to_list(DATA=self.resultS, PATH=PATH, result=RSLT)
+                self.results = self.value_to_list(DATA=self.results, PATH=PATH, result=RSLT)
             else:
                 E.update(RSLT)
 
@@ -2438,12 +2449,12 @@ class _results_class():
             self.record['result'].update(result)
         # if different path - that can happen if we have
         # group ended and result actually belong to another group, hence have
-        # save directly into resultS
+        # save directly into results
         else:
             processed_path = self.form_path(PATH)
             if processed_path is False:
                 return
-            ELEMENT = self.dict_by_path(PATH=processed_path, ELEMENT=self.resultS)
+            ELEMENT = self.dict_by_path(PATH=processed_path, ELEMENT=self.results)
             if isinstance(ELEMENT, dict):
                 ELEMENT.update(result)
             elif isinstance(ELEMENT, list):

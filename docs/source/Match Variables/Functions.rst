@@ -151,9 +151,11 @@ chain
 
 Sometime when many functions needs to be run against match result the template can become difficult to read, in addition if same set of functions needs to be run agains several matches and changes needs to be done to the set of functions it can become difficult to maintain such a template. 
 
-To solve above problem *chain* function can be use. Value supplied to that function must reference a valid variable name, that variable itslef should contain sting of functions names that should be used for match result.
+To solve above problem *chain* function can be used. Value supplied to that function must reference a valid variable name, that variable should contain string of functions names that should be used for match result, alternatively variable can reference a list of items, each item is a string representing function to run.
 
-**Example**
+**Example-1**
+
+chain referencing variable that contains string of functions separated by pipe symbol.
 
 Data:
 
@@ -169,6 +171,47 @@ Template:
 
  <vars>
  vlans = "unrange(rangechar='-', joinchar=',') | split(',') | join(':') | joinmatches(':')"
+ </vars>
+ 
+ <group name="interfaces">
+ interface {{ interface }}
+  switchport trunk allowed vlan add {{ trunk_vlans | chain('vlans') }}
+ </group>
+
+Result:
+
+.. code-block::
+
+ {
+     "interfaces": {
+         "interface": "GigabitEthernet3/3",
+         "trunk_vlans": "138:166:167:168:169:170:171:172:173:400:401:410"
+     }
+ }
+ 
+**Example-2**
+
+chain referencing variable that contains list of strings, each string is a function.
+
+Data:
+
+.. code-block::
+
+ interface GigabitEthernet3/3
+  switchport trunk allowed vlan add 138,166-173 
+  switchport trunk allowed vlan add 400,401,410
+ 
+Template:
+
+.. code-block:: html
+
+ <vars>
+ vlans = [
+    "unrange(rangechar='-', joinchar=',')",
+    "split(',')",
+    "join(':')",
+    "joinmatches(':')"
+ ]
  </vars>
  
  <group name="interfaces">
@@ -537,7 +580,7 @@ Result:
             "vrf": "MGMT"
         }
     ]
-	
+    
 replaceall
 ------------------------------------------------------------------------------
 ``{{ name | replaceall('value1', 'value2', ..., 'valueN') }}``
@@ -1216,7 +1259,7 @@ Result
             ]
         }
     ]
-	
+    
 to_list
 ------------------------------------------------------------------------------
 ``{{ name | to_list }}``
@@ -1306,7 +1349,7 @@ Template
      ip address {{ ip | PHRASE | to_ip | with_prefixlen }}
      ip address {{ ip | to_ip | with_netmask }}
     </group>
-	
+    
 Result
 
 .. code-block::
@@ -1352,7 +1395,7 @@ Template
     <group name="routes">
     {{ code }} {{ subcode }} {{ net | to_net | is_private | to_str }} [{{ ad }}/{{ metric }}] via {{ nh_ip }}, {{ age }}, {{ nh_interface }}
     </group>
-	
+    
 Result
 
 .. code-block::
@@ -1423,7 +1466,7 @@ Template
      ip address {{ ip | to_ip | ip_info }} {{ mask }}
      ip address {{ ip | to_ip | ip_info }}
     </group>
-	
+    
 Result
 
 .. code-block::
@@ -1549,7 +1592,7 @@ Result
             ]
         }
     ]
-	
+    
 192.168.1.341/24 match result was invalidated as it is a not valid IP addrress.
 
 cidr_match

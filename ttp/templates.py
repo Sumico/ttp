@@ -2681,3 +2681,105 @@ router bgp 65100
 router bgp {{ bgp_as | lookup("yaml_look", add_field="as_details") }}
 </group> 
 """
+
+test185="""
+<input load="text">
+interface Vlan163
+ description [OOB management]
+ ip address 10.0.10.3 255.255.255.0
+!
+interface GigabitEthernet6/41
+ description [uplink to core]
+ ip address 192.168.10.3 255.255.255.0
+</input>
+
+<group name="interfaces">
+interface {{ interface }}
+ description {{ description | PHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+"""
+
+test186="""
+<input load="text">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+ switchport trunk allowed vlan add 400,401,410
+</input>
+
+<vars>
+vlans = [
+   "unrange(rangechar='-', joinchar=',')",
+   "split(',')",
+   "join(':')",
+   "joinmatches(':')"
+]
+</vars>
+
+<group name="interfaces">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans | chain('vlans') }}
+</group>
+"""
+
+test187="""
+<template results="per_template">
+<input load="text">
+interface Vlan163
+ description [OOB management]
+ ip address 10.0.10.3 255.255.255.0
+!
+interface GigabitEthernet6/41
+ description [uplink to core]
+ ip address 192.168.10.3 255.255.255.0
+</input>
+
+<input load="text">
+interface Vlan164
+ description [OOB management]
+ ip address 10.0.11.3 255.255.255.0
+!
+interface GigabitEthernet6/42
+ description [uplink to core]
+ ip address 192.168.11.3 255.255.255.0
+</input>
+
+<group name="interfaces">
+interface {{ interface }}
+ description {{ description | PHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+
+</template>
+"""
+
+test188="""
+<template results="per_template">
+<input load="text">
+interface Vlan163
+ description [OOB management]
+ ip address 10.0.10.3 255.255.255.0
+!
+interface GigabitEthernet6/41
+ description [uplink to core]
+ ip address 192.168.10.3 255.255.255.0
+</input>
+
+<input load="text">
+interface Vlan164
+ description [OOB management]
+ ip address 10.0.11.3 255.255.255.0
+!
+interface GigabitEthernet6/42
+ description [uplink to core]
+ ip address 192.168.11.3 255.255.255.0
+</input>
+
+<group>
+interface {{ interface }}
+ description {{ description | PHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+
+</template>
+"""

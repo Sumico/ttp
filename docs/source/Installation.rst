@@ -1,10 +1,10 @@
 Installation
 ============
 
+Using pip::
 
-Using PyPI
+    pip install ttp
 
-Clone/Download from Github and run 
-* pip install .
-or
-* python setup.py install
+Or clone from GitHub, unzip, navigate to folder and run::
+
+    python setup.py install

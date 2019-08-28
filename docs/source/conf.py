@@ -18,11 +18,11 @@ sys.path.insert(0, "C:/Users/Denis/YandexDisk/Python/TPG/Text Template Parser/tt
 # -- Project information -----------------------------------------------------
 
 project = 'ttp'
-copyright = '2019, Denis'
-author = 'Denis'
+copyright = '2019, dmulyalin'
+author = 'dmulyalin'
 
 # The full version, including alpha/beta/rc tags
-release = '1.3.1'
+release = '0.0.1'
 
 
 # -- General configuration ---------------------------------------------------
@@ -52,7 +52,7 @@ master_doc = 'index'
 # a list of builtin themes.
 #
 #html_theme = 'alabaster'
-#html_theme = 'classic'
+html_theme = 'classic'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

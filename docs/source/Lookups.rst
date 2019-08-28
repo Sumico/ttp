@@ -3,7 +3,7 @@ Lookups
    
 Lookups tag allows to define a lookup table that will be transformed into lookup dictionary, dictionary that can be used to lookup values to include them into parsing results. Lookup table can be called from match variable using *lookup* function.
 
-.. list-table:: lokup tag attributes
+.. list-table:: lookup tag attributes
    :widths: 10 90
    :header-rows: 1
 
@@ -63,6 +63,7 @@ Template
     <lookup name="aux_csv" load="csv">
     ASN,as_name,as_description,prefix_num
     65100,Subs,Private ASN,734
+    65200,Privs,Undef ASN,121
     </lookup>
     
     <input load="text">
@@ -89,13 +90,41 @@ Result
             }
         }
     ]
+	
+Because no *key* attribute provided, csv data was loaded in python dictionary using first column - ASN - as a key. This is the resulted lookup dictionary::
+
+    { 
+	  "65100": {
+            "as_name": "Subs",
+            "as_description" : "Private ASN",
+			"prefix_num": "734"
+        },
+      "65200": {
+            "as_name": "Privs",
+            "as_description" : "Undef ASN",
+			"prefix_num": "121"
+        }
+    }
+	
+If *key* will be set to "as_name", lookup dictionary will become::
+
+    { 
+	  "Subs": {
+            "ASN": "65100",
+            "as_description" : "Private ASN",
+			"prefix_num": "734"
+        },
+      "Privs": {
+            "ASN": "65200",
+            "as_description" : "Undef ASN",
+			"prefix_num": "121"
+        }
+    }
     
 INI Example
 ------------------------------------------------------------------------------
 
-If table provided in INI format, data will be transformed into dictionary with top key equal to lookup table names, next level of keys will correspond to INI sections which will nest a dictionary of actual key-value pairs. For instance in below template with lookup name "location", INI data will be loaded into this python dictionary structure:
-
-.. code-block:: 
+If table provided in INI format, data will be transformed into dictionary with top key equal to lookup table names, next level of keys will correspond to INI sections which will nest a dictionary of actual key-value pairs. For instance in below template with lookup name "location", INI data will be loaded into this python dictionary structure:: 
 
     { "locations": 
         { "cities": {

@@ -1,5 +1,5 @@
 *.pyc
-./Data/*
-./ttp.egg-info/
-./dist/
-./build/
+Data/*
+ttp.egg-info/*
+dist/*
+build/*

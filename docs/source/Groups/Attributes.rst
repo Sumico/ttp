@@ -1,7 +1,7 @@
 Attributes
 ================
 
-Each group tag (<g>, <grp>, <group>)can have a number of attributes, they used during module execution to provide desired results. Attributes can be mandatory or optional. Each attribute is a string of data formatted in certain way.
+Each group tag (<g>, <grp>, <group>) can have a number of attributes, they used during module execution to provide desired results. Attributes can be mandatory or optional. Each attribute is a string of data formatted in certain way.
 
 .. list-table:: group attributes
    :widths: 10 90
@@ -34,7 +34,7 @@ input
 
 * inputN (optional) - comma separated string that contains names of the input tags that should be used to source data for this group. Order of inputs defined not preserved, i.e. even though input2 comes after input1, input2 data might be run first by the group, followed by input1 data. Input value can also be Operating System fully qualified path to location of text file(s) that should be parsed by this group.
 
-.. note:: Input attributed only supported byt top group, nested groups' input attributes are ignored.
+.. note:: Input attributed only supported at top group, nested groups' input attributes are ignored.
 
 **Example**
 
@@ -110,12 +110,11 @@ method
 
 * value (optional) - [group | table] default is *group*. If method it *group* only first regular expression in group considered as group-start-re, in addition template lines that contain *_start_* indicator also used as group-start-re.
 
-On the other hadn, if maethod set to *table* each and every regular expression in the group considered as group-start-re, that is very useful if semi-table data structure parsed, and we have several variations of row.
+On the other hand, if method set to *table* each and every regular expression in the group considered as group-start-re, that is very useful if semi-table data structure parsed, and we have several variations of row.
 
 **Example**
 
-In this example arp table needs to be parsed, but to match all the variations we have
-to define several tamplate expressions.
+In this example arp table needs to be parsed, but to match all the variations we have to define several template expressions.
 
 Data:
 
