@@ -276,7 +276,7 @@ class _worker(Process):
                 self.task_queue.task_done()
                 break
             # set parser object parameters
-            self.parserObj.set_data(next_task['data'])
+            self.parserObj.set_data(next_task['data'], main_results={})
             # parse and get results
             self.parserObj.parse(groups_names=next_task['groups_to_run'])
             result = self.parserObj.main_results
