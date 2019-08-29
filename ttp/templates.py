@@ -2723,6 +2723,63 @@ interface {{ interface }}
 """
 
 test187="""
+<input load="text">
+interface Vlan163
+ description [OOB management]
+ ip address 10.0.10.3 255.255.255.0
+!
+interface GigabitEthernet6/41
+ description [uplink to core]
+ ip address 192.168.10.3 255.255.255.0
+</input>
+
+<input load="text">
+interface Vlan164
+ description [OOB management]
+ ip address 10.0.11.3 255.255.255.0
+!
+interface GigabitEthernet6/42
+ description [uplink to core]
+ ip address 192.168.11.3 255.255.255.0
+</input>
+
+<group name="interfaces">
+interface {{ interface }}
+ description {{ description | PHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+"""
+
+test188="""
+<input load="text">
+interface Vlan163
+ description [OOB management]
+ ip address 10.0.10.3 255.255.255.0
+!
+interface GigabitEthernet6/41
+ description [uplink to core]
+ ip address 192.168.10.3 255.255.255.0
+</input>
+
+<input load="text">
+interface Vlan164
+ description [OOB management]
+ ip address 10.0.11.3 255.255.255.0
+!
+interface GigabitEthernet6/42
+ description [uplink to core]
+ ip address 192.168.11.3 255.255.255.0
+</input>
+
+<group>
+interface {{ interface }}
+ description {{ description | PHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+"""
+
+
+test189="""
 <template results="per_template">
 <input load="text">
 interface Vlan163
@@ -2749,11 +2806,10 @@ interface {{ interface }}
  description {{ description | PHRASE }}
  ip address {{ ip }} {{ mask }}
 </group>
-
 </template>
 """
 
-test188="""
+test190="""
 <template results="per_template">
 <input load="text">
 interface Vlan163
@@ -2776,6 +2832,30 @@ interface GigabitEthernet6/42
 </input>
 
 <group>
+interface {{ interface }}
+ description {{ description | PHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+</template>
+"""
+
+
+test191="""
+<template results="per_template">
+
+<group name="interfaces.{{ interface }}**" contains="ip">
+interface {{ interface }}
+ description {{ description | PHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+
+</template>
+"""
+
+test192="""
+<template results="per_input">
+
+<group name="interfaces.{{ interface }}" contains="ip">
 interface {{ interface }}
  description {{ description | PHRASE }}
  ip address {{ ip }} {{ mask }}

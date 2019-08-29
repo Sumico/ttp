@@ -205,13 +205,21 @@ class ttp():
             if self.__data:
                 [template.set_input(data=i[0], input_name=i[1], groups=i[2])
                  for i in self.__data]
-            for input_name, input_params in template.inputs.items():
-                for datum in input_params['data']:
-                    parserObj.set_data(datum)
-                    parserObj.parse(groups_names=input_params['groups'])
-                    result = parserObj.results
-                    template.form_results(result)
-
+            if template.results_method.lower() == 'per_input':
+                for input_name, input_params in template.inputs.items():
+                    for datum in input_params['data']:
+                        parserObj.set_data(datum, main_results={})
+                        parserObj.parse(groups_names=input_params['groups'])
+                        result = parserObj.main_results
+                        template.form_results(result)
+            elif template.results_method.lower() == 'per_template':
+                results_data = {}
+                for input_name, input_params in template.inputs.items():
+                    for datum in input_params['data']:
+                        parserObj.set_data(datum, main_results=results_data)
+                        parserObj.parse(groups_names=input_params['groups'])
+                        results_data = parserObj.main_results
+                template.form_results(results_data)
 
     def __run_outputs(self):
         """Method to run templates' outputters.
@@ -258,7 +266,7 @@ class _worker(Process):
         Process.__init__(self)
         self.task_queue = task_queue
         self.results_queue = results_queue
-        self.parser_obj = _parser_class(lookups, vars, groups, macro)
+        self.parserObj = _parser_class(lookups, vars, groups, macro)
 
     def run(self):
         while True:
@@ -268,10 +276,10 @@ class _worker(Process):
                 self.task_queue.task_done()
                 break
             # set parser object parameters
-            self.parser_obj.set_data(next_task['data'])
+            self.parserObj.set_data(next_task['data'])
             # parse and get results
-            self.parser_obj.parse(groups_names=next_task['groups_to_run'])
-            result = self.parser_obj.results
+            self.parserObj.parse(groups_names=next_task['groups_to_run'])
+            result = self.parserObj.main_results
             # put results in the queue and finish task
             self.task_queue.task_done()
             self.results_queue.put(result)
@@ -1181,11 +1189,8 @@ class _template_class():
         """
         if not result:
             return
-        elif '_anonymous_' in result:
-            if isinstance(result['_anonymous_'], list):
-                self.results += result['_anonymous_']
-            else:
-                self.results += [result['_anonymous_']]
+        if '_anonymous_' in result:
+            self.results.append(result['_anonymous_'])
         else:
             if isinstance(result, list):
                 self.results += result
@@ -1976,12 +1981,12 @@ class _parser_class():
         self.macro = macro
 
 
-    def set_data(self, D):
+    def set_data(self, D, main_results={}):
         """Method to load data:
         Args:
             D (tuple): items are dict of (data_type, data_path,)
         """
-        self.results = {}
+        self.main_results = main_results
         if D[0] == 'text_data':
             self.DATATEXT = '\n' + D[1] + '\n\n'
             self.DATANAME = 'text_data'
@@ -2177,8 +2182,8 @@ class _parser_class():
           ) for group_result in unsort_rslts if group_result ]
         # form results for global groups:
         RSLTSOBJ = _results_class(macro=self.macro)
-        RSLTSOBJ.make_results(self.vars['globals']['vars'], raw_results)
-        self.results = RSLTSOBJ.results
+        RSLTSOBJ.make_results(self.vars['globals']['vars'], raw_results, main_results=self.main_results)
+        self.main_results = RSLTSOBJ.results
 
         # sort results for group specific results:
         [ grps_raw_results.append(
@@ -2188,18 +2193,18 @@ class _parser_class():
         # form results for groups specific results with running groups through outputs:
         for grp_raw_result in grps_raw_results:
             RSLTSOBJ = _results_class(macro=self.macro)
-            RSLTSOBJ.make_results(self.vars['globals']['vars'], [grp_raw_result[0]])
+            RSLTSOBJ.make_results(self.vars['globals']['vars'], [grp_raw_result[0]], main_results={})
             grp_result = RSLTSOBJ.results
             for output in grp_raw_result[1]:
                 grp_result = output.run(data=grp_result)
             # transform results into list:
-            if isinstance(self.results, dict):
-                if self.results:
-                    self.results = [self.results]
+            if isinstance(self.main_results, dict):
+                if self.main_results:
+                    self.main_results = [self.main_results]
                 else:
-                    self.results = []
+                    self.main_results = []
             # save results into global results list:
-            self.results.append(grp_result)
+            self.main_results.append(grp_result)
 
 
 
@@ -2225,7 +2230,8 @@ class _results_class():
         self.dyn_path_cache={}
         self.functions = _ttp_functions(results_obj=self, macro=macro)
 
-    def make_results(self, vars, results):
+    def make_results(self, vars, raw_results, main_results):
+        self.results = main_results
         self.vars=vars
         saveFuncs={
             'start'      : self.start,       # start - to start new group;
@@ -2235,10 +2241,10 @@ class _results_class():
             'join'       : self.join         # join - to join results for given variable, e.g. joinmatches;
         }
         # save _vars_to_results_ to results if any:
-        if results: self.save_vars(vars)
+        if raw_results: self.save_vars(vars)
         
         # iterate over group results and form results structure:
-        for group_results in results:
+        for group_results in raw_results:
             # clear LOCK between groups as LOCK has intra group significanse only:
             self.GRPLOCK['LOCK'] = False
             self.GRPLOCK['GROUP'] = ()
