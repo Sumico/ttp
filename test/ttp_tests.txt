@@ -1700,4 +1700,180 @@ format_attributes = "tablefmt='fancy_grid'"
 </template>
 
 
+
+<template 
+name="template6"
+description="per_template results formatting test for anonymous group"
+results="per_template"
+>
+
+<input load="text">
+switch1-1#show run interfaces
+interface Vlan163
+ description [OOB management-1]
+ ip address 10.0.10.3 255.255.255.0
+!
+interface GigabitEthernet6/41
+ description [uplink to core-1]
+ ip address 192.168.10.3 255.255.255.0
+</input>
+
+<input load="text">
+switch1-2#show run interfaces
+interface Vlan164
+ description [OOB management-2]
+ ip address 10.0.11.3 255.255.255.0
+!
+interface GigabitEthernet6/42
+ description [uplink to core-2]
+ ip address 192.168.11.3 255.255.255.0
+</input>
+
+<vars>
+hostname="gethostname"
+</vars>
+
+<group>
+interface {{ interface }}
+ description {{ description | PHRASE }}
+ ip address {{ ip }} {{ mask }}
+ {{ hostname | set("hostname") }}
+</group>
+
+<output name="test6-1"
+description="per_template results formatting - anonymous group"
+load="json"
+functions="is_equal"
+>
+[
+    [
+        {
+            "description": "[OOB management-1]",
+            "hostname": "switch1-1",
+            "interface": "Vlan163",
+            "ip": "10.0.10.3",
+            "mask": "255.255.255.0"
+        },
+        {
+            "description": "[uplink to core-1]",
+            "hostname": "switch1-1",
+            "interface": "GigabitEthernet6/41",
+            "ip": "192.168.10.3",
+            "mask": "255.255.255.0"
+        },
+        {
+            "description": "[OOB management-2]",
+            "hostname": "switch1-2",
+            "interface": "Vlan164",
+            "ip": "10.0.11.3",
+            "mask": "255.255.255.0"
+        },
+        {
+            "description": "[uplink to core-2]",
+            "hostname": "switch1-2",
+            "interface": "GigabitEthernet6/42",
+            "ip": "192.168.11.3",
+            "mask": "255.255.255.0"
+        }
+    ]
+]
+</output>
+
+<!--final output to put all results in tabulate table-->
+<output 
+returner="terminal"
+format="tabulate"
+format_attributes = "tablefmt='fancy_grid'"
+/>
+
+</template>
+
+
+
+
+<template 
+name="template7"
+description="per_template results formatting test for named group"
+results="per_template"
+>
+
+<input load="text">
+switch1-1#show run interfaces
+interface Vlan163
+ description [OOB management-1]
+ ip address 10.0.10.3 255.255.255.0
+!
+interface GigabitEthernet6/41
+ description [uplink to core-1]
+ ip address 192.168.10.3 255.255.255.0
+</input>
+
+<input load="text">
+switch1-2#show run interfaces
+interface Vlan164
+ description [OOB management-2]
+ ip address 10.0.11.3 255.255.255.0
+!
+interface GigabitEthernet6/42
+ description [uplink to core-2]
+ ip address 192.168.11.3 255.255.255.0
+</input>
+
+<vars>
+hostname="gethostname"
+</vars>
+
+<group name="interfaces.{{ interface }}">
+interface {{ interface }}
+ description {{ description | PHRASE }}
+ ip address {{ ip }} {{ mask }}
+ {{ hostname | set("hostname") }}
+</group>
+
+<output name="test7-1"
+description="per_template results formatting - named group"
+load="json"
+functions="is_equal"
+>
+[
+    {
+        "interfaces": {
+            "GigabitEthernet6/41": {
+                "description": "[uplink to core-1]",
+                "hostname": "switch1-1",
+                "ip": "192.168.10.3",
+                "mask": "255.255.255.0"
+            },
+            "GigabitEthernet6/42": {
+                "description": "[uplink to core-2]",
+                "hostname": "switch1-2",
+                "ip": "192.168.11.3",
+                "mask": "255.255.255.0"
+            },
+            "Vlan163": {
+                "description": "[OOB management-1]",
+                "hostname": "switch1-1",
+                "ip": "10.0.10.3",
+                "mask": "255.255.255.0"
+            },
+            "Vlan164": {
+                "description": "[OOB management-2]",
+                "hostname": "switch1-2",
+                "ip": "10.0.11.3",
+                "mask": "255.255.255.0"
+            }
+        }
+    }
+]
+</output>
+
+<!--final output to put all results in tabulate table-->
+<output 
+returner="terminal"
+format="tabulate"
+format_attributes = "tablefmt='fancy_grid'"
+/>
+
+</template>
+
 </template>

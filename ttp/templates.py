@@ -2811,30 +2811,38 @@ interface {{ interface }}
 
 test190="""
 <template results="per_template">
+
 <input load="text">
+switch1-1#show run interfaces
 interface Vlan163
- description [OOB management]
+ description [OOB management-1]
  ip address 10.0.10.3 255.255.255.0
 !
 interface GigabitEthernet6/41
- description [uplink to core]
+ description [uplink to core-1]
  ip address 192.168.10.3 255.255.255.0
 </input>
 
 <input load="text">
+switch1-2#show run interfaces
 interface Vlan164
- description [OOB management]
+ description [OOB management-2]
  ip address 10.0.11.3 255.255.255.0
 !
 interface GigabitEthernet6/42
- description [uplink to core]
+ description [uplink to core-2]
  ip address 192.168.11.3 255.255.255.0
 </input>
+
+<vars>
+hostname="gethostname"
+</vars>
 
 <group>
 interface {{ interface }}
  description {{ description | PHRASE }}
  ip address {{ ip }} {{ mask }}
+ {{ hostname | set("hostname") }}
 </group>
 </template>
 """
@@ -2843,10 +2851,15 @@ interface {{ interface }}
 test191="""
 <template results="per_template">
 
+<vars>
+hostname="gethostname"
+</vars>
+
 <group name="interfaces.{{ interface }}**" contains="ip">
 interface {{ interface }}
  description {{ description | PHRASE }}
  ip address {{ ip }} {{ mask }}
+ {{ hostname | set("hostname") }}
 </group>
 
 </template>
@@ -2855,10 +2868,15 @@ interface {{ interface }}
 test192="""
 <template results="per_input">
 
+<vars>
+hostname="gethostname"
+</vars>
+
 <group name="interfaces.{{ interface }}" contains="ip">
 interface {{ interface }}
  description {{ description | PHRASE }}
  ip address {{ ip }} {{ mask }}
+ {{ hostname | set("hostname") }}
 </group>
 
 </template>
