@@ -2881,3 +2881,106 @@ interface {{ interface }}
 
 </template>
 """
+
+
+ip_cfg_template_per_tmplt = """
+<template results="per_template">
+
+<vars>
+hostname = "gethostname"
+IfsNormalize = {
+    'Lo': ['^Loopback'], 
+    'Ge':['^GigabitEthernet'], 
+    'Po': ['^port-channel', '^Port-channel', '^Bundle-Ether', '^Eth-Trunk'], 
+    'Te':['^TenGigabitEthernet', '^TenGe', '^10GE', '^TenGigE', '^XGigabitEthernet'], 
+    'Fa':['^FastEthernet'], 
+    'Eth':['^Ethernet'], 
+    'Pt':['^Port[^-]'], 
+    'Vl':['^Vlan'], 
+    '100G':['^HundredGigE']
+} 
+</vars>
+
+<macro>
+def add_network(data):
+    # macro to return ip string as data and additional
+    # netmask and network fields
+    ret = {
+        "netmask" : str(data.netmask),
+        "network" : str(data.network)    
+    }
+    return str(data.ip), ret
+</macro>
+
+<!--################-=HUAWEI TEMPLATE GROUPS=-################-->
+<group name="{{ network }}*" contains="ip" input="./Huawei/">
+interface {{ interface | resuball("IfsNormalize") }}
+ description {{ port_description }}
+ ip binding vpn-instance {{ vrf }}
+ ip address {{ ip | PHRASE | strip(" sub") | exclude(':') | to_ip | macro("add_network") }}
+ {{ hostname | set("hostname") }}
+#{{ _end_ }}
+</group>
+
+<group name="{{ network }}*" contains="ip" input="./Huawei/">
+interface {{ interface | resuball("IfsNormalize") }}
+ description {{ port_description }}
+ ip binding vpn-instance {{ vrf }}
+ ipv6 address {{ ip | strip("sub") | contains(':') | to_ip | macro("add_network") }}
+ {{ hostname | set("hostname") }}
+#{{ _end_ }}
+</group>
+
+</template>
+"""
+
+ip_cfg_template_per_inpt = """
+<template results="per_input">
+
+<vars>
+hostname = "gethostname"
+IfsNormalize = {
+    'Lo': ['^Loopback'], 
+    'Ge':['^GigabitEthernet'], 
+    'Po': ['^port-channel', '^Port-channel', '^Bundle-Ether', '^Eth-Trunk'], 
+    'Te':['^TenGigabitEthernet', '^TenGe', '^10GE', '^TenGigE', '^XGigabitEthernet'], 
+    'Fa':['^FastEthernet'], 
+    'Eth':['^Ethernet'], 
+    'Pt':['^Port[^-]'], 
+    'Vl':['^Vlan'], 
+    '100G':['^HundredGigE']
+} 
+</vars>
+
+<macro>
+def add_network(data):
+    # macro to return ip string as data and additional
+    # netmask and network fields
+    ret = {
+        "netmask" : str(data.netmask),
+        "network" : str(data.network)    
+    }
+    return str(data.ip), ret
+</macro>
+
+<!--################-=HUAWEI TEMPLATE GROUPS=-################-->
+<group name="{{ network }}*" contains="ip" input="./Huawei/">
+interface {{ interface | resuball("IfsNormalize") }}
+ description {{ port_description }}
+ ip binding vpn-instance {{ vrf }}
+ ip address {{ ip | PHRASE | strip(" sub") | exclude(':') | to_ip | macro("add_network") }}
+ {{ hostname | set("hostname") }}
+#{{ _end_ }}
+</group>
+
+<group name="{{ network }}*" contains="ip" input="./Huawei/">
+interface {{ interface | resuball("IfsNormalize") }}
+ description {{ port_description }}
+ ip binding vpn-instance {{ vrf }}
+ ipv6 address {{ ip | strip("sub") | contains(':') | to_ip | macro("add_network") }}
+ {{ hostname | set("hostname") }}
+#{{ _end_ }}
+</group>
+
+</template>
+"""
