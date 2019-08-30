@@ -178,7 +178,8 @@ class ttp():
                 for datum in input_params['data']:
                     task_dict = {
                         'data'          : datum,
-                        'groups_to_run' : input_params['groups']
+                        'groups_to_run' : input_params['groups'],
+                        'groups_indexes': input_params['groups_indexes']
                     }
                     tasks.put(task_dict)
                     num_jobs += 1
@@ -209,7 +210,7 @@ class ttp():
                 for input_name, input_params in template.inputs.items():
                     for datum in input_params['data']:
                         parserObj.set_data(datum, main_results={})
-                        parserObj.parse(groups_names=input_params['groups'])
+                        parserObj.parse(groups_names=input_params['groups'], groups_indexes=input_params['groups_indexes'])
                         result = parserObj.main_results
                         template.form_results(result)
             elif template.results_method.lower() == 'per_template':
@@ -217,7 +218,7 @@ class ttp():
                 for input_name, input_params in template.inputs.items():
                     for datum in input_params['data']:
                         parserObj.set_data(datum, main_results=results_data)
-                        parserObj.parse(groups_names=input_params['groups'])
+                        parserObj.parse(groups_names=input_params['groups'], groups_indexes=input_params['groups_indexes'])
                         results_data = parserObj.main_results
                 template.form_results(results_data)
 
@@ -278,7 +279,7 @@ class _worker(Process):
             # set parser object parameters
             self.parserObj.set_data(next_task['data'], main_results={})
             # parse and get results
-            self.parserObj.parse(groups_names=next_task['groups_to_run'])
+            self.parserObj.parse(groups_names=next_task['groups_to_run'], groups_indexes=next_task['groups_indexes'])
             result = self.parserObj.main_results
             # put results in the queue and finish task
             self.task_queue.task_done()
@@ -1207,38 +1208,52 @@ class _template_class():
         """
         if isinstance(groups, str):
             groups = [groups]
+        # get group indexes:
+        groups_indexes = []
+        for group_name in groups:
+            for group_object in self.groups:
+                if group_object.name == group_name:
+                    groups_indexes.append(group_object.grp_index)
         if input_name not in self.inputs:
-            self.inputs[input_name]={'data': data, 'groups': groups}
+            self.inputs[input_name]={'data': data, 'groups': groups, 'groups_indexes': groups_indexes}
         else:
             self.inputs[input_name]['data'] += data
             # do not add 'all' to input groups if input was defined already
             # that is needed to allow groups to match based on input attribute
             if groups is not ['all']:
                 self.inputs[input_name]['groups'] += groups
+                self.inputs[input_name]['groups_indexes'] += groups_indexes
 
 
     def update_inputs_with_groups(self):
         """
         Method to update self.inputs dictionaries with groups' names
-        that will parse this input data
+        that will parse this input data. method called after all groups and 
+        inputs already loaded.
         """
         for G in self.groups:
             # input_name - os path to files to parse
             for input_name in G.inputs:
+                if self.base_path:
+                    input_name = self.base_path + input_name.lstrip('.')
                 if input_name in self.inputs:
                     self.inputs[input_name]['groups'].append(G.name)
+                    self.inputs[input_name]['groups_indexes'].append(G.grp_index)
                     # remove 'all' from this input as it is group specific:
                     if self.inputs[input_name]['groups'][0].lower() == 'all':
                         self.inputs[input_name]['groups'].pop(0)
                 else:
-                    input_name = self.base_path + input_name.lstrip('.')
                     data_items = self.utils.load_files(path=input_name, extensions=[],
                                                        filters=[], read=False)
-                    # skip 'text_data' from data as it does not make sense here
+                    # skip 'text_data' from data as if by the time this method runs
+                    # no input with such name found it means that group input is os path
+                    # string and text_data will be returned by self.utils.load_files
+                    # only if no such path exists, hence text_data does not make sense here
                     data = [i for i in data_items if 'text_data' not in i[0]]
                     self.inputs[input_name]={
                         'data'   : data,
-                        'groups' : [G.name]
+                        'groups' : [G.name],   # need groups to reference in input groups attributes
+                        'groups_indexes': [G.grp_index]  # need indexes if more granular filtering required
                     }
 
     def update_groups_with_outputs(self):
@@ -1248,13 +1263,13 @@ class _template_class():
         self.groups_outputs
         """
         for G in self.groups:
-            for grp_index, grp_output in enumerate(G.outputs):
+            for output_index, grp_output in enumerate(G.outputs):
                 group_output_found = False
                 # search through global outputs:
                 for glob_index, glob_output in enumerate(self.outputs):
                     if glob_output.name == grp_output:
                         self.groups_outputs.append(self.outputs.pop(glob_index))
-                        G.outputs[grp_index] = self.groups_outputs[-1]
+                        G.outputs[output_index] = self.groups_outputs[-1]
                         group_output_found = True
                 # go to next output if this output found:
                 if group_output_found:
@@ -1262,11 +1277,11 @@ class _template_class():
                 # try to find output in group specific outputs:
                 for index, output in enumerate(self.groups_outputs):
                     if output.name == grp_output:
-                        G.outputs[grp_index] = output
+                        G.outputs[output_index] = output
                         group_output_found = True
                 # print error message if no output found:
                 if not group_output_found:
-                    G.outputs.pop(grp_index)
+                    G.outputs.pop(output_index)
                     print("Error: group output '{}' not found.".format(grp_output))
 
 
@@ -1345,14 +1360,15 @@ class _template_class():
 
             self.set_input(data=data, input_name=name, groups=groups)
 
-        def parse_group(element):
+        def parse_group(element, grp_index):
             self.groups.append(
                 _group_class(
                     element,
                     top=True,
                     pathchar=self.PATHCHAR,
                     debug=self.DEBUG,
-                    vars=self.vars
+                    vars=self.vars,
+                    grp_index=grp_index
                 )
             )
 
@@ -1438,9 +1454,9 @@ class _template_class():
             # perform tags parsing:
             [parse_vars(v) for v in tags['vars']]
             [parse_output(o) for o in tags['outputs']]
-            [parse_input(i) for i in tags['inputs']]
             [parse_lookup(L) for L in tags['lookups']]
-            [parse_group(g) for g in tags['groups']]
+            [parse_group(g, grp_index) for grp_index, g in enumerate(tags['groups'])]
+            [parse_input(i) for i in tags['inputs']]
 
         def parse_template_XML(template_text):
             # load template from text reconstructing it if required:
@@ -1475,7 +1491,7 @@ class _group_class():
     """group class to store template group objects data
     """
 
-    def __init__(self, element, top=False, path=[], pathchar=".",
+    def __init__(self, element, grp_index=0, top=False, path=[], pathchar=".",
                  debug=False, vars={}):
         """Init method
         Attributes:
@@ -1494,6 +1510,7 @@ class _group_class():
             end_re (list): contains list of group end regular expressions
             children (list): contains child group objects
             vars (dict): variables dictionary from template class
+            grp_index (int): uniqie index of the group
         """
         self.pathchar = pathchar
         self.top      = top
@@ -1513,6 +1530,7 @@ class _group_class():
         self.name     = ''
         self.vars     = vars
         self.utils    = _ttp_utils()
+        self.grp_index = grp_index
         # extract data:
         self.get_attributes(element.attrib)
         self.set_anonymous_path()
@@ -1579,11 +1597,11 @@ class _group_class():
         def extract_functions(O):
             funcs = self.utils.get_attributes(O)
             for i in funcs:
-                name = i['name']
-                if name in functions: 
-                    functions[name](i)
+                func_name = i['name']
+                if func_name in functions: 
+                    functions[func_name](i)
                 else: 
-                    print('ERROR: Uncknown group function: "{}"'.format(name))
+                    print('ERROR: Uncknown group function: "{}"'.format(func_name))
 
         # group attributes extract functions dictionary:
         options = {
@@ -1601,10 +1619,10 @@ class _group_class():
         'fun'         : extract_functions    
         }
 
-        for name, attributes in data.items():
-            if name.lower() in options: options[name.lower()](attributes)
-            elif name.lower() in functions: functions[name.lower()](attributes)
-            else: print('ERROR: Uncknown group attribute: {}="{}"'.format(name, attributes))
+        for attr_name, attributes in data.items():
+            if attr_name.lower() in options: options[attr_name.lower()](attributes)
+            elif attr_name.lower() in functions: functions[attr_name.lower()](attributes)
+            else: print('ERROR: Uncknown group attribute: {}="{}"'.format(attr_name, attributes))
 
 
     def get_regexes(self, data, tail=False):
@@ -2036,8 +2054,9 @@ class _parser_class():
                     continue
 
 
-    def parse(self, groups_names):
+    def parse(self, groups_names, groups_indexes):
         # groups_names - list of groups' names to run
+        # groups_indexes - list of group indexes to run
         unsort_rslts = [] # list of dictionaries - one item per top group, each dictionary
                           # contains all unsorted match results for all REs within group
         raw_results = []  # list to store sorted results for all groups
@@ -2166,15 +2185,16 @@ class _parser_class():
         # run parsing to produce unsorted results:
         for group in self.groups:
             if group.name in groups_names or 'all' in groups_names:
-                # get results for groups with global only outputs:
-                if group.outputs == []:
-                    unsort_rslts.append(run_re(group, results={}))
-                # get results for groups with group specific results:
-                else:
-                    # for a tuple of (results, group.outputs,)
-                    grps_unsort_rslts.append(
-                        (run_re(group, results={}), group.outputs,)
-                    )
+                if group.grp_index in groups_indexes or 'all' in groups_names:
+                    # get results for groups with global only outputs:
+                    if group.outputs == []:
+                        unsort_rslts.append(run_re(group, results={}))
+                    # get results for groups with group specific results:
+                    else:
+                        # for a tuple of (results, group.outputs,)
+                        grps_unsort_rslts.append(
+                            (run_re(group, results={}), group.outputs,)
+                        )
 
         # sort global groups results:
         [ raw_results.append(

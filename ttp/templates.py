@@ -2984,3 +2984,126 @@ interface {{ interface | resuball("IfsNormalize") }}
 
 </template>
 """
+
+
+test193="""
+<template
+name="template4"
+description="template to test csv/tabulate global outputters"
+>
+<!--test csv and tabulate outputters-->
+<input name="test4-1" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/3
+ switchport trunk allowed vlan add 138,166-173 
+ description some description
+!
+interface GigabitEthernet3/4
+ switchport trunk allowed vlan add 100-105
+!
+interface GigabitEthernet3/5
+ switchport trunk allowed vlan add 459,531,704-707
+ ip address 1.1.1.1 255.255.255.255
+ vrf forwarding ABC_VRF
+!
+interface GigabitEthernet3/7
+ switchport trunk allowed vlan add 138,166-173 
+ description some description
+!
+interface GigabitEthernet3/8
+ switchport trunk allowed vlan add 100-105
+!
+interface GigabitEthernet3/9
+ switchport trunk allowed vlan add 459,531,704-707
+ ip address 1.1.1.1 255.255.255.255
+ vrf forwarding ABC_VRF
+!
+</input>
+
+
+<input name="test4-1.1" load="text">
+interface GigabitEthernet3/33
+ switchport trunk allowed vlan add 138,166-173 
+ description some description
+</input>
+
+<group name="interfaces.trunks" input="test4-1.1">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ vrf forwarding {{ vrf }}
+ ip address {{ ip }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+
+<!--group for global outputs:-->
+<group name="interfaces.trunks">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ vrf forwarding {{ vrf }}
+ ip address {{ ip }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+<!--global outputs:-->
+<out
+name="out_csv"
+path="interfaces.trunks"
+format="csv"
+returner="self"
+sep=","
+missing="undefined"
+load="python"
+/>
+
+<out 
+name="test4-1"
+load="text"
+returner="self"
+functions="is_equal"
+description="test global csv outputter"
+>description,interface,ip,mask,trunk_vlans,vrf
+some description,GigabitEthernet3/3,undefined,undefined,138,166-173,undefined
+undefined,GigabitEthernet3/4,undefined,undefined,100-105,undefined
+undefined,GigabitEthernet3/5,1.1.1.1,255.255.255.255,459,531,704-707,ABC_VRF
+some description,GigabitEthernet3/7,undefined,undefined,138,166-173,undefined
+undefined,GigabitEthernet3/8,undefined,undefined,100-105,undefined
+undefined,GigabitEthernet3/9,1.1.1.1,255.255.255.255,459,531,704-707,ABC_VRF</out>
+
+<!--final output to put all results in tabulate table-->
+<output 
+returner="terminal"
+format="tabulate"
+format_attributes = "tablefmt='fancy_grid'"
+/>
+</template>
+"""
+
+
+test194="""
+<input name="test4-1.1" load="text">
+interface GigabitEthernet3/33
+ switchport trunk allowed vlan add 138,166-173 
+ description some description
+!
+</input>
+
+<group name="interfaces.trunks" input="test4-1.1">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ vrf forwarding {{ vrf }}
+ ip address {{ ip }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks" input="test4-1.1">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ vrf forwarding {{ vrf }}
+ ip address {{ ip }} {{ mask }}
+!{{ _end_ }}
+</group>
+"""
