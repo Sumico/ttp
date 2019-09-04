@@ -3082,28 +3082,111 @@ format_attributes = "tablefmt='fancy_grid'"
 
 
 test194="""
-<input name="test4-1.1" load="text">
-interface GigabitEthernet3/33
- switchport trunk allowed vlan add 138,166-173 
- description some description
+<input name="input_1" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/11
+ description input_1_data
+ switchport trunk allowed vlan add 111,222
 !
 </input>
 
-<group name="interfaces.trunks" input="test4-1.1">
+<input name="input_2" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/22
+ description input_2_data
+ switchport trunk allowed vlan add 222,888
+!
+</input>
+
+<input name="input_3" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/33
+ description input_3_data
+ switchport trunk allowed vlan add 333,999
+!
+</input>
+
+<input name="input_4" load="text">
+interface GigabitEthernet3/44
+ description input_4_data
+ switchport trunk allowed vlan add 444,1010
+!
+</input>
+
+<input name="input_5" load="text">
+interface GigabitEthernet3/55
+ description input_5_data
+ switchport trunk allowed vlan add 555,2020
+!
+</input>
+
+<group name="interfaces.trunks" input="input_1">
 interface {{ interface }}
  switchport trunk allowed vlan add {{ trunk_vlans }}
  description {{ description | ORPHRASE }}
- vrf forwarding {{ vrf }}
- ip address {{ ip }} {{ mask }}
+ {{ group_id | set("group_1") }}
 !{{ _end_ }}
 </group>
 
-<group name="interfaces.trunks" input="test4-1.1">
+<group name="interfaces.trunks" input="input_2">
 interface {{ interface }}
  switchport trunk allowed vlan add {{ trunk_vlans }}
  description {{ description | ORPHRASE }}
- vrf forwarding {{ vrf }}
- ip address {{ ip }} {{ mask }}
+ {{ group_id | set("group_2") }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks" input="input_2">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_3") }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_4") }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks" input="input_5">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_5") }}
+!{{ _end_ }}
+</group>
+"""
+
+
+test195="""
+<input name="input_1" load="text">
+interface GigabitEthernet3/11
+ description input_1_data
+ switchport trunk allowed vlan add 111,222
+!
+</input>
+
+<input name="input_2" load="text">
+interface GigabitEthernet3/22
+ description input_2_data
+ switchport trunk allowed vlan add 222,888
+!
+</input>
+
+<group name="interfaces.trunks" input="input_1">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_1") }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks" input="input_2">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_2") }}
 !{{ _end_ }}
 </group>
 """

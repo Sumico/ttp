@@ -1020,16 +1020,16 @@ interface {{ interface }}
 </group>
 
 <output name="test1-18"
-description="test group functions attribute"
+description="test to_list match variable functions"
 functions="is_equal"
 load="json"
 >
 {
     "interfaces_functions_test1_18": {
-        "description": [
+        "description": [[
             "to",
             "core-1"
-        ],
+        ]],
         "interface": "GigabitEthernet1/1",
         "ip": [
             "192.168.123.1"
@@ -1875,5 +1875,220 @@ format_attributes = "tablefmt='fancy_grid'"
 />
 
 </template>
+
+
+
+
+<template
+name="template8"
+description="test group specific and global inputs"
+>
+
+<input name="input_1" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/11
+ description input_1_data
+ switchport trunk allowed vlan add 111,222
+!
+</input>
+
+<input name="input_2" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/22
+ description input_2_data
+ switchport trunk allowed vlan add 222,888
+!
+</input>
+
+<input name="input_3" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/33
+ description input_3_data
+ switchport trunk allowed vlan add 333,999
+!
+</input>
+
+<input name="input_4" load="text">
+interface GigabitEthernet3/44
+ description input_4_data
+ switchport trunk allowed vlan add 444,1010
+!
+</input>
+
+<input name="input_5" load="text">
+interface GigabitEthernet3/55
+ description input_5_data
+ switchport trunk allowed vlan add 555,2020
+!
+</input>
+
+<group name="interfaces.trunks" input="input_1">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_1") }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks" input="input_2">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_2") }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks" input="input_2">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_3") }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_4") }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks" input="input_5">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_5") }}
+!{{ _end_ }}
+</group>
+
+<output name="test8-1"
+description="test group specific and global inputs behavior"
+load="json"
+functions="is_equal"
+>
+[
+{
+    "interfaces": {
+        "trunks": {
+            "description": "input_1_data",
+            "group_id": "group_1",
+            "interface": "GigabitEthernet3/11",
+            "trunk_vlans": "111,222"
+        }
+    }
+},
+{
+    "interfaces": {
+        "trunks": [
+            {
+                "description": "input_2_data",
+                "group_id": "group_2",
+                "interface": "GigabitEthernet3/22",
+                "trunk_vlans": "222,888"
+            },
+            {
+                "description": "input_2_data",
+                "group_id": "group_3",
+                "interface": "GigabitEthernet3/22",
+                "trunk_vlans": "222,888"
+            }
+        ]
+    }
+},
+{
+    "interfaces": {
+        "trunks": [
+            {
+                "description": "input_3_data",
+                "group_id": "group_1",
+                "interface": "GigabitEthernet3/33",
+                "trunk_vlans": "333,999"
+            },
+            {
+                "description": "input_3_data",
+                "group_id": "group_2",
+                "interface": "GigabitEthernet3/33",
+                "trunk_vlans": "333,999"
+            },
+            {
+                "description": "input_3_data",
+                "group_id": "group_3",
+                "interface": "GigabitEthernet3/33",
+                "trunk_vlans": "333,999"
+            },
+            {
+                "description": "input_3_data",
+                "group_id": "group_4",
+                "interface": "GigabitEthernet3/33",
+                "trunk_vlans": "333,999"
+            },
+            {
+                "description": "input_3_data",
+                "group_id": "group_5",
+                "interface": "GigabitEthernet3/33",
+                "trunk_vlans": "333,999"
+            }
+        ]
+    }
+},
+{
+    "interfaces": {
+        "trunks": [
+            {
+                "description": "input_4_data",
+                "group_id": "group_1",
+                "interface": "GigabitEthernet3/44",
+                "trunk_vlans": "444,1010"
+            },
+            {
+                "description": "input_4_data",
+                "group_id": "group_2",
+                "interface": "GigabitEthernet3/44",
+                "trunk_vlans": "444,1010"
+            },
+            {
+                "description": "input_4_data",
+                "group_id": "group_3",
+                "interface": "GigabitEthernet3/44",
+                "trunk_vlans": "444,1010"
+            },
+            {
+                "description": "input_4_data",
+                "group_id": "group_4",
+                "interface": "GigabitEthernet3/44",
+                "trunk_vlans": "444,1010"
+            },
+            {
+                "description": "input_4_data",
+                "group_id": "group_5",
+                "interface": "GigabitEthernet3/44",
+                "trunk_vlans": "444,1010"
+            }
+        ]
+    }
+},
+{
+    "interfaces": {
+        "trunks": {
+            "description": "input_5_data",
+            "group_id": "group_5",
+            "interface": "GigabitEthernet3/55",
+            "trunk_vlans": "555,2020"
+        }
+    }
+}
+]
+</output>
+
+<!--final output to put all results in tabulate table-->
+<output 
+returner="terminal"
+format="tabulate"
+format_attributes = "tablefmt='fancy_grid'"
+/>
+
+</template>
+
+
+
+
 
 </template>

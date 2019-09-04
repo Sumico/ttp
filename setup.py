@@ -30,3 +30,8 @@ setup(
         'console_scripts': ['ttp=ttp.ttp:cli_tool'],
     }
 )
+
+"""
+to install without making egg:
+python3 -m pip install .
+"""

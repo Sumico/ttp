@@ -3,6 +3,8 @@ Inputs
    
 Inputs can be used to specify data location and how it should be loaded or filtered. Inputs can be attached to groups for parsing, for instance this particular input data should be parsed by this set of groups only. That can help to increase the overall performance as only data belonging to particular group will be parsed. 
 
+.. warning:: Order of inputs defined not preserved, i.e. even though input tag with name input2 can come after input1, input2 data might be parsed first, followed by input1 data. That is due to the fact that internally ttp uses dictionary to store inputs details and runs sorted function against dictionary items prior to parse it.
+
 Assuming we have this folders structure to store data that needs to be parsed:
 
 .. code-block::
@@ -141,7 +143,9 @@ groups
 ******************************************************************************
 ``groups="group1, group2, ... , groupN"``
 
-* groupN (optional) - Default value is "all", comma separated string of group names that should be used to parse given input data. If value is "all" - input data will be parsed by each group.
+* groupN (optional) - Default value is "all", comma separated string of group names that should be used to parse given input data. Default value is "all" - input data will be parsed by each group. 
+
+.. note:: Group tag :ref:`Groups/Attributes:input` attribute can be used to reference inputs' names or OS path to files, it is considered to be more specific, for example when several groups in the  template have identical *name* attribute, referencing these groups by name in input tag *groups* attribute will result in input data to be parsed by all the groups with that name, on the other hand, if input name referenced in group tag *input* attribute, data of this input will only be parsed by this group even if several group have the same name.
 
 load
 ******************************************************************************

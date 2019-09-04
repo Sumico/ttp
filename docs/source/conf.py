@@ -32,7 +32,8 @@ release = '0.0.1'
 # ones.
 extensions = [
 'sphinx.ext.autodoc',
-'sphinx.ext.napoleon'
+'sphinx.ext.napoleon',
+'sphinx.ext.autosectionlabel'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -52,9 +53,12 @@ master_doc = 'index'
 # a list of builtin themes.
 #
 #html_theme = 'alabaster'
-#html_theme = 'classic'
+html_theme = 'classic'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+# to make crossreferencing section names between documents work
+autosectionlabel_prefix_document = True

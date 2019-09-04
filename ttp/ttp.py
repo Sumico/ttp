@@ -174,7 +174,7 @@ class ttp():
                        for i in range(num_processes)]
             [w.start() for w in workers]
 
-            for input_name, input_params in template.inputs.items():
+            for input_name, input_params in sorted(template.inputs.items()):
                 for datum in input_params['data']:
                     task_dict = {
                         'data'          : datum,
@@ -207,7 +207,7 @@ class ttp():
                 [template.set_input(data=i[0], input_name=i[1], groups=i[2])
                  for i in self.__data]
             if template.results_method.lower() == 'per_input':
-                for input_name, input_params in template.inputs.items():
+                for input_name, input_params in sorted(template.inputs.items()):
                     for datum in input_params['data']:
                         parserObj.set_data(datum, main_results={})
                         parserObj.parse(groups_names=input_params['groups'], groups_indexes=input_params['groups_indexes'])
@@ -215,7 +215,7 @@ class ttp():
                         template.form_results(result)
             elif template.results_method.lower() == 'per_template':
                 results_data = {}
-                for input_name, input_params in template.inputs.items():
+                for input_name, input_params in sorted(template.inputs.items()):
                     for datum in input_params['data']:
                         parserObj.set_data(datum, main_results=results_data)
                         parserObj.parse(groups_names=input_params['groups'], groups_indexes=input_params['groups_indexes'])
@@ -677,10 +677,7 @@ class _ttp_functions():
         return str(data), None
         
     def match_to_list(self, data):
-        if isinstance(data, str):
-            return [data], None
-        else:
-            return data, None
+        return [data], None
         
     def match_to_int(self, data):
         try:
@@ -831,10 +828,11 @@ class _ttp_functions():
         command output, uses symbols '# ', '<', '>' to find hostname
         """
         REs = [ # ios-xr prompt re must go before ios privilege prompt re
-            {'huawei': '\n\S*<(\S+)>.*(?=\n)'},   # e.g. '<hostname>'
-            {'ios_exec': '\n(\S+)>.*(?=\n)'},     # e.g. 'hostname>'
-            {'ios_xr': '\n\S+:(\S+)#.*(?=\n)'},   # e.g. 'RP/0/4/CPU0:hostname#'
-            {'ios_priv': '\n(\S+)#.*(?=\n)'}      # e.g. 'hostname#'
+            {'huawei': '\n\S*<(\S+)>.*(?=\n)'},        # e.g. '<hostname>'
+            {'ios_exec': '\n(\S+)>.*(?=\n)'},          # e.g. 'hostname>'
+            {'ios_xr': '\n\S+:(\S+)#.*(?=\n)'},        # e.g. 'RP/0/4/CPU0:hostname#'
+            {'ios_priv': '\n(\S+)#.*(?=\n)'},          # e.g. 'hostname#'
+			{'fortigate': '\n(\S+ \(\S+\)) #.*(?=\n)'} # e.g. 'syd-pwk-dym-cfw01 (Corporate) #'
         ]
         for item in REs:
             name, regex = list(item.items())[0]
@@ -1198,7 +1196,7 @@ class _template_class():
             else:
                 self.results.append(result)
 
-    def set_input(self, data, input_name='Default_Input', groups=['all']):
+    def set_input(self, data=None, input_name='Default_Input', groups=['all'], groups_indexes=[]):
         """
         Method to set data for default input
         Args:
@@ -1208,22 +1206,25 @@ class _template_class():
         """
         if isinstance(groups, str):
             groups = [groups]
-        # get group indexes:
-        groups_indexes = []
-        for group_name in groups:
-            for group_object in self.groups:
-                if group_object.name == group_name:
-                    groups_indexes.append(group_object.grp_index)
+        if isinstance(groups_indexes, int):
+            groups_indexes = [groups_indexes]
         if input_name not in self.inputs:
-            self.inputs[input_name]={'data': data, 'groups': groups, 'groups_indexes': groups_indexes}
+            if data is not None:
+                # list(groups_indexes) makes copy of groups_indexes, need copy it, or python reference same list 
+                self.inputs[input_name]={'data': data, 'groups': groups, 'groups_indexes': list(groups_indexes)}
+            else:
+                print("ERROR: New input, input data required but not provided")
         else:
-            self.inputs[input_name]['data'] += data
+            if data is not None:
+                self.inputs[input_name]['data'] += data
             # do not add 'all' to input groups if input was defined already
             # that is needed to allow groups to match based on input attribute
             if groups is not ['all']:
                 self.inputs[input_name]['groups'] += groups
-                self.inputs[input_name]['groups_indexes'] += groups_indexes
-
+                self.inputs[input_name]['groups_indexes'] += groups_indexes    
+            # remove 'all' from this input as it is group specific:
+            if self.inputs[input_name]['groups'][0] == 'all':
+                self.inputs[input_name]['groups'].pop(0)
 
     def update_inputs_with_groups(self):
         """
@@ -1232,16 +1233,12 @@ class _template_class():
         inputs already loaded.
         """
         for G in self.groups:
-            # input_name - os path to files to parse
+            # input_name - os path to files to parse or name of the input
             for input_name in G.inputs:
                 if self.base_path:
                     input_name = self.base_path + input_name.lstrip('.')
                 if input_name in self.inputs:
-                    self.inputs[input_name]['groups'].append(G.name)
-                    self.inputs[input_name]['groups_indexes'].append(G.grp_index)
-                    # remove 'all' from this input as it is group specific:
-                    if self.inputs[input_name]['groups'][0].lower() == 'all':
-                        self.inputs[input_name]['groups'].pop(0)
+                    self.set_input(input_name=input_name, groups=G.name, groups_indexes=G.grp_index)
                 else:
                     data_items = self.utils.load_files(path=input_name, extensions=[],
                                                        filters=[], read=False)
@@ -1250,11 +1247,7 @@ class _template_class():
                     # string and text_data will be returned by self.utils.load_files
                     # only if no such path exists, hence text_data does not make sense here
                     data = [i for i in data_items if 'text_data' not in i[0]]
-                    self.inputs[input_name]={
-                        'data'   : data,
-                        'groups' : [G.name],   # need groups to reference in input groups attributes
-                        'groups_indexes': [G.grp_index]  # need indexes if more granular filtering required
-                    }
+                    self.set_input(input_name=input_name, data=data, groups=G.name, groups_indexes=G.grp_index)
 
     def update_groups_with_outputs(self):
         """Method to replace output names in group with
@@ -1283,7 +1276,6 @@ class _template_class():
                 if not group_output_found:
                     G.outputs.pop(output_index)
                     print("Error: group output '{}' not found.".format(grp_output))
-
 
     def get_template_attributes(self, element):
 
@@ -2185,16 +2177,18 @@ class _parser_class():
         # run parsing to produce unsorted results:
         for group in self.groups:
             if group.name in groups_names or 'all' in groups_names:
-                if group.grp_index in groups_indexes or 'all' in groups_names:
-                    # get results for groups with global only outputs:
-                    if group.outputs == []:
-                        unsort_rslts.append(run_re(group, results={}))
-                    # get results for groups with group specific results:
-                    else:
-                        # for a tuple of (results, group.outputs,)
-                        grps_unsort_rslts.append(
-                            (run_re(group, results={}), group.outputs,)
-                        )
+                if groups_indexes:
+                    if not group.grp_index in groups_indexes:
+                        continue
+                # get results for groups with global only outputs:
+                if group.outputs == []:
+                    unsort_rslts.append(run_re(group, results={}))
+                # get results for groups with group specific results:
+                else:
+                    # for a tuple of (results, group.outputs,)
+                    grps_unsort_rslts.append(
+                        (run_re(group, results={}), group.outputs,)
+                    )
 
         # sort global groups results:
         [ raw_results.append(
@@ -2490,6 +2484,9 @@ class _results_class():
     def join(self, result, PATH, DEFAULTS={}, FUNCTIONS=[], REDICT=''):
         joinchar = '\n'
         for varname, varvalue in result.items():
+            # skip vars that were added to results on the go
+            if not varname in REDICT['VARIABLES']: 
+                continue
             for item in REDICT['VARIABLES'][varname].functions:
                 if item['name'] == 'joinmatches':
                     if item['args']:
@@ -2507,8 +2504,10 @@ class _results_class():
                 elif isinstance(self.record['result'][k], list):
                     if isinstance(result[k], list):
                         self.record['result'][k] += result[k]        # join lists
-                    elif isinstance(result[k], str):
-                        self.record['result'][k].append(result[k])   # append to list
+                    else:
+                        self.record['result'][k].append(result[k])   # append to list        					
+                else: # transform result to list and append new result to it
+                    self.record['result'][k] = [ self.record['result'][k], result[k] ]
             else:
                 self.record['result'][k] = result[k]                 # if first result
 

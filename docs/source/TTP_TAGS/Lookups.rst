@@ -12,9 +12,9 @@ Lookups tag allows to define a lookup table that will be transformed into lookup
    * - `name`_ 
      - name of the lookup table to reference in match variable *lookup* function
    * - `load`_ 
-     - name of the lookup table to reference in match variable *lookup* function 
+     - name of the loader to use to load lookup text
    * - `include`_   
-     - Specifies location of the file to load lookup table from
+     - specifies location of the file to load lookup table from
    * - `key`_   
      - If csv loader used, *key* specifies column name to use as a key
 
