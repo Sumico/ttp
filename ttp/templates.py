@@ -3190,3 +3190,31 @@ interface {{ interface }}
 !{{ _end_ }}
 </group>
 """
+
+test196="""
+<input load="text">
+switch1# show run int
+hostname switch12345
+!
+interface GigabitEthernet3/11
+ description input_1_data
+ switchport trunk allowed vlan add 111,222
+!
+</input>
+
+<vars>
+hostname_var = "gethostname"
+</vars>
+
+<group name="params">
+hostname {{ hostname | record("hostname_var") }}
+</group>
+
+<group name="interfaces.trunks" input="input_2">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ hostname | set("hostname_var") }}
+!{{ _end_ }}
+</group>
+"""

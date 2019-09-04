@@ -590,7 +590,7 @@ class _ttp_functions():
 
     def match_record(self, data, record):
         self.pobj.vars['globals']['vars'].update({record: data})
-        self.pobj.update_groups_runs({record: data})
+        # self.pobj.update_groups_runs({record: data})
         return data, None
 
     def match_lookup(self, data, name, add_field=False):
@@ -832,7 +832,7 @@ class _ttp_functions():
             {'ios_exec': '\n(\S+)>.*(?=\n)'},          # e.g. 'hostname>'
             {'ios_xr': '\n\S+:(\S+)#.*(?=\n)'},        # e.g. 'RP/0/4/CPU0:hostname#'
             {'ios_priv': '\n(\S+)#.*(?=\n)'},          # e.g. 'hostname#'
-			{'fortigate': '\n(\S+ \(\S+\)) #.*(?=\n)'} # e.g. 'syd-pwk-dym-cfw01 (Corporate) #'
+            {'fortigate': '\n(\S+ \(\S+\)) #.*(?=\n)'} # e.g. 'syd-pwk-dym-cfw01 (Corporate) #'
         ]
         for item in REs:
             name, regex = list(item.items())[0]
@@ -2023,9 +2023,9 @@ class _parser_class():
         }
         # run macro functions to update vars with functions results:
         self.run_functions()
-        # update groups' runs dictionaries to hold defaults updated with var values
+        # create groups' runs dictionaries to hold defaults updated with var values
         [G.set_runs() for G in self.groups]
-        self.update_groups_runs(self.vars['globals']['vars'])
+        # self.update_groups_runs(self.vars['globals']['vars'])
 
 
     def update_groups_runs(self, D):
@@ -2189,7 +2189,10 @@ class _parser_class():
                     grps_unsort_rslts.append(
                         (run_re(group, results={}), group.outputs,)
                     )
-
+                    
+        # update groups runs with most recent variables
+        self.update_groups_runs(self.vars['globals']['vars'])
+        
         # sort global groups results:
         [ raw_results.append(
           [group_result[key] for key in sorted(list(group_result.keys()))]
@@ -2505,7 +2508,7 @@ class _results_class():
                     if isinstance(result[k], list):
                         self.record['result'][k] += result[k]        # join lists
                     else:
-                        self.record['result'][k].append(result[k])   # append to list        					
+                        self.record['result'][k].append(result[k])   # append to list                            
                 else: # transform result to list and append new result to it
                     self.record['result'][k] = [ self.record['result'][k], result[k] ]
             else:

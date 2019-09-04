@@ -2088,6 +2088,66 @@ format_attributes = "tablefmt='fancy_grid'"
 </template>
 
 
+<template
+name="test9-1"
+description="test template variables and groups runs handling, runs should be updated with lates variables only"
+>
+
+<input load="text">
+switch1# show run int
+hostname switch12345
+!
+interface GigabitEthernet3/11
+ description input_1_data
+ switchport trunk allowed vlan add 111,222
+!
+</input>
+
+<vars>
+hostname_var_test_9_1 = "gethostname"
+</vars>
+
+<group name="params_test_9_1">
+hostname {{ hostname | record("hostname_var_test_9_1") }}
+</group>
+
+<group name="interfaces_test_9_1">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ hostname | set("hostname_var_test_9_1") }}
+!{{ _end_ }}
+</group>
+
+<output name="test9-1"
+description="test variables and group runs handling"
+load="json"
+functions="is_equal"
+>
+[
+    {
+        "interfaces_test_9_1": {
+            "description": "input_1_data",
+            "hostname": "switch12345",
+            "interface": "GigabitEthernet3/11",
+            "trunk_vlans": "111,222"
+        },
+        "params_test_9_1": {
+            "hostname": "switch12345"
+        }
+    }
+]
+</output>
+
+<!--final output to put all results in tabulate table-->
+<output 
+returner="terminal"
+format="tabulate"
+format_attributes = "tablefmt='fancy_grid'"
+/>
+
+
+</template>
 
 
 
