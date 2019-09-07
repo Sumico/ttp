@@ -3218,3 +3218,72 @@ interface {{ interface }}
 !{{ _end_ }}
 </group>
 """
+
+test197="""
+<input load="text">
+interface GigabitEthernet3/11
+ description bbc.com
+ switchport trunk allowed vlan add 111,222
+!
+</input>
+
+<group name="interfaces_dnsv4">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | dns }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces_dnsv6">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | dns(record='ipv6') }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces_dnsv4_google">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | dns(record='IPv4', servers='8.8.8.8') }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces_dnsv4_timeout_test">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | dns(record='IPv4', servers='192.168.1.100') }}
+!{{ _end_ }}
+</group>
+"""
+
+test198="""
+<input load="text">
+interface GigabitEthernet3/11
+ ip address 8.8.8.8 255.255.255.255
+!
+</input>
+
+<group name="interfaces_rdnsv4">
+interface {{ interface }}
+ ip address {{ ip | rdns }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces_rdnsv4_google">
+interface {{ interface }}
+ ip address {{ ip | rdns(servers='8.8.8.8') }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces_rdns_add_field">
+interface {{ interface }}
+ ip address {{ ip | rdns(add_field='FQDN') }} {{ mask }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces_rdns_fail">
+interface {{ interface }}
+ ip address {{ ip | rdns(servers='192.168.1.100') }} {{ mask }}
+!{{ _end_ }}
+</group>
+"""

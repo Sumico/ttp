@@ -322,7 +322,6 @@ class _ttp_functions():
         functions to implement
         # 'variable_wrap'         : add \n at given position to wrap long text
         # 'variable_is_mac'       : to check that data is valid  mac-address
-        # 'variable_is_word'      : check if no spaces in data - same as notcontains(' ')
         # 'variable_to_digit' : convert variable to digit
         # 'group_exclude_all/exclude'  : to exclude group if group contains certain values
     """
@@ -822,6 +821,57 @@ class _ttp_functions():
         else:
             check = None
         return data, check
+        
+    def match_dns(self, data, record='ipv4', timeout=1, servers=[]):
+        """Performs forward dns lookup
+        """
+        my_resolver = dns.resolver.Resolver()
+        my_resolver.timeout = timeout
+        if servers:
+            if isinstance(servers, str):
+                servers = [i.strip() for i in servers.split(',')]
+            my_resolver.nameservers = servers
+        my_resolver.lifetime = timeout * len(my_resolver.nameservers)
+        if record.lower() == 'ipv4':
+            try:
+                ipv4_record = str(my_resolver.query(data, "A")[0])
+                return ipv4_record, None
+            except dns.resolver.NXDOMAIN:
+                pass
+            except dns.exception.Timeout:
+                pass
+        elif record.lower() == 'ipv6':
+            try:
+                ipv6_record  = str(my_resolver.query(data, "AAAA")[0])
+                return ipv6_record, None
+            except dns.resolver.NXDOMAIN:
+                pass
+            except dns.exception.Timeout:
+                pass
+        return data, None
+
+    def match_rdns(self, data, timeout=1, servers=[], add_field=False):
+        """Performs reverse dns lookup
+        """
+        my_resolver = dns.resolver.Resolver()
+        my_resolver.timeout = timeout
+        if servers:
+            if isinstance(servers, str):
+                servers = [i.strip() for i in servers.split(',')]
+            my_resolver.nameservers = servers
+        my_resolver.lifetime = timeout * len(my_resolver.nameservers)
+        rev_name = dns.reversename.from_address(data)
+        try:
+            reverse_record = str(my_resolver.query(rev_name,"PTR")[0]).rstrip('.')
+            if add_field and isinstance(add_field, str):
+                return data, {'new_field': {add_field: reverse_record}}
+            else:
+                return reverse_record, None
+        except dns.resolver.NXDOMAIN:
+            pass
+        except dns.exception.Timeout:
+            pass
+        return data, None
 
     def variable_gethostname(self, data, data_name, *args, **kwargs):
         """Description: Method to find hostname in show
@@ -1857,6 +1907,14 @@ class _variable_class():
                 except ImportError:
                     print("ERROR: no ipaddress module installed, install: python -m pip install ipaddress")
             self.functions.append(data)
+            
+        def import_dnspython(data):
+            if "dns" not in globals():
+                try:
+                    globals()["dns"] = __import__("dns.resolver")
+                except ImportError:
+                    print("ERROR: no dnspython module installed, install: python -m pip install dnspython")
+            self.functions.append(data)
 
         extract_funcs = {
         'ignore'        : extract_ignore,
@@ -1870,6 +1928,7 @@ class _variable_class():
         'to_ip'  : import_ipaddress,
         'to_net' : import_ipaddress, 'ip_info'   : import_ipaddress,
         'is_ip'  : import_ipaddress, 'cidr_match': import_ipaddress,
+        'dns'    : import_dnspython, 'rdns'      : import_dnspython,
         # regex formatters:
         're'       : lambda data: self.var_res.append(self.REs.patterns[data['args'][0]]),
         'PHRASE'   : lambda data: self.var_res.append(self.REs.patterns['PHRASE']),
@@ -2185,7 +2244,7 @@ class _parser_class():
                     unsort_rslts.append(run_re(group, results={}))
                 # get results for groups with group specific results:
                 else:
-                    # for a tuple of (results, group.outputs,)
+                    # form a tuple of (results, group.outputs,)
                     grps_unsort_rslts.append(
                         (run_re(group, results={}), group.outputs,)
                     )
@@ -2204,8 +2263,8 @@ class _parser_class():
 
         # sort results for group specific results:
         [ grps_raw_results.append(
-            ([group_result[0][key] for key in sorted(list(group_result[0].keys()))],
-            group_result[1],) # tuple item that contains group.outputs
+        # tuple item that contains group.outputs:
+        ([group_result[0][key] for key in sorted(list(group_result[0].keys()))], group_result[1],) 
         ) for group_result in grps_unsort_rslts if group_result[0] ]
         # form results for groups specific results with running groups through outputs:
         for grp_raw_result in grps_raw_results:
@@ -2626,9 +2685,6 @@ class _outputter_class():
         def extract_load(O):
             self.attributes['load'] = self.utils.load_struct(self.element.text, **self.element.attrib)
 
-        def extract_url(O):
-            self.attributes['url'] = O
-
         def extract_filename(O):
             self.attributes['filename'] = O
 
@@ -2654,9 +2710,6 @@ class _outputter_class():
                 # do nothing as self.attributes['load'] will be used
                 self.functions.append(data)
 
-        def extract_description(O):
-            self.attributes['description'] = O
-
         def extract_format_attributes(O):
             """Extract formatter attributes
             """
@@ -2678,12 +2731,10 @@ class _outputter_class():
         'returner'       : extract_returner,
         'format'         : extract_format,
         'load'           : extract_load,
-        'url'            : extract_url,
         'filename'       : extract_filename,
         'method'         : extract_method,
         'functions'      : extract_functions,
         'is_equal'       : function_is_equal,
-        'description'    : extract_description,
         'format_attributes' : extract_format_attributes,
         'path'           : extract_path,
         'headers'        : extract_headers

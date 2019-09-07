@@ -12,3 +12,4 @@ TTP includes a number of additional tags to structure templates or provide addit
    Variables
    Lookups
    Outputs
+   Macro
