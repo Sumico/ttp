@@ -822,47 +822,41 @@ class _ttp_functions():
             check = None
         return data, check
         
-    def match_dns(self, data, record='ipv4', timeout=1, servers=[]):
-        """Performs forward dns lookup
+    def match_dns(self, data, record='A', timeout=1, servers=[], add_field=False):
+        """Performs forward dns lookup using dns_resolver_obj global object
         """
-        my_resolver = dns.resolver.Resolver()
-        my_resolver.timeout = timeout
+        dns_resolver_obj.timeout = timeout
         if servers:
             if isinstance(servers, str):
                 servers = [i.strip() for i in servers.split(',')]
-            my_resolver.nameservers = servers
-        my_resolver.lifetime = timeout * len(my_resolver.nameservers)
-        if record.lower() == 'ipv4':
-            try:
-                ipv4_record = str(my_resolver.query(data, "A")[0])
-                return ipv4_record, None
-            except dns.resolver.NXDOMAIN:
-                pass
-            except dns.exception.Timeout:
-                pass
-        elif record.lower() == 'ipv6':
-            try:
-                ipv6_record  = str(my_resolver.query(data, "AAAA")[0])
-                return ipv6_record, None
-            except dns.resolver.NXDOMAIN:
-                pass
-            except dns.exception.Timeout:
-                pass
+            dns_resolver_obj.nameservers = servers
+        dns_resolver_obj.lifetime = timeout * len(dns_resolver_obj.nameservers)
+        try:
+            dns_records = [i.to_text() for i in dns_resolver_obj.query(data, record)]
+            if add_field and isinstance(add_field, str):
+                return data, {'new_field': {add_field: dns_records}}
+            else:
+                return dns_records, None
+        except dns.resolver.NXDOMAIN:
+            pass
+        except dns.exception.Timeout:
+            # re-initialize dns_resolver object, as it will fail to resolve names for 
+            # whatever reason after it timeouts
+            globals()['dns_resolver_obj'] = dns.resolver.Resolver()
         return data, None
 
     def match_rdns(self, data, timeout=1, servers=[], add_field=False):
-        """Performs reverse dns lookup
+        """Performs reverse dns lookup using global dns_resolver_obj
         """
-        my_resolver = dns.resolver.Resolver()
-        my_resolver.timeout = timeout
+        dns_resolver_obj.timeout = timeout
         if servers:
             if isinstance(servers, str):
                 servers = [i.strip() for i in servers.split(',')]
-            my_resolver.nameservers = servers
-        my_resolver.lifetime = timeout * len(my_resolver.nameservers)
+            dns_resolver_obj.nameservers = servers
+        dns_resolver_obj.lifetime = timeout * len(dns_resolver_obj.nameservers)
         rev_name = dns.reversename.from_address(data)
         try:
-            reverse_record = str(my_resolver.query(rev_name,"PTR")[0]).rstrip('.')
+            reverse_record = str(dns_resolver_obj.query(rev_name,"PTR")[0]).rstrip('.')
             if add_field and isinstance(add_field, str):
                 return data, {'new_field': {add_field: reverse_record}}
             else:
@@ -870,7 +864,7 @@ class _ttp_functions():
         except dns.resolver.NXDOMAIN:
             pass
         except dns.exception.Timeout:
-            pass
+            globals()['dns_resolver_obj'] = dns.resolver.Resolver()
         return data, None
 
     def variable_gethostname(self, data, data_name, *args, **kwargs):
@@ -1912,8 +1906,9 @@ class _variable_class():
             if "dns" not in globals():
                 try:
                     globals()["dns"] = __import__("dns.resolver")
+                    globals()['dns_resolver_obj'] = dns.resolver.Resolver()
                 except ImportError:
-                    print("ERROR: no dnspython module installed, install: python -m pip install dnspython")
+                    print("ERROR: dnspython not installed, install: python -m pip install dnspython")
             self.functions.append(data)
 
         extract_funcs = {

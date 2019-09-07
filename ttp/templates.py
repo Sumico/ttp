@@ -3227,6 +3227,13 @@ interface GigabitEthernet3/11
 !
 </input>
 
+<group name="interfaces_dnsv4_timeout_test">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | dns(record='A', servers='192.168.1.100') }}
+!{{ _end_ }}
+</group>
+
 <group name="interfaces_dnsv4">
 interface {{ interface }}
  switchport trunk allowed vlan add {{ trunk_vlans }}
@@ -3237,21 +3244,21 @@ interface {{ interface }}
 <group name="interfaces_dnsv6">
 interface {{ interface }}
  switchport trunk allowed vlan add {{ trunk_vlans }}
- description {{ description | dns(record='ipv6') }}
+ description {{ description | dns(record='AAAA') }}
 !{{ _end_ }}
 </group>
 
 <group name="interfaces_dnsv4_google">
 interface {{ interface }}
  switchport trunk allowed vlan add {{ trunk_vlans }}
- description {{ description | dns(record='IPv4', servers='8.8.8.8') }}
+ description {{ description | dns(record='A', servers='8.8.8.8') }}
 !{{ _end_ }}
 </group>
 
-<group name="interfaces_dnsv4_timeout_test">
+<group name="interfaces_dnsv6_add_field">
 interface {{ interface }}
  switchport trunk allowed vlan add {{ trunk_vlans }}
- description {{ description | dns(record='IPv4', servers='192.168.1.100') }}
+ description {{ description | dns(record='AAAA', add_field='ips') }}
 !{{ _end_ }}
 </group>
 """
