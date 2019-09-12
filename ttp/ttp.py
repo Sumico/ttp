@@ -20,7 +20,7 @@ from sys import version_info
 python_major_version = version_info.major
 
 # Initiate global variables:
-ctime = time.ctime().replace(':', '-').replace(' ', '_')
+ctime = time.strftime("%Y-%m-%d_%H-%M-%S")
 
 """
 ==============================================================================
@@ -385,6 +385,18 @@ class _ttp_functions():
         elif result is None:
             return data, None
         return result, None
+        
+    def group_to_ip(self, data, ip_key, mask_key):
+        """This method takes ip_key and mask_key and tries to 
+        convert them into ip object
+        """
+        if ip_key in data and mask_key in data:
+            ip_string = "{}/{}".format(data[ip_key], data[mask_key])
+            try:
+                data[ip_key] = self.match_to_ip(ip_string)[0]
+            except:
+                pass
+        return data, None
 
     def match_joinmatches(self, data, *args, **kwargs):
         return data, None
@@ -829,7 +841,7 @@ class _ttp_functions():
         if servers:
             if isinstance(servers, str):
                 servers = [i.strip() for i in servers.split(',')]
-            dns_resolver_obj.nameservers = servers
+            dns_resolver_obj.nameservers = sorted(servers)
         dns_resolver_obj.lifetime = timeout * len(dns_resolver_obj.nameservers)
         try:
             dns_records = [i.to_text() for i in dns_resolver_obj.query(data, record)]
@@ -838,6 +850,8 @@ class _ttp_functions():
             else:
                 return dns_records, None
         except dns.resolver.NXDOMAIN:
+            pass
+        except dns.resolver.NoAnswer:
             pass
         except dns.exception.Timeout:
             # re-initialize dns_resolver object, as it will fail to resolve names for 
@@ -862,6 +876,8 @@ class _ttp_functions():
             else:
                 return reverse_record, None
         except dns.resolver.NXDOMAIN:
+            pass
+        except dns.resolver.NoAnswer:
             pass
         except dns.exception.Timeout:
             globals()['dns_resolver_obj'] = dns.resolver.Resolver()
@@ -911,7 +927,7 @@ class _ttp_utils():
         at given path.
         """
         if not isinstance(data, dict):
-            print("ERROR: ttp_utils.traverse_dict - data is not a dictionary, data: \n{}\n\n".format(data))
+            # print("ERROR: ttp_utils.traverse_dict - data is not a dictionary, data: \n{}\n\n".format(data))
             return data
         result = data
         for i in path:
@@ -1628,7 +1644,24 @@ class _group_class():
                         'args': [i.strip()]
                     })
             elif isinstance(O, dict):
-                self.funcs.append(O)            
+                self.funcs.append(O)          
+
+        def extract_to_ip(O):
+            if isinstance(O, str):
+                to_ip_attributes = self.utils.get_attributes(
+                                'to_ip_attributes({})'.format(O))
+                self.funcs.append({
+                    'name': 'to_ip',
+                    'args': to_ip_attributes[0]['args'],
+                    'kwargs': to_ip_attributes[0]['kwargs']
+                })
+            elif isinstance(O, dict):
+                self.funcs.append(O)
+            if "ipaddress" not in globals():
+                try:
+                    globals()["ipaddress"] = __import__("ipaddress")
+                except ImportError:
+                    print("ERROR: no ipaddress module installed, install: python -m pip install ipaddress")                
      
         def extract_functions(O):
             funcs = self.utils.get_attributes(O)
@@ -1652,7 +1685,8 @@ class _group_class():
         'containsall' : extract_containsall,        
         'macro'       : extract_macro,
         'functions'   : extract_functions,
-        'fun'         : extract_functions    
+        'fun'         : extract_functions,
+        'to_ip'       : extract_to_ip    
         }
 
         for attr_name, attributes in data.items():
@@ -2602,9 +2636,10 @@ class _results_class():
         """
         for item in self.record['FUNCTIONS']:
             func_name = item['name']
-            args = item['args']
+            args = item.get('args', [])
+            kwargs = item.get('kwargs', {})
             try: # try group function
-                self.record['result'], flags = getattr(self.functions, 'group_' + func_name)(self.record['result'], *args)
+                self.record['result'], flags = getattr(self.functions, 'group_' + func_name)(self.record['result'], *args, **kwargs)
             except AttributeError:
                 flags = False
             # if conditions check been false, return False:
@@ -2681,7 +2716,22 @@ class _outputter_class():
             self.attributes['load'] = self.utils.load_struct(self.element.text, **self.element.attrib)
 
         def extract_filename(O):
-            self.attributes['filename'] = O
+            """File name can contain below formatters to add date time stamp:
+            %m  Month as a decimal number [01,12].
+            %d  Day of the month as a decimal number [01,31].
+            %H  Hour (24-hour clock) as a decimal number [00,23].
+            %M  Minute as a decimal number [00,59].
+            %S  Second as a decimal number [00,61].
+            %z  Time zone offset from UTC.
+            %a  Locale's abbreviated weekday name.
+            %A  Locale's full weekday name.
+            %b  Locale's abbreviated month name.
+            %B  Locale's full month name.
+            %c  Locale's appropriate date and time representation.
+            %I  Hour (12-hour clock) as a decimal number [01,12].
+            %p  Locale's equivalent of either AM or PM.            
+            """
+            self.attributes['filename'] = time.strftime(O)
 
         def extract_method(O):
             supported_methods = ['split', 'join']
@@ -2778,7 +2828,10 @@ class _outputter_class():
         if not os.path.exists(url):
             os.mkdir(url)
         with open(url + filename, 'w') as f:
-            f.write(D)
+            if not isinstance(D, str):
+                f.write(str(D))
+            else:
+                f.write(D)
 
     def returner_terminal(self, D):
         if python_major_version is 2:
@@ -2919,7 +2972,21 @@ class _outputter_class():
         result = template_obj.render(_data_=data)
         return result
 
-
+    def formatter_excel(self, data):
+        """Method to format data as an .xlsx table using openpyxl module.
+        """        
+        try:
+            from openpyxl import Workbook
+        except ImportError:
+            raise SystemExit("ERROR: openpyxl not installed, install: 'python -m pip install openpyxl', exiting")
+        # form table - list of lists
+        table = self.formatter_table(data)
+        # work with workbook
+        wb = Workbook(write_only=True)
+        ws = wb.create_sheet()
+        ws.append(['%d' % i for i in range(200)])
+        wb.save('new_big_file.xlsx')
+        
 """
 ==============================================================================
 TTP CLI PROGRAMM

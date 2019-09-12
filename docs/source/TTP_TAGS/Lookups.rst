@@ -35,10 +35,10 @@ Supported loaders:
 * python - uses python *exec* method to load data structured in native Python formats
 * yaml - relies on PyYAML to load YAML structured data
 * json - used to load json formatted variables data
-* ini - *configparser* Python standart module used to read variables from ini structured file
-* csv - csv formatted data loaded with Python *csv* standart library module
+* ini - *configparser* Python standard module used to read variables from ini structured file
+* csv - csv formatted data loaded with Python *csv* standard library module
 
-If load is csv, first column by default will be used to create lookup dictionary, it is possible to supply `key`_ with column name that should be used as a keys for row data. If any other type of load provided e.g. python or yaml, that data must have a dictionary stucture, there keys will be compared agains match result and on success data assiciated with given key will be included in results.
+If load is csv, first column by default will be used to create lookup dictionary, it is possible to supply `key`_ with column name that should be used as a keys for row data. If any other type of load provided e.g. python or yaml, that data must have a dictionary structure, there keys will be compared against match result and on success data associated with given key will be included in results.
 
 include
 ------------------------------------------------------------------------------
@@ -90,34 +90,34 @@ Result
             }
         }
     ]
-	
+    
 Because no *key* attribute provided, csv data was loaded in python dictionary using first column - ASN - as a key. This is the resulted lookup dictionary::
 
     { 
-	  "65100": {
+      "65100": {
             "as_name": "Subs",
             "as_description" : "Private ASN",
-			"prefix_num": "734"
+            "prefix_num": "734"
         },
       "65200": {
             "as_name": "Privs",
             "as_description" : "Undef ASN",
-			"prefix_num": "121"
+            "prefix_num": "121"
         }
     }
-	
+    
 If *key* will be set to "as_name", lookup dictionary will become::
 
     { 
-	  "Subs": {
+      "Subs": {
             "ASN": "65100",
             "as_description" : "Private ASN",
-			"prefix_num": "734"
+            "prefix_num": "734"
         },
       "Privs": {
             "ASN": "65200",
             "as_description" : "Undef ASN",
-			"prefix_num": "121"
+            "prefix_num": "121"
         }
     }
     
@@ -132,7 +132,7 @@ If table provided in INI format, data will be transformed into dictionary with t
             "-bri-" : "8 Name St, Suburb B, Brisbane, Postal Code"
         }
     }}
-	
+    
 As a result dictionary data to use for lookup can be referenced using "locations.cities" string in lookup/rlookup match variables function.
 
 Template
@@ -185,7 +185,7 @@ Result
             }
         }
     ]
-	
+    
 YAML Example
 ------------------------------------------------------------------------------
 
@@ -213,7 +213,7 @@ Template
     <group name="bgp_config">
     router bgp {{ bgp_as | lookup("yaml_look", add_field="as_details") }}
     </group> 
-	
+    
 Result
 
 .. code-block::

@@ -3276,7 +3276,7 @@ interface {{ interface }}
 !{{ _end_ }}
 </group>
 
-<group name="interfaces_rdnsv4_google">
+<group name="interfaces_rdnsv4_google_server">
 interface {{ interface }}
  ip address {{ ip | rdns(servers='8.8.8.8') }} {{ mask }}
 !{{ _end_ }}
@@ -3293,4 +3293,378 @@ interface {{ interface }}
  ip address {{ ip | rdns(servers='192.168.1.100') }} {{ mask }}
 !{{ _end_ }}
 </group>
+"""
+
+test199="""
+<input load="text">
+interface GigabitEthernet3/11
+ description wikipedia.org
+!
+</input>
+
+<group name="interfaces">
+interface {{ interface }}
+ description {{ description | dns }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces_dnsv6">
+interface {{ interface }}
+ description {{ description | dns(record='AAAA') }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces_dnsv4_google_dns">
+interface {{ interface }}
+ description {{ description | dns(record='A', servers='8.8.8.8') }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces_dnsv6_add_field">
+interface {{ interface }}
+ description {{ description | dns(record='AAAA', add_field='IPs') }}
+!{{ _end_ }}
+</group>
+"""
+
+test200="""
+<input load="text">
+interface Loopback0
+ ip address 192.168.0.113/24
+!
+interface Vlan778
+ ip address 2002::fd37/124
+!
+</input>
+
+<group name="interfaces">
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+</group>
+
+<output
+name="test output 1"
+load="json"
+description="test results equality"
+functions="is_equal"
+>
+[
+    {
+        "interfaces": [
+            {
+                "interface": "Loopback0",
+                "ip": "192.168.0.113",
+                "mask": "24"
+            },
+            {
+                "interface": "Vlan778",
+                "ip": "2002::fd37",
+                "mask": "124"
+            }
+        ]
+    }
+]
+</output>
+
+<output
+format="yaml"
+returner="file"
+url="C:/Users/Denis/YandexDisk/Python/TPG/Text Template Parser/ttp/!USECASES/!GitHub/Output/"
+filename="OUT_%Y-%m-%d_%H-%M-%S_results.txt"
+/>
+"""
+
+
+test201="""
+<input load="text">
+interface Loopback0
+ ip address 192.168.0.113/24
+!
+interface Vlan778
+ ip address 2002::fd37/124
+!
+</input>
+
+<input load="text">
+interface Loopback10
+ ip address 192.168.0.10/24
+!
+interface Vlan710
+ ip address 2002::fd10/124
+!
+</input>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+</group>
+
+<output
+format="pprint"
+returner="terminal"
+/>
+
+<output
+format="table"
+returner="terminal"
+/>
+"""
+
+
+test202="""
+<input load="text">
+interface Loopback10
+ ip address 192.168.0.10  subnet mask 24
+!
+interface Vlan710
+ ip address 2002::fd10 subnet mask 124
+!
+</input>
+
+<group name="interfaces_with_funcs" functions="to_ip('ip', 'mask')">
+interface {{ interface }}
+ ip address {{ ip }}  subnet mask {{ mask }}
+</group>
+
+<group name="interfaces_with_to_ip_args" to_ip = "'ip', 'mask'">
+interface {{ interface }}
+ ip address {{ ip }}  subnet mask {{ mask }}
+</group>
+
+<group name="interfaces_with_to_ip_kwargs" to_ip = "ip_key='ip', mask_key='mask'">
+interface {{ interface }}
+ ip address {{ ip }}  subnet mask {{ mask }}
+</group>
+"""
+
+test203="""
+<input load="text">
+interface Loopback0
+ ip address 192.168.0.113/24
+!
+interface Vlan778
+ ip address 2002::fd37/124
+!
+</input>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+</group>
+
+<output format="csv" returner="terminal"/>
+"""
+
+test204="""
+<input load="text">
+interface Loopback0
+ ip address 192.168.0.113/24
+!
+interface Vlan778
+ ip address 2002::fd37/124
+!
+</input>
+
+<input load="text">
+interface Loopback10
+ ip address 192.168.0.10/24
+!
+interface Vlan710
+ ip address 2002::fd10/124
+!
+</input>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+</group>
+
+<output format="jinja2" returner="terminal">
+{% for input_result in _data_ %}
+{% for item in input_result %}
+if_cfg id {{ item['interface'] }}
+    ip address {{ item['ip'] }} 
+    subnet mask {{ item['mask'] }}
+#
+{% endfor %}
+{% endfor %}
+</output>
+"""
+
+test205="""
+<input load="text">
+interface Loopback0
+ ip address 192.168.0.113/24
+!
+interface Vlan778
+ ip address 2002::fd37/124
+!
+</input>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+</group>
+
+<output format="tabulate" returner="terminal"/>
+"""
+
+test206="""
+<input load="text">
+router bgp 65100
+  neighbor 10.145.1.9
+    description vic-mel-core1
+  !
+  neighbor 192.168.101.1
+    description qld-bri-core1
+</input>
+
+<group name="bgp_config">
+router bgp {{ bgp_as }}
+ <group name="peers">
+  neighbor {{ peer }}
+    description {{ description  }}
+ </group>
+</group> 
+
+<output name="out1" format="pprint" returner="terminal"/>
+
+<output name="out2"
+path="bgp_config.peers"
+format="csv"
+returner="terminal"
+/>
+"""
+
+test207="""
+<input load="text">
+router bgp 65100
+  neighbor 10.145.1.9
+    description vic-mel-core1
+  !
+  neighbor 192.168.101.1
+    description qld-bri-core1
+</input>
+
+<group name="bgp_config">
+router bgp {{ bgp_as }}
+ <group name="peers">
+  neighbor {{ peer }}
+    description {{ description  }}
+ </group>
+</group> 
+
+<output name="out2"
+path="bgp_config.peers"
+format="tabulate"
+returner="terminal"
+format_attributes="tablefmt='fancy_grid'"
+/>
+"""
+
+test208="""
+<input load="text">
+interface Loopback0
+ description Router-id-loopback
+ ip address 192.168.0.113/24
+!
+interface Vlan778
+ description CPE_Acces_Vlan
+ ip address 2002::fd37/124
+ ip vrf CPE1
+!
+</input>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description }}
+ ip vrf {{ vrf }}
+</group>
+
+<output 
+format="tabulate" 
+returner="terminal"
+headers="interface, description, vrf, ip, mask"
+/>
+"""
+
+test209="""
+<input load="text">
+interface Loopback0
+ description Router-id-loopback
+ ip address 192.168.0.113/24
+!
+interface Vlan778
+ ip address 2002::fd37/124
+ ip vrf CPE1
+!
+</input>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description }}
+ ip vrf {{ vrf }}
+</group>
+
+<output 
+format="tabulate" 
+returner="terminal"
+missing="UNDEFINED"
+/>
+"""
+
+test210="""
+<input load="text">
+router bgp 65100
+  neighbor 10.145.1.9
+    description vic-mel-core1
+  !
+  neighbor 192.168.101.1
+    description qld-bri-core1
+</input>
+
+<group name="bgp_config">
+router bgp {{ bgp_as }}
+ <group name="peers">
+  neighbor {{ peer }}
+    description {{ description  }}
+ </group>
+</group> 
+
+<output returner="terminal" format="pprint"/>
+
+<output name="out2"
+path="bgp_config"
+format="tabulate"
+returner="terminal"
+format_attributes="tablefmt='fancy_grid'"
+/>
+"""
+
+test211="""
+<input load="text">
+interface Loopback0
+ description Router-id-loopback
+ ip address 192.168.0.113/24
+!
+interface Vlan778
+ ip address 2002::fd37/124
+ ip vrf CPE1
+!
+</input>
+
+<group name="{{ interface }}">
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description }}
+ ip vrf {{ vrf }}
+</group>
+
+<output 
+format="tabulate" 
+returner="terminal"
+key="intf_name"
+/>
 """

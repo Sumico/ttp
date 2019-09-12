@@ -63,6 +63,10 @@ Action functions act upon match result to transform it to desired state.
      - transforms netmask to cidr (prefix length) notation
    * - `ip_info`_ 
      - produces a dictionary with information about give ip address or subnet
+   * - `dns`_ 
+     - performs DNS forward lookup
+   * - `rdns`_ 
+     - performs DNS reverse lookup
  
 Condition functions can perform various checks with match results and returns either True or False depending on check results.
 
@@ -1638,3 +1642,146 @@ Result
             }
         ]
     }]
+
+dns
+------------------------------------------------------------------------------
+``{{ name | dns(record='A', timeout=1, servers=[], add_field=False) }}``
+
+This function performs forward DNS lookup of match results and returns sorted list of IP addresses returned by DNS. 
+
+Prerequisites: `dnspython <http://www.dnspython.org/>`_ needs to be installed
+
+Options:
+
+* ``record`` - by default perform 'A' lookup, any dnspython supported record can be given, e.g. 'AAAA' for IPv6 lookup
+* ``timeout`` - default is 1 second, amount of time to wait for response, overall lifetime of operation will be set to number of servers multiplied by timeout
+* ``servers`` - comma separated string of DNS servers to use for lookup, by default uses DNS servers configured on machine running the code
+* ``add_field`` - boolean or string, if string, its value will be used as a key for DNS lookup results, if False - DNS lookup results will replace match results
+
+If DNS will fail for whatever reason, match results will be returned without any modifications.
+
+**Example**
+
+Template::
+
+    <input load="text">
+    interface GigabitEthernet3/11
+     description wikipedia.org
+    !
+    </input>
+    
+    <group name="interfaces">
+    interface {{ interface }}
+     description {{ description | dns }}
+    </group>
+    
+    <group name="interfaces_dnsv6">
+    interface {{ interface }}
+     description {{ description | dns(record='AAAA') }}
+    </group>
+    
+    <group name="interfaces_dnsv4_google_dns">
+    interface {{ interface }}
+     description {{ description | dns(record='A', servers='8.8.8.8') }}
+    </group>
+    
+    <group name="interfaces_dnsv6_add_field">
+    interface {{ interface }}
+     description {{ description | dns(record='AAAA', add_field='IPs') }}
+    </group>
+	
+Result::
+
+    [
+        {
+            "interfaces": {
+                "description": [
+                    "103.102.166.224"
+                ],
+                "interface": "GigabitEthernet3/11"
+            },
+            "interfaces_dnsv4_google_dns": {
+                "description": [
+                    "103.102.166.224"
+                ],
+                "interface": "GigabitEthernet3/11"
+            },
+            "interfaces_dnsv6": {
+                "description": [
+                    "2001:df2:e500:ed1a::1"
+                ],
+                "interface": "GigabitEthernet3/11"
+            },
+            "interfaces_dnsv6_add_field": {
+                "IPs": [
+                    "2001:df2:e500:ed1a::1"
+                ],
+                "description": "wikipedia.org",
+                "interface": "GigabitEthernet3/11"
+            }
+        }
+    ]
+	
+rdns
+------------------------------------------------------------------------------
+``{{ name | dns(timeout=1, servers=[], add_field=False) }}``
+
+This function performs reverse DNS lookup of match results and returns FQDN obtained from DNS. 
+
+Prerequisites: `dnspython <http://www.dnspython.org/>`_ needs to be installed
+
+Options:
+
+* ``timeout`` - default is 1 second, amount of time to wait for response, overall lifetime of operation will be set to number of servers multiplied by timeout
+* ``servers`` - comma separated string of DNS servers to use for lookup, by default uses DNS servers configured on machine running the code
+* ``add_field`` - boolean or string, if string, its value will be used as a key for DNS lookup results, if False - DNS lookup results will replace match results
+
+If DNS will fail for whatever reason, match results will be returned without any modifications.
+
+**Example**
+
+Template::
+
+    <input load="text">
+    interface GigabitEthernet3/11
+     ip address 8.8.8.8 255.255.255.255
+    !
+    </input>
+    
+    <group name="interfaces_rdns">
+    interface {{ interface }}
+     ip address {{ ip | rdns }} {{ mask }}
+    </group>
+    
+    <group name="interfaces_rdns_google_server">
+    interface {{ interface }}
+     ip address {{ ip | rdns(servers='8.8.8.8') }} {{ mask }}
+    </group>
+    
+    <group name="interfaces_rdns_add_field">
+    interface {{ interface }}
+     ip address {{ ip | rdns(add_field='FQDN') }} {{ mask }}
+    </group>
+	
+Results::
+
+    [
+        {
+            "interfaces_rdns_add_field": {
+                "FQDN": "dns.google",
+                "interface": "GigabitEthernet3/11",
+                "ip": "8.8.8.8",
+                "mask": "255.255.255.255"
+            },
+            "interfaces_rdnsv4": {
+                "interface": "GigabitEthernet3/11",
+                "ip": "dns.google",
+                "mask": "255.255.255.255"
+            },
+            "interfaces_rdnsv4_google_server": {
+                "interface": "GigabitEthernet3/11",
+                "ip": "dns.google",
+                "mask": "255.255.255.255"
+            }
+        }
+    ]

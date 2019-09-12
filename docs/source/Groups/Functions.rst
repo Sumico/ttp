@@ -19,6 +19,8 @@ Condition functions help to evaluate group results and return *False* or *True*,
      - Name of the macros function to run against group result 
    * - `group functions`_   
      - String containing list of functions to run this group results through
+   * - `to_ip`_   
+     - transforms given values in ipaddress IPAddress object
      
 containsall
 ------------------------------------------------------------------------------
@@ -340,3 +342,61 @@ Result
             ]
         }
     ]
+
+to_ip
+------------------------------------------------------------------------------
+``functions="to_ip(ip_key='X', mask_key='Y')"`` or ``to_ip="'X', 'Y'"`` or ``to_ip='ip_key=X, mask_key=Y'``
+
+* ip_key - name of the key that contains IP address string
+* mask_key - name of the key that contains mask string
+
+This functions can help to construct ipaddress IpAddress object out of ip_key and mask_key values, on success this function will return ipaddress object assigned to ip_key.
+
+**Example**
+
+Template::
+
+    <input load="text">
+    interface Loopback10
+     ip address 192.168.0.10  subnet mask 24
+    !
+    interface Vlan710
+     ip address 2002::fd10 subnet mask 124
+    !
+    </input>
+    
+    <group name="interfaces_with_funcs" functions="to_ip('ip', 'mask')">
+    interface {{ interface }}
+     ip address {{ ip }}  subnet mask {{ mask }}
+    </group>
+    
+    <group name="interfaces_with_to_ip_args" to_ip = "'ip', 'mask'">
+    interface {{ interface }}
+     ip address {{ ip }}  subnet mask {{ mask }}
+    </group>
+    
+    <group name="interfaces_with_to_ip_kwargs" to_ip = "ip_key='ip', mask_key='mask'">
+    interface {{ interface }}
+     ip address {{ ip }}  subnet mask {{ mask }}
+    </group>
+
+Results::
+
+    [   {   'interfaces_with_funcs': [   {   'interface': 'Loopback10',
+                                             'ip': IPv4Interface('192.168.0.10/24'),
+                                             'mask': '24'},
+                                         {   'interface': 'Vlan710',
+                                             'ip': IPv6Interface('2002::fd10/124'),
+                                             'mask': '124'}],
+            'interfaces_with_to_ip_args': [   {   'interface': 'Loopback10',
+                                                  'ip': IPv4Interface('192.168.0.10/24'),
+                                                  'mask': '24'},
+                                              {   'interface': 'Vlan710',
+                                                  'ip': IPv6Interface('2002::fd10/124'),
+                                                  'mask': '124'}],
+            'interfaces_with_to_ip_kwargs': [   {   'interface': 'Loopback10',
+                                                    'ip': IPv4Interface('192.168.0.10/24'),
+                                                    'mask': '24'},
+                                                {   'interface': 'Vlan710',
+                                                    'ip': IPv6Interface('2002::fd10/124'),
+                                                    'mask': '124'}]}]
