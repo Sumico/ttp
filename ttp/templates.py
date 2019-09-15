@@ -3658,7 +3658,7 @@ interface Vlan778
 <group name="{{ interface }}">
 interface {{ interface }}
  ip address {{ ip }}/{{ mask }}
- description {{ description }}
+ description {{ description | contains('-') }}
  ip vrf {{ vrf }}
 </group>
 
@@ -3667,4 +3667,183 @@ format="tabulate"
 returner="terminal"
 key="intf_name"
 />
+"""
+
+test212="""
+<input name="jun_hierarch" load="text">
+## Juniper show configuration interfaces output
+some.user@router-fw-host> show configuration interfaces
+vlan {
+    description "intf descript bla";
+    unit 0 {
+        family inet {
+            address 192.168.1.1/24;
+        }
+    }
+}
+lo0 {
+    unit 0 {
+        description "Routing Loopback";
+        family inet {
+            address 10.0.0.254/32 {
+                primary;
+            }
+            address 10.11.37.254/32;
+        }
+    }
+}
+</input>
+
+
+<vars name="vars">
+hostname = "gethostname"
+</vars>
+
+<group name="interfaces" input="jun_hierarch">
+{{ interface }} {
+    description "{{ intf_description | ORPHRASE }}";
+	<group name="units**">
+    unit {{ unit }} {
+        description "{{ unit_description | ORPHRASE }}";
+	    <group name="{{ family }}">
+        family {{ family }} {
+            address {{ ip | to_list | joinmatches }};
+            address {{ ip | to_list | joinmatches }} {
+		</group>
+    </group>
+</group>
+"""
+
+test213="""
+<input name="in1" load="text">
+some.user@router-fw-host> show configuration interfaces | display set 
+set interfaces ge-0/0/11 unit 0 description "SomeDescription in1"
+set interfaces ge-0/0/11 unit 0 family inet address 10.0.40.121/31
+set interfaces ge-5/0/5 unit 0 description "L3VPN: somethere"
+set interfaces ge-5/0/5 unit 0 family inet address 10.0.31.48/31
+set interfaces lo0 unit 0 description "Routing Loopback"
+set interfaces lo0 unit 0 family inet address 10.0.0.254/32 primary
+set interfaces lo0 unit 0 family inet address 10.6.4.4/32
+</input>
+
+<input load="text">
+some.user@router-fw-host> show configuration interfaces | display set 
+set interfaces ge-0/0/11 unit 0 description "SomeDescription glob1"
+set interfaces ge-0/0/11 unit 0 family inet address 10.0.40.121/31
+set interfaces ge-5/0/5 unit 0 description "L3VPN: somethere"
+set interfaces ge-5/0/5 unit 0 family inet address 10.0.31.48/31
+set interfaces lo0 unit 0 description "Routing Loopback"
+set interfaces lo0 unit 0 family inet address 10.0.0.254/32 primary
+set interfaces lo0 unit 0 family inet address 10.6.4.4/32
+</input>
+
+<input load="text">
+some.user@router-fw-host> show configuration interfaces | display set 
+set interfaces ge-0/0/11 unit 0 description "SomeDescription glob2"
+set interfaces ge-0/0/11 unit 0 family inet address 10.0.40.121/31
+set interfaces ge-5/0/5 unit 0 description "L3VPN: somethere"
+set interfaces ge-5/0/5 unit 0 family inet address 10.0.31.48/31
+set interfaces lo0 unit 0 description "Routing Loopback"
+set interfaces lo0 unit 0 family inet address 10.0.0.254/32 primary
+set interfaces lo0 unit 0 family inet address 10.6.4.4/32
+</input>
+
+<vars name="vars">
+hostname = "gethostname"
+</vars>
+
+<group name="specific_out_interfaces.{{ interface }}{{ unit }}**" method="table" input="in1" output="out1">
+set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }}
+set interfaces {{ interface | append('.') }} unit {{ unit }} description "{{ description | ORPHRASE }}"
+set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }} primary
+</group>
+
+<output name="out1" dict_to_list="key_name='interface', path='specific_out_interfaces'"/>
+
+<group name="glob_out_interfaces.{{ interface }}{{ unit }}**" method="table">
+set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }}
+set interfaces {{ interface | append('.') }} unit {{ unit }} description "{{ description | ORPHRASE }}"
+set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }} primary
+</group>
+
+<output dict_to_list="key_name='interface', path='glob_out_interfaces'"/>
+
+<output returner="terminal" format="json"/>
+"""
+
+test214="""
+<input name="input_1" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/11
+ description input_1_data
+ switchport trunk allowed vlan add 111,222
+!
+</input>
+
+<input name="input_2" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/22
+ description input_2_data
+ switchport trunk allowed vlan add 222,888
+!
+</input>
+
+<input name="input_3" load="text" groups="interfaces.trunks">
+interface GigabitEthernet3/33
+ description input_3_data
+ switchport trunk allowed vlan add 333,999
+!
+</input>
+
+<input name="input_4" load="text">
+interface GigabitEthernet3/44
+ description input_4_data
+ switchport trunk allowed vlan add 444,1010
+!
+</input>
+
+<input name="input_5" load="text">
+interface GigabitEthernet3/55
+ description input_5_data
+ switchport trunk allowed vlan add 555,2020
+!
+</input>
+
+<group name="interfaces.trunks" input="input_1">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_1") }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks" input="input_2">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_2") }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks" input="input_2">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_3") }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_4") }}
+!{{ _end_ }}
+</group>
+
+<group name="interfaces.trunks" input="input_5">
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ trunk_vlans }}
+ description {{ description | ORPHRASE }}
+ {{ group_id | set("group_5") }}
+!{{ _end_ }}
+</group>
 """

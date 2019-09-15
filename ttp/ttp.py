@@ -249,7 +249,7 @@ class ttp():
         if kwargs:
             kwargs['returner'] = returner
             outputter = _outputter_class(**kwargs)
-            return [outputter.run(template.results) for template in templates_obj]
+            return [outputter.run(template.results, macro=template.macro) for template in templates_obj]
         else:
             return [template.results for template in templates_obj]
 
@@ -330,6 +330,7 @@ class _ttp_functions():
         self.robj = results_obj
         self.out_obj = out_obj
         self.macro = macro
+		self.__utils = _ttp_utils()
 
     def invalid(self, data, name, scope, skip=True):
         if skip == True:
@@ -338,7 +339,7 @@ class _ttp_functions():
             print("Error: data - {}, {} function '{}' not found, valid functions are: \n{}".format(
                 data, scope, name, getattr(self, scope).keys() ))
 
-    def output_is_equal(self, data, *args, **kwargs):
+    def output_is_equal(self, data):
         data_to_compare_with = self.out_obj.attributes['load']
         is_equal = False
         if "_anonymous_" in data:
@@ -351,6 +352,9 @@ class _ttp_functions():
             'output_description' : self.out_obj.attributes.get('description', 'None'),
             'is_equal'           : is_equal
         }
+		
+	def output_dict_to_list(self, data, key_name='key', path=[]):
+		pass
 
     def group_containsall(self, data, *args):
         # args = ('v4address', 'v4mask',)
@@ -385,6 +389,15 @@ class _ttp_functions():
         elif result is None:
             return data, None
         return result, None
+        
+    def output_macro(self, data, macro_name):
+        result = None
+        if macro_name in self.macro:
+            result = self.macro[macro_name](data)
+        # process macro result
+        if result is None:
+            return data
+        return result
         
     def group_to_ip(self, data, ip_key, mask_key):
         """This method takes ip_key and mask_key and tries to 
@@ -888,11 +901,12 @@ class _ttp_functions():
         command output, uses symbols '# ', '<', '>' to find hostname
         """
         REs = [ # ios-xr prompt re must go before ios privilege prompt re
+            {'juniper': '\n\S*@(\S+)>.*(?=\n)'},       # e.g. 'some.user@router-fw-host>'
             {'huawei': '\n\S*<(\S+)>.*(?=\n)'},        # e.g. '<hostname>'
             {'ios_exec': '\n(\S+)>.*(?=\n)'},          # e.g. 'hostname>'
             {'ios_xr': '\n\S+:(\S+)#.*(?=\n)'},        # e.g. 'RP/0/4/CPU0:hostname#'
             {'ios_priv': '\n(\S+)#.*(?=\n)'},          # e.g. 'hostname#'
-            {'fortigate': '\n(\S+ \(\S+\)) #.*(?=\n)'} # e.g. 'syd-pwk-dym-cfw01 (Corporate) #'
+            {'fortigate': '\n(\S+ \(\S+\)) #.*(?=\n)'} # e.g. 'forti-hostname (Default) #'
         ]
         for item in REs:
             name, regex = list(item.items())[0]
@@ -1061,7 +1075,7 @@ class _ttp_utils():
                     text_data += "\n" + datum[1]
             try:
                 if python_major_version is 2:
-                    # if running ttp.py deirectly
+                    # if running ttp.py directly
                     if __name__ == "__main__":
                         from ttp_load_py2 import load_python_exec
                     # if running ttp as a module
@@ -1202,6 +1216,7 @@ class _template_class():
         self.attributes = {}
         self.macro = {}                   # dictionary of macro name to function mapping
         self.results_method = 'per_input' # how to join results
+        self.impot_list = [] # list of functions to import
 
         # load template from string:
         self.load_template_xml(template_text)
@@ -1399,7 +1414,7 @@ class _template_class():
 
             # run checks:
             if not urls:
-                raise SystemExit("ERROR: Input '{}', no 'url' parametr given".format(name))
+                raise SystemExit("ERROR: Input '{}', no 'url' parameter given".format(name))
             if isinstance(extensions, str): extensions=[extensions]
             if isinstance(filters, str): filters=[filters]
             if isinstance(urls, str): urls=[urls]
@@ -1420,7 +1435,8 @@ class _template_class():
                     pathchar=self.PATHCHAR,
                     debug=self.DEBUG,
                     vars=self.vars,
-                    grp_index=grp_index
+                    grp_index=grp_index,
+                    impot_list = self.impot_list
                 )
             )
 
@@ -1430,10 +1446,10 @@ class _template_class():
             except KeyError:
                 print("Error: Lookup 'name' attribute not found but required")
                 return
-            data = self.utils.load_struct(element.text, **element.attrib)
-            if data is None:
+            lookup_data = self.utils.load_struct(element.text, **element.attrib)
+            if lookup_data is None:
                 return
-            self.lookups[name] = data
+            self.lookups[name] = lookup_data
 
         def parse_template(element):
             self.templates.append(_template_class(
@@ -1544,7 +1560,7 @@ class _group_class():
     """
 
     def __init__(self, element, grp_index=0, top=False, path=[], pathchar=".",
-                 debug=False, vars={}):
+                 debug=False, vars={}, impot_list=[]):
         """Init method
         Attributes:
             element : xml ETree element to parse
@@ -1556,13 +1572,14 @@ class _group_class():
             default (str): group all variables' default value if no more specific default value given
             inputs (list): list of inputs names this group should be used for
             outputs (list): list of outputs to run for this group
-            funcs (list):vlist of functions to run agaist group results
+            funcs (list): list of functions to run against group results
             method (str): indicate type of the group - [group | table]
             start_re (list): contains list of group start regular epressions
             end_re (list): contains list of group end regular expressions
             children (list): contains child group objects
             vars (dict): variables dictionary from template class
             grp_index (int): uniqie index of the group
+            impot_list (list): list of functions or modules to import
         """
         self.pathchar = pathchar
         self.top      = top
@@ -1583,6 +1600,7 @@ class _group_class():
         self.vars     = vars
         self.utils    = _ttp_utils()
         self.grp_index = grp_index
+        self.impot_list = impot_list
         # extract data:
         self.get_attributes(element.attrib)
         self.set_anonymous_path()
@@ -1625,7 +1643,7 @@ class _group_class():
                     'args': [i.strip() for i in O.split(',')]
                 })
             elif isinstance(O, dict):
-                self.funcs.append(O) 
+                self.funcs.append(O)
 
         def extract_containsall(O):
             if isinstance(O, str):
@@ -1670,7 +1688,7 @@ class _group_class():
                 if func_name in functions: 
                     functions[func_name](i)
                 else: 
-                    print('ERROR: Uncknown group function: "{}"'.format(func_name))
+                    print('ERROR: Unknown group function: "{}"'.format(func_name))
 
         # group attributes extract functions dictionary:
         options = {
@@ -1692,7 +1710,7 @@ class _group_class():
         for attr_name, attributes in data.items():
             if attr_name.lower() in options: options[attr_name.lower()](attributes)
             elif attr_name.lower() in functions: functions[attr_name.lower()](attributes)
-            else: print('ERROR: Uncknown group attribute: {}="{}"'.format(attr_name, attributes))
+            else: print('ERROR: Unknown group attribute: {}="{}"'.format(attr_name, attributes))
 
 
     def get_regexes(self, data, tail=False):
@@ -1719,7 +1737,7 @@ class _group_class():
             is_line = False
             skip_regex = False
             for variable in i['variables']:
-                variableObj = _variable_class(variable, i['line'], DEBUG=self.debug, group=self)
+                variableObj = _variable_class(variable, i['line'], DEBUG=self.debug, group=self, impot_list=self.impot_list)
 
                 # check if need to skip appending regex dict to regexes list
                 # have to skip it for unconditional 'set' function
@@ -1784,7 +1802,8 @@ class _group_class():
                 path=self.path,
                 pathchar=self.pathchar,
                 debug=self.debug,
-                vars=self.vars))
+                vars=self.vars,
+                impot_list=self.impot_list))
             # get regexes from tail
             if g.tail.strip():
                 self.get_regexes(data=g.tail, tail=True)
@@ -1820,7 +1839,7 @@ class _variable_class():
     """
     variable class - to define variables and associated actions, conditions, regexes.
     """
-    def __init__(self, variable, line, DEBUG=False, group=''):
+    def __init__(self, variable, line, DEBUG=False, group='', impot_list=[]):
         """
         Args:
             variable (str): contains variable content
@@ -1841,6 +1860,7 @@ class _variable_class():
         self.skip_regex_dict = False                 # will be set to true for 'set'
         self.var_res = []                            # list of variable regexes
         self.utils = _ttp_utils()                    # ttp utils
+        self.impot_list = impot_list                 # list of functions to import
 
         # add formatters:
         self.REs = _ttp_patterns()
@@ -2612,8 +2632,8 @@ class _results_class():
     def form_path(self, path):
         """Method to form dynamic path
         """
-        for index, item in enumerate(path):
-            match=re.findall('{{\s*(\S+)\s*}}', item)
+        for index, path_item in enumerate(path):
+            match=re.findall('{{\s*(\S+)\s*}}', path_item)
             if not match:
                 continue
             for m in match:
@@ -2621,13 +2641,14 @@ class _results_class():
                 if m in self.record['result']:
                     self.dyn_path_cache[m] = self.record['result'][m]
                     repl = self.record['result'].pop(m)
-                    path[index] = re.sub(pattern, repl, item)
+                    path_item = re.sub(pattern, repl, path_item)
                 elif m in self.dyn_path_cache:
-                    path[index] = re.sub(pattern, self.dyn_path_cache[m], item)
+                    path_item = re.sub(pattern, self.dyn_path_cache[m], path_item)
                 elif m in self.vars:
-                    path[index] = re.sub(pattern, self.vars[m], item)
+                    path_item = re.sub(pattern, self.vars[m], path_item)
                 else:
                     return False
+            path[index] = path_item
         return path
 
 
@@ -2664,7 +2685,7 @@ class _outputter_class():
     """Class to serve excel, yaml, json, xml etc. dumping functions
     Args:
         destination (str): if 'file' will save data to file,
-            if 'terminal' will print data to terinal
+            if 'terminal' will print data to terminal
         format (str): output format indicator on how to format data
         url (str): path to where to save data to e.g. OS path
         filename (str): name of hte file
@@ -2682,7 +2703,7 @@ class _outputter_class():
         }
         self.name = None
         self.return_to_self = False
-        self.functions = []
+        self.funcs = []
         self.functions_obj = _ttp_functions(out_obj=self)
         # get output attributes:
         if element is not None:
@@ -2742,18 +2763,27 @@ class _outputter_class():
                                 O, supported_methods))
 
         def extract_functions(O):
-            functions = self.utils.get_attributes(O)
-            for i in functions:
+            funcs = self.utils.get_attributes(O)
+            for i in funcs:
                 name = i['name']
-                if name in opt_funcs:
-                    opt_funcs[name](i)
+                if name in functions:
+                    functions[name](i)
                 else:
-                    print('ERROR: Uncknown output function: "{}"'.format(name))
+                    print('ERROR: Unknown output function: "{}"'.format(name))
 
-        def function_is_equal(data):
-            if not data['kwargs'] and not data['args']:
-                # do nothing as self.attributes['load'] will be used
-                self.functions.append(data)
+        def extract_macro(O):
+            if isinstance(O, str):
+                for i in O.split(','):
+                    self.funcs.append({
+                        'name': 'macro',
+                        'args': [i.strip()]
+                    })
+            elif isinstance(O, dict):
+                self.funcs.append(O)
+                
+        def extract_is_equal(O):
+            if isinstance(O, dict):
+                self.funcs.append(O)
 
         def extract_format_attributes(O):
             """Extract formatter attributes
@@ -2771,33 +2801,47 @@ class _outputter_class():
         def extract_headers(O):
             self.attributes['headers'] = [i.strip() for i in O.split(',')]
 
-        opt_funcs = {
+        def extract_dict_to_list(O):
+            if isinstance(O, str):
+                dict_to_list_attrs = self.utils.get_attributes(
+                    'dict_to_list_attrs({})'.format(O))
+                self.funcs.append(dict_to_list_attrs[0])
+            elif isinstance(O, dict):
+                self.funcs.append(O)
+
+        options = {
         'name'           : extract_name,
         'returner'       : extract_returner,
         'format'         : extract_format,
         'load'           : extract_load,
         'filename'       : extract_filename,
         'method'         : extract_method,
-        'functions'      : extract_functions,
-        'is_equal'       : function_is_equal,
         'format_attributes' : extract_format_attributes,
         'path'           : extract_path,
         'headers'        : extract_headers
         }
+        functions = {
+        'functions'      : extract_functions,
+        'is_equal'       : extract_is_equal,
+        'macro'          : extract_macro,
+        'dict_to_list'   : extract_dict_to_list
+        }     
+        for attr_name, attributes in data.items():
+            if attr_name.lower() in options: options[attr_name.lower()](attributes)
+            elif attr_name.lower() in functions: functions[attr_name.lower()](attributes)
+            else: self.attributes[attr_name] = attributes
 
-        for name, options in data.items():
-            if name.lower() in opt_funcs: opt_funcs[name.lower()](options)
-            else: self.attributes[name] = options
-
-    def run(self, data):
+    def run(self, data, macro={}):
+        if macro:
+            self.functions_obj = _ttp_functions(out_obj=self, macro=macro)
         returners = self.attributes['returner']
         format = self.attributes['format']
         results = data
         # run fuctions:
-        for item in self.functions:
+        for item in self.funcs:
             func_name = item['name']
-            args = item['args']
-            kwargs = item['kwargs']
+            args = item.get('args', [])
+            kwargs = item.get('kwargs', {})
             results = getattr(self.functions_obj, 'output_' + func_name)(results, *args, **kwargs)
         # format data using requested formatter:
         results = getattr(self, 'formatter_' + format)(results)
