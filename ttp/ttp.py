@@ -91,7 +91,7 @@ class ttp():
             [template.add_vars(data) for template in self.__templates]
             
 
-    def add_data(self, data, input_name='Default_Input', groups=['all']):
+    def add_data(self, data, input_name='Default_Input', groups=[]):
         """Method to load data
         """
         # form a list of ((type, url|text,), input_name, groups,) tuples
@@ -178,7 +178,6 @@ class ttp():
                 for datum in input_params['data']:
                     task_dict = {
                         'data'          : datum,
-                        'groups_to_run' : input_params['groups'],
                         'groups_indexes': input_params['groups_indexes']
                     }
                     tasks.put(task_dict)
@@ -210,7 +209,7 @@ class ttp():
                 for input_name, input_params in sorted(template.inputs.items()):
                     for datum in input_params['data']:
                         parserObj.set_data(datum, main_results={})
-                        parserObj.parse(groups_names=input_params['groups'], groups_indexes=input_params['groups_indexes'])
+                        parserObj.parse(groups_indexes=input_params['groups_indexes'])
                         result = parserObj.main_results
                         template.form_results(result)
             elif template.results_method.lower() == 'per_template':
@@ -218,7 +217,7 @@ class ttp():
                 for input_name, input_params in sorted(template.inputs.items()):
                     for datum in input_params['data']:
                         parserObj.set_data(datum, main_results=results_data)
-                        parserObj.parse(groups_names=input_params['groups'], groups_indexes=input_params['groups_indexes'])
+                        parserObj.parse(groups_indexes=input_params['groups_indexes'])
                         results_data = parserObj.main_results
                 template.form_results(results_data)
 
@@ -279,7 +278,7 @@ class _worker(Process):
             # set parser object parameters
             self.parserObj.set_data(next_task['data'], main_results={})
             # parse and get results
-            self.parserObj.parse(groups_names=next_task['groups_to_run'], groups_indexes=next_task['groups_indexes'])
+            self.parserObj.parse(groups_indexes=next_task['groups_indexes'])
             result = self.parserObj.main_results
             # put results in the queue and finish task
             self.task_queue.task_done()
@@ -330,7 +329,7 @@ class _ttp_functions():
         self.robj = results_obj
         self.out_obj = out_obj
         self.macro = macro
-		self.__utils = _ttp_utils()
+        self.utils = _ttp_utils()
 
     def invalid(self, data, name, scope, skip=True):
         if skip == True:
@@ -352,9 +351,41 @@ class _ttp_functions():
             'output_description' : self.out_obj.attributes.get('description', 'None'),
             'is_equal'           : is_equal
         }
-		
-	def output_dict_to_list(self, data, key_name='key', path=[]):
-		pass
+        
+    def output_set_data(self, data, path, new_data):
+        # add new_data to data at given path or override existing results
+        if isinstance(path, str):
+            path = [i.strip() for i in path.split('.')]
+        last_index = len(path) - 1
+        datum = data
+        for path_index, path_item in enumerate(path):
+            if not isinstance(datum, dict): 
+                break
+            if last_index == path_index:
+                datum[path_item] = new_data
+                break        
+            if path_item in datum:
+                datum = datum[path_item]
+            else:
+                datum[path_item] = {}
+        
+    def output_dict_to_list(self, data, key_name='key', path=[]):
+        if isinstance(path, str):
+            path = [i.strip() for i in path.split('.')]
+        # transform dict to list at given path
+        if isinstance(data, dict):
+            data_to_work_with = self.utils.traverse_dict(data, path)
+            result = []
+            for k, v in data_to_work_with.items():
+                v.update({key_name: k})
+                result.append(v)
+            # save list into results tree:
+            if result:
+                self.output_set_data(data, path, result)
+        elif isinstance(data, list):
+            [self.output_dict_to_list(item, key_name, path) for item in data
+             if isinstance(item, dict)]
+        return data
 
     def group_containsall(self, data, *args):
         # args = ('v4address', 'v4mask',)
@@ -1223,7 +1254,6 @@ class _template_class():
 
         # update inputs with the groups it has to be run against:
         self.update_inputs_with_groups()
-
         # update groups with output references:
         self.update_groups_with_outputs()
 
@@ -1254,9 +1284,8 @@ class _template_class():
     def run_outputs(self):
         """Method to run template outputs with template results
         """
-        # [output.run(self.results) for output in self.outputs]
         for output in self.outputs:
-            self.results = output.run(self.results)
+            self.results = output.run(self.results, macro=self.macro)
 
     def form_results(self, result):
         """Method to add results to self.results
@@ -1271,7 +1300,7 @@ class _template_class():
             else:
                 self.results.append(result)
 
-    def set_input(self, data=None, input_name='Default_Input', groups=['all'], groups_indexes=[]):
+    def set_input(self, data=None, input_name='Default_Input', groups='', preference='group_inputs'):
         """
         Method to set data for default input
         Args:
@@ -1279,50 +1308,61 @@ class _template_class():
             input_name (str): name of the input
             groups (list): list of groups to use for that input
         """
+        groups_indexes = []
+        # convert groups into lists if required:
         if isinstance(groups, str):
-            groups = [groups]
-        if isinstance(groups_indexes, int):
-            groups_indexes = [groups_indexes]
-        if input_name not in self.inputs:
-            if data is not None:
-                # list(groups_indexes) makes copy of groups_indexes, need copy it, or python reference same list 
-                self.inputs[input_name]={'data': data, 'groups': groups, 'groups_indexes': list(groups_indexes)}
-            else:
-                print("ERROR: New input, input data required but not provided")
+            groups = [i.strip() for i in groups.split(',')]
+        # fill in groups_indexes based on groups provided
+        # and skip groups with group specific inputs
+        if 'all' in groups:
+            groups_indexes = [grp_obj.grp_index for grp_obj in self.groups if not grp_obj.inputs]
         else:
+            groups_indexes = [grp_obj.grp_index for grp_obj in self.groups 
+                                if grp_obj.name in groups and not grp_obj.inputs]   
+        # list(set(groups_indexes)) makes copy of groups_indexes, need copy it, or python reference same list 
+        groups_indexes = sorted(list(set(groups_indexes)))
+        # add input to self.inputs:
+        if input_name in self.inputs:
             if data is not None:
                 self.inputs[input_name]['data'] += data
-            # do not add 'all' to input groups if input was defined already
-            # that is needed to allow groups to match based on input attribute
-            if groups is not ['all']:
-                self.inputs[input_name]['groups'] += groups
-                self.inputs[input_name]['groups_indexes'] += groups_indexes    
-            # remove 'all' from this input as it is group specific:
-            if self.inputs[input_name]['groups'][0] == 'all':
-                self.inputs[input_name]['groups'].pop(0)
+            indexes = self.inputs[input_name]['groups_indexes']
+            indexes += groups_indexes
+            self.inputs[input_name]['groups_indexes'] = sorted(list(set(indexes)))   
+        else:
+            if data is not None:
+                self.inputs[input_name] = {'data': data, 'groups_indexes': groups_indexes, 'preference': preference}
 
     def update_inputs_with_groups(self):
         """
-        Method to update self.inputs dictionaries with groups' names
-        that will parse this input data. method called after all groups and 
-        inputs already loaded.
+        Method to update self.inputs with groups_indexes
         """
         for G in self.groups:
-            # input_name - os path to files to parse or name of the input
             for input_name in G.inputs:
-                if self.base_path:
-                    input_name = self.base_path + input_name.lstrip('.')
+                input_name = self.base_path + input_name.lstrip('.')
                 if input_name in self.inputs:
-                    self.set_input(input_name=input_name, groups=G.name, groups_indexes=G.grp_index)
+                    if 'group_inputs' not in self.inputs[input_name]:
+                        self.inputs[input_name]['group_inputs'] = []
+                    self.inputs[input_name]['group_inputs'].append(G.grp_index)
                 else:
-                    data_items = self.utils.load_files(path=input_name, extensions=[],
-                                                       filters=[], read=False)
+                    data_items = self.utils.load_files(path=input_name, read=False)
                     # skip 'text_data' from data as if by the time this method runs
                     # no input with such name found it means that group input is os path
                     # string and text_data will be returned by self.utils.load_files
                     # only if no such path exists, hence text_data does not make sense here
                     data = [i for i in data_items if 'text_data' not in i[0]]
-                    self.set_input(input_name=input_name, data=data, groups=G.name, groups_indexes=G.grp_index)
+                    self.inputs[input_name] = {
+                        'data': data,
+                        'groups_indexes': [],
+                        'group_inputs': [G.grp_index]                    
+                    }
+        for input_name, input_details in self.inputs.items():
+            if input_details['preference'] == 'group_inputs' and 'group_inputs' in input_details:
+                input_details['groups_indexes'] = input_details.pop('group_inputs')
+            elif input_details['preference'] == 'input_groups':
+                pass
+            elif input_details['preference'] == 'merge' and 'group_inputs' in input_details:
+                input_details['groups_indexes'] += input_details.pop('group_inputs')
+            input_details['groups_indexes'] = sorted(list(set(input_details['groups_indexes'])))
 
     def update_groups_with_outputs(self):
         """Method to replace output names in group with
@@ -1401,11 +1441,11 @@ class _template_class():
             # get parameters from input attributes:
             name = element.attrib.get('name', 'Default_Input')
             groups = element.attrib.get('groups', 'all')
-            groups = [i.strip() for i in groups.split(',')]
+            preference = element.attrib.get('preference', 'group_inputs')
 
             # if load is text:
             if isinstance(input_data, str):
-                self.set_input(data=[('text_data', input_data)], input_name=name, groups=groups)
+                self.set_input(data=[('text_data', input_data)], input_name=name, groups=groups, preference=preference)
                 return
 
             extensions = input_data.get('extensions', [])
@@ -1418,14 +1458,13 @@ class _template_class():
             if isinstance(extensions, str): extensions=[extensions]
             if isinstance(filters, str): filters=[filters]
             if isinstance(urls, str): urls=[urls]
-            if isinstance(groups, str): groups=[groups]
 
             # load data:
             for url in urls:
                 url = self.base_path + url.lstrip('.')
                 data += self.utils.load_files(url, extensions, filters, read=False)
 
-            self.set_input(data=data, input_name=name, groups=groups)
+            self.set_input(data=data, input_name=name, groups=groups, preference=preference)
 
         def parse_group(element, grp_index):
             self.groups.append(
@@ -1482,7 +1521,7 @@ class _template_class():
             
         def parse__anonymous_(element):
             elem = ET.XML('<g name="_anonymous_">\n{}\n</g>'.format(element.text))
-            parse_group(elem)
+            parse_group(elem, grp_index=0)
 
         def invalid(C):
             print("Warning: Invalid tag '{}'".format(C.tag))
@@ -1587,7 +1626,6 @@ class _group_class():
         self.defaults = {}
         self.runs     = {}
         self.default  = "_Not_Given_"
-        self.inputs   = []
         self.outputs  = []
         self.funcs    = []
         self.method   = 'group'
@@ -1601,6 +1639,7 @@ class _group_class():
         self.utils    = _ttp_utils()
         self.grp_index = grp_index
         self.impot_list = impot_list
+        self.inputs = []
         # extract data:
         self.get_attributes(element.attrib)
         self.set_anonymous_path()
@@ -1627,10 +1666,10 @@ class _group_class():
             self.method=O.lower().strip()
 
         def extract_input(O):
-            if self.top: self.inputs += [(i.strip()) for i in O.split(',')]
+            if self.top: self.inputs = [(i.strip()) for i in O.split(',')]
 
         def extract_output(O):
-            if self.top: self.outputs += [(i.strip()) for i in O.split(',')]
+            if self.top: self.outputs = [(i.strip()) for i in O.split(',')]
 
         def extract_name(O):
             self.path = self.path + O.split(self.pathchar)
@@ -2154,8 +2193,7 @@ class _parser_class():
                     continue
 
 
-    def parse(self, groups_names, groups_indexes):
-        # groups_names - list of groups' names to run
+    def parse(self, groups_indexes):
         # groups_indexes - list of group indexes to run
         unsort_rslts = [] # list of dictionaries - one item per top group, each dictionary
                           # contains all unsorted match results for all REs within group
@@ -2283,20 +2321,17 @@ class _parser_class():
             return results
 
         # run parsing to produce unsorted results:
-        for group in self.groups:
-            if group.name in groups_names or 'all' in groups_names:
-                if groups_indexes:
-                    if not group.grp_index in groups_indexes:
-                        continue
-                # get results for groups with global only outputs:
-                if group.outputs == []:
-                    unsort_rslts.append(run_re(group, results={}))
-                # get results for groups with group specific results:
-                else:
-                    # form a tuple of (results, group.outputs,)
-                    grps_unsort_rslts.append(
-                        (run_re(group, results={}), group.outputs,)
-                    )
+        for group_index in groups_indexes:
+            group = self.groups[group_index]
+            # get results for groups with global only outputs:
+            if group.outputs == []:
+                unsort_rslts.append(run_re(group, results={}))
+            # get results for groups with group specific results:
+            else:
+                # form a tuple of (results, group.outputs,)
+                grps_unsort_rslts.append(
+                    (run_re(group, results={}), group.outputs,)
+                )
                     
         # update groups runs with most recent variables
         self.update_groups_runs(self.vars['globals']['vars'])
@@ -2804,7 +2839,7 @@ class _outputter_class():
         def extract_dict_to_list(O):
             if isinstance(O, str):
                 dict_to_list_attrs = self.utils.get_attributes(
-                    'dict_to_list_attrs({})'.format(O))
+                    'dict_to_list({})'.format(O))
                 self.funcs.append(dict_to_list_attrs[0])
             elif isinstance(O, dict):
                 self.funcs.append(O)

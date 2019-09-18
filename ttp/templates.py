@@ -3756,6 +3756,7 @@ hostname = "gethostname"
 set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }}
 set interfaces {{ interface | append('.') }} unit {{ unit }} description "{{ description | ORPHRASE }}"
 set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }} primary
+{{ hostname | set("hostname") }}
 </group>
 
 <output name="out1" dict_to_list="key_name='interface', path='specific_out_interfaces'"/>
@@ -3764,12 +3765,15 @@ set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address
 set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }}
 set interfaces {{ interface | append('.') }} unit {{ unit }} description "{{ description | ORPHRASE }}"
 set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }} primary
+{{ hostname | set("hostname") }}
 </group>
 
 <output dict_to_list="key_name='interface', path='glob_out_interfaces'"/>
 
 <output returner="terminal" format="json"/>
 """
+
+
 
 test214="""
 <input name="input_1" load="text" groups="interfaces.trunks">
@@ -3846,4 +3850,59 @@ interface {{ interface }}
  {{ group_id | set("group_5") }}
 !{{ _end_ }}
 </group>
+"""
+
+test215="""
+<template results="per_template">
+<vars>
+hostname="gethostname"
+</vars>
+
+<input load="text">
+user.name@host-site-sw1> show configuration interfaces | display set 
+set interfaces vlan unit 17 description "som if descript"
+set interfaces vlan unit 17 family inet address 20.17.1.253/23 vrrp-group 25 virtual-address 20.17.1.254
+</input>
+
+<input load="text">
+user.name@host-site-sw2> show configuration interfaces | display set 
+set interfaces vlan unit 17 description "som if descript"
+set interfaces vlan unit 17 family inet address 20.17.1.252/23 vrrp-group 25 virtual-address 20.17.1.254
+</input>
+
+<group name="juniper.{{ hostname }}.{{ interface }}**.units.{{ unit }}**" method="table">
+set interfaces {{ interface }} unit {{ unit }} family inet address {{ ip | to_ip }}
+set interfaces {{ interface }} unit {{ unit }} family inet address {{ ip | to_ip }} primary
+set interfaces {{ interface }} unit {{ unit }} family inet address {{ ip | to_ip }} vrrp-group {{ vrrp_id }} virtual-address {{ vrrp_vip }}
+set interfaces {{ interface }} unit {{ unit }} description "{{ description | ORPHRASE }}"
+{{ hostname | set("hostname") }}
+</group> 
+</template>
+"""
+
+test216="""
+<vars>
+hostname="gethostname"
+</vars>
+
+<input load="text" name='in1' preference="merge">
+user.name@host-site-sw1> show configuration interfaces | display set 
+set interfaces vlan unit 17 description "som if descript"
+set interfaces vlan unit 17 family inet address 20.17.1.253/23 vrrp-group 25 virtual-address 20.17.1.254
+set interfaces vlan unit 17 family inet address 20.17.1.252/23
+</input>
+
+
+<group name="grp1" method="table" input='in1'>
+set interfaces {{ interface }} unit {{ unit }} family inet address {{ ip | to_ip }} vrrp-group {{ vrrp_id }} virtual-address {{ vrrp_vip }}
+set interfaces {{ interface }} unit {{ unit }} description "{{ description | ORPHRASE }}"
+{{ hostname | set("hostname") }}
+{{ group | set("group-0") }}
+</group> 
+
+<group name="grp2" method="table">
+set interfaces {{ interface }} unit {{ unit }} family inet address {{ ip | to_ip }}
+{{ hostname | set("hostname") }}
+{{ group | set("group-1") }}
+</group> 
 """
