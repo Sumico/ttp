@@ -12,6 +12,7 @@ __version__ = '0.0.0'
 import re
 import os
 import time
+import logging
 from xml.etree import cElementTree as ET
 from multiprocessing import Process, cpu_count, JoinableQueue, Queue
 from sys import version_info
@@ -21,6 +22,7 @@ python_major_version = version_info.major
 
 # Initiate global variables:
 ctime = time.strftime("%Y-%m-%d_%H-%M-%S")
+log = logging.getLogger(__name__)
 
 """
 ==============================================================================
@@ -38,12 +40,11 @@ class ttp():
             directory which contains .txt, .log or .conf files
         template : text, file object of python open method or a string which is OS
             path to text file
-        DEBUG (bool): if True will print debug data to the terminal
         base_path (str): Contains path prefix to load data from for template inputs
         self.multiproc_threshold (int): overall data size in bytes beyond which to use
             multiple processes
     """
-    def __init__(self, data='', template='', DEBUG=False, base_path='', vars={}):
+    def __init__(self, data='', template='', log_level="WARNING", log_file=None, base_path='', vars={}):
         """
         Args:
             self.__data (list): list of dictionaries, each dict key is file name, value - data/text
@@ -53,12 +54,13 @@ class ttp():
         self.__data = []
         self.__templates = []
         self.__utils = _ttp_utils()
-        self.DEBUG = DEBUG
         self.base_path = base_path
         self.multiproc_threshold = 5242880 # 5Mbyte
         self.vars = vars # dictionary of variables to add to each template vars
         self.lookups = {}
-
+        # setup logging if used as a module
+        if __name__ != '__main__':
+            loggin_config(log_level, log_file)
         # check if data given, if so - load it:
         if data is not '':
             self.add_data(data=data)
@@ -114,12 +116,12 @@ class ttp():
     def add_template(self, data):
         """Method to load templates
         """
+        log.debug("ttp.add_template - loading template")
         # get a list of [(type, text,)] tuples or empty list []
         items = self.__utils.load_files(path=data, read=True)
         for i in items:
             template_obj = _template_class(
                 template_text=i[1],
-                DEBUG=self.DEBUG,
                 base_path=self.base_path, 
                 ttp_vars=self.vars)
             # if templates are empty - no 'template' tags in template:
@@ -139,7 +141,8 @@ class ttp():
             multi (bool): if set to true will run parsing in multiprocess
         """
         if one is True and multi is True:
-            raise SystemExit("ERROR: choose one or multiprocess parsing.")
+            log.critical("ttp.parse - choose one or multiprocess parsing")
+            raise SystemExit()
         elif one is True:
             self.__parse_in_one_process()
         elif multi is True:
@@ -333,9 +336,9 @@ class _ttp_functions():
 
     def invalid(self, data, name, scope, skip=True):
         if skip == True:
-            print("Error: data - {}, {} function '{}' not found".format(data, scope, name))
+            log.error("ttp_functions.invalid: data - {}, {} function '{}' not found".format(data, scope, name))
         else:
-            print("Error: data - {}, {} function '{}' not found, valid functions are: \n{}".format(
+            log.error("ttp_functions.invalid: data - {}, {} function '{}' not found, valid functions are: \n{}".format(
                 data, scope, name, getattr(self, scope).keys() ))
 
     def output_is_equal(self, data):
@@ -789,7 +792,7 @@ class _ttp_functions():
             ret = sum([bin(int(x)).count('1') for x in data.split('.')])
             return ret, None
         except:
-            print("ERROR: '{}' is not a valid netmask".format(data))
+            log.error("ttp_functions.match_to_cidr: '{}' is not a valid netmask".format(data))
             return data, None   
             
     def match_ip_info(self, data, *args):
@@ -947,7 +950,7 @@ class _ttp_functions():
                 return match.group(1)
             except StopIteration:
                 continue
-        print('ERROR: "{}" file, Hostname not found'.format(data_name))
+        log.error('ttp.functions.variable_gethostname: "{}" file, Hostname not found'.format(data_name))
         return False
 
     def variable_getfilename(self, data, data_name, *args, **kwargs):
@@ -972,7 +975,7 @@ class _ttp_utils():
         at given path.
         """
         if not isinstance(data, dict):
-            # print("ERROR: ttp_utils.traverse_dict - data is not a dictionary, data: \n{}\n\n".format(data))
+            log.info("ttp_utils.traverse_dict - data is not a dictionary, will not traverse it, data: \n{}".format(data))
             return data
         result = data
         for i in path:
@@ -1001,7 +1004,7 @@ class _ttp_utils():
                         return [('text_data', open(path, 'r').read(),)]
                     return [('text_data', open(path, 'r', encoding='utf-8').read(),)]
                 except UnicodeDecodeError:
-                    print('Warning: Unicode read error, file "{}"'.format(path))
+                    log.warning('ttp_utils.load_files: Unicode read error, file "{}"'.format(path))
             else:
                 return [('file_name', path,)]
         # check if path is a directory:
@@ -1061,13 +1064,13 @@ class _ttp_utils():
                         try:
                             cfgparser.read(datum[1])
                         except:
-                            ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
+                            log.error("ttp_utils.load_struct: Pythom3, Unable to load ini formatted data\n'{}'".format(text_data))
                 # read from tag text next to make it more specific:
                 if text_data:
                     try:
                         cfgparser.read_string(text_data)
                     except:
-                        ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
+                        log.error("ttp_utils.load_struct: Python3, Unable to load ini formatted data\n'{}'".format(text_data))
                 # convert configparser object into dictionary
                 result = {k: dict(cfgparser.items(k)) for k in list(cfgparser.keys())}
             elif python_major_version is 2:
@@ -1083,14 +1086,14 @@ class _ttp_utils():
                         try:
                             cfgparser.read(datum[1])
                         except:
-                            ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
+                            log.error("ttp_utils.load_struct: Python2, Unable to load ini formatted data\n'{}'".format(text_data))
                 # read from tag text next to make it more specific:
                 if text_data:
                     buf_text_data = StringIO.StringIO(text_data)
                     try:
                         cfgparser.readfp(buf_text_data)
                     except:
-                        ("ERROR: Unable to load ini formatted data\n'{}'".format(text_data))
+                        log.error("ttp_utils.load_struct: Python2, Unable to load ini formatted data\n'{}'".format(text_data))
                 # convert configparser object into dictionary
                 result = {k: dict(cfgparser.items(k)) for k in list(cfgparser.sections())}
             if "DEFAULT" in result:
@@ -1120,7 +1123,7 @@ class _ttp_utils():
                 data = load_python_exec(text_data)
                 return data
             except:
-              print("ERROR: Unable to load Python formatted data\n'{}'".format(text_data))
+              log.error("ttp_utils.load_struct: Unable to load Python formatted data\n'{}'".format(text_data))
 
         def load_yaml(text_data, **kwargs):
             from yaml import safe_load
@@ -1133,7 +1136,7 @@ class _ttp_utils():
                 data = safe_load(text_data)
                 return data
             except:
-                raise SystemExit("ERROR: Unable to load YAML formatted data\n'{}'".format(text_data))
+                log.error("ttp_utils.load_struct: Unable to load YAML formatted data\n'{}'".format(text_data))
 
         def load_json(text_data, **kwargs):
             from json import loads
@@ -1146,7 +1149,7 @@ class _ttp_utils():
                 data = loads(text_data)
                 return data
             except:
-                raise SystemExit("ERROR: Unable to load JSON formatted data\n'{}'".format(text_data))
+                 log.error("ttp_utils.load_struct: Unable to load JSON formatted data\n'{}'".format(text_data))
 
         def load_csv(text_data, **kwargs):
             """Method to load csv data and convert it to dictionary
@@ -1209,8 +1212,9 @@ class _ttp_utils():
                 try:
                     args_kwargs = eval("get_args_kwargs({})".format(options))
                 except NameError:
-                    raise SystemExit("""ERROR: Failed to load arg/kwargs from line '{}' for options '{}' - possibly wrong syntaxis, 
+                    log.critical("""ERROR: Failed to load arg/kwargs from line '{}' for options '{}' - possibly wrong syntaxes, 
 make sure that all string arguments are within quotes, e.g. split(',') not split(,)""".format(line, options))
+                    raise SystemExit()
                 opts.update(args_kwargs)
             else:
                 options = []
@@ -1225,8 +1229,7 @@ TTP TEMPLATE CLASS
 class _template_class():
     """Template class to hold template data
     """
-    def __init__(self, template_text, DEBUG=False, base_path='', ttp_vars={}):
-        self.DEBUG = DEBUG
+    def __init__(self, template_text, base_path='', ttp_vars={}):
         self.PATHCHAR = '.'          # character to separate path items, like ntp.clock.time, '.' is pathChar here
         self.outputs = []            # list htat contains global outputs
         self.groups_outputs = []     # list that contains groups specific outputs
@@ -1257,16 +1260,16 @@ class _template_class():
         # update groups with output references:
         self.update_groups_with_outputs()
 
-        if self.DEBUG == True:
+        if log.isEnabledFor(logging.DEBUG):
             from yaml import dump
-            print("self.attributes: \n", self.attributes)
-            print("self.outputs: \n", dump(self.outputs))
-            print("self.groups_outputs: \n", dump(self.groups_outputs))
-            print("self.vars: \n",   dump(self.vars))
-            print('self.groups: \n', dump(self.groups))
-            print("self.inputs: \n", self.inputs)
-            print('self.lookups: \n', self.lookups)
-            print('self.templates: \n', self.templates)
+            log.debug("Template self.attributes: \n {}".format(self.attributes))
+            log.debug("Template self.outputs: \n{}".format(dump(self.outputs)))
+            log.debug("Template self.groups_outputs: \n{}".format(dump(self.groups_outputs)))
+            log.debug("Template self.vars: \n{}".format(dump(self.vars)))
+            log.debug("Template self.groups: \n{}".format(dump(self.groups)))
+            log.debug("Template self.inputs: \n{}".format(self.inputs))
+            log.debug("Template self.lookups: \n{}".format(self.lookups))
+            log.debug("Template self.templates: \n{}".format(self.templates))
 
     def add_lookup(self, data):
         """Method to load lookup data
@@ -1390,7 +1393,7 @@ class _template_class():
                 # print error message if no output found:
                 if not group_output_found:
                     G.outputs.pop(output_index)
-                    print("Error: group output '{}' not found.".format(grp_output))
+                    log.error("template.update_groups_with_outputs: group '{}' - output '{}' not found.".format(G.name, grp_output))
 
     def get_template_attributes(self, element):
 
@@ -1408,7 +1411,6 @@ class _template_class():
         'base_path' : extract_base_path,
         'results'   : extract_results_method
         # pathchar
-        # debug
         }
 
         [opt_funcs[name](options) for name, options in element.attrib.items()
@@ -1454,7 +1456,8 @@ class _template_class():
 
             # run checks:
             if not urls:
-                raise SystemExit("ERROR: Input '{}', no 'url' parameter given".format(name))
+                log.critical("template.parse_input: Input '{}', required 'url' parameter not given".format(name))
+                raise SystemExit()
             if isinstance(extensions, str): extensions=[extensions]
             if isinstance(filters, str): filters=[filters]
             if isinstance(urls, str): urls=[urls]
@@ -1472,7 +1475,6 @@ class _template_class():
                     element,
                     top=True,
                     pathchar=self.PATHCHAR,
-                    debug=self.DEBUG,
                     vars=self.vars,
                     grp_index=grp_index,
                     impot_list = self.impot_list
@@ -1483,7 +1485,7 @@ class _template_class():
             try:
                 name = element.attrib['name']
             except KeyError:
-                print("Error: Lookup 'name' attribute not found but required")
+                log.warning("Lookup 'name' attribute not found but required, skipping it")
                 return
             lookup_data = self.utils.load_struct(element.text, **element.attrib)
             if lookup_data is None:
@@ -1493,7 +1495,6 @@ class _template_class():
         def parse_template(element):
             self.templates.append(_template_class(
                 template_text=ET.tostring(element, encoding="UTF-8"),
-                DEBUG=self.DEBUG,
                 base_path=self.base_path,
                 ttp_vars=self.ttp_vars)
             )
@@ -1517,14 +1518,14 @@ class _template_class():
                 funcs = load_python_exec(element.text, builtins=__builtins__)
                 self.macro.update(funcs)
             except SyntaxError as e:
-                print("ERROR: Syntax error, failed to load macro:{}".format(element.text))
+                log.error("template.parse_macro: Syntax error, failed to load macro:{}".format(element.text))
             
         def parse__anonymous_(element):
             elem = ET.XML('<g name="_anonymous_">\n{}\n</g>'.format(element.text))
             parse_group(elem, grp_index=0)
 
         def invalid(C):
-            print("Warning: Invalid tag '{}'".format(C.tag))
+            log.warning("template.parse: invalid tag '{}'".format(C.tag))
 
         def parse_hierarch_tmplt(element):
             # dict to store all top tags sorted parsing as need to
@@ -1599,7 +1600,7 @@ class _group_class():
     """
 
     def __init__(self, element, grp_index=0, top=False, path=[], pathchar=".",
-                 debug=False, vars={}, impot_list=[]):
+                 vars={}, impot_list=[]):
         """Init method
         Attributes:
             element : xml ETree element to parse
@@ -1633,7 +1634,6 @@ class _group_class():
         self.end_re   = []
         self.re       = []
         self.children = []
-        self.debug    = debug
         self.name     = ''
         self.vars     = vars
         self.utils    = _ttp_utils()
@@ -1718,7 +1718,7 @@ class _group_class():
                 try:
                     globals()["ipaddress"] = __import__("ipaddress")
                 except ImportError:
-                    print("ERROR: no ipaddress module installed, install: python -m pip install ipaddress")                
+                    log.error("match_variable.extract_to_ip: No ipaddress module installed, install: python -m pip install ipaddress")                
      
         def extract_functions(O):
             funcs = self.utils.get_attributes(O)
@@ -1727,7 +1727,7 @@ class _group_class():
                 if func_name in functions: 
                     functions[func_name](i)
                 else: 
-                    print('ERROR: Unknown group function: "{}"'.format(func_name))
+                    log.error('group.extract_functions: Unknown group function: "{}"'.format(func_name))
 
         # group attributes extract functions dictionary:
         options = {
@@ -1749,7 +1749,7 @@ class _group_class():
         for attr_name, attributes in data.items():
             if attr_name.lower() in options: options[attr_name.lower()](attributes)
             elif attr_name.lower() in functions: functions[attr_name.lower()](attributes)
-            else: print('ERROR: Unknown group attribute: {}="{}"'.format(attr_name, attributes))
+            else: log.error('group.get_attributes: group "{}", unknown group attribute: {}="{}"'.format(self.name, attr_name, attributes))
 
 
     def get_regexes(self, data, tail=False):
@@ -1765,7 +1765,7 @@ class _group_class():
             # parse line against variable regexes
             match=re.findall('{{([\S\s]+?)}}', line)
             if not match:
-                print("Warning: Variable not found in line: '{}'".format(line))
+                log.warning("group.get_regexes: variable not found in line: '{}'".format(line))
                 continue
             varaibles_matches.append({'variables': match, 'line': line})
 
@@ -1776,7 +1776,7 @@ class _group_class():
             is_line = False
             skip_regex = False
             for variable in i['variables']:
-                variableObj = _variable_class(variable, i['line'], DEBUG=self.debug, group=self, impot_list=self.impot_list)
+                variableObj = _variable_class(variable, i['line'], group=self, impot_list=self.impot_list)
 
                 # check if need to skip appending regex dict to regexes list
                 # have to skip it for unconditional 'set' function
@@ -1840,7 +1840,6 @@ class _group_class():
                 top=False,
                 path=self.path,
                 pathchar=self.pathchar,
-                debug=self.debug,
                 vars=self.vars,
                 impot_list=self.impot_list))
             # get regexes from tail
@@ -1878,7 +1877,7 @@ class _variable_class():
     """
     variable class - to define variables and associated actions, conditions, regexes.
     """
-    def __init__(self, variable, line, DEBUG=False, group='', impot_list=[]):
+    def __init__(self, variable, line, group='', impot_list=[]):
         """
         Args:
             variable (str): contains variable content
@@ -1890,7 +1889,6 @@ class _variable_class():
         self.LINE = line                             # original line from template
         self.indent = len(line) - len(line.lstrip()) # variable to store line indentation
         self.functions = []                          # actions and conditions list
-        self.DEBUG = DEBUG                           # to control debug behaviuor
 
         self.SAVEACTION = 'add'                      # to store actioan to do with results during saving
         self.group = group                           # template object current group to save some vars
@@ -1971,7 +1969,7 @@ class _variable_class():
             """
             variable_value = self.group.vars.get(data['args'][0], None)
             if variable_value is None:
-                print("ERROR: chain variable '{}' not found".format(data['args'][0]))
+                log.error("match_variable.extract_chain: match variable - '{}', chain var '{}' not found".format(self.var_name, data['args'][0]))
                 return
             if isinstance(variable_value, str):
                 attributes =  self.utils.get_attributes(variable_value)
@@ -1992,7 +1990,7 @@ class _variable_class():
                 try:
                     globals()["ipaddress"] = __import__("ipaddress")
                 except ImportError:
-                    print("ERROR: no ipaddress module installed, install: python -m pip install ipaddress")
+                    log.error("match_variable.import_ipaddress: var - '{}', ipaddress module not installed, install: python -m pip install ipaddress".format(self.var_name))
             self.functions.append(data)
             
         def import_dnspython(data):
@@ -2001,7 +1999,7 @@ class _variable_class():
                     globals()["dns"] = __import__("dns.resolver")
                     globals()['dns_resolver_obj'] = dns.resolver.Resolver()
                 except ImportError:
-                    print("ERROR: dnspython not installed, install: python -m pip install dnspython")
+                    log.error("match_variable.import_dnspython: var - '{}', dnspython not installed, install: python -m pip install dnspython".format(self.var_name))
             self.functions.append(data)
 
         extract_funcs = {
@@ -2111,9 +2109,9 @@ class _variable_class():
                 '(?P<{}>(?:{}))'.format(self.var_name, ')|(?:'.join(self.var_res),1)
             )
 
-        # after regexes formed we can delete unneccesary variables:
-        if self.DEBUG == False:
-            del self.attributes, esc_line, self.DEBUG
+        # after regexes formed we can delete unnecessary variables:
+        if log.isEnabledFor(logging.DEBUG) == False:
+            del self.attributes, esc_line
             del self.LINE, self.skip_defaults, self.indent
             del self.var_dict, self.REs, self.var_res, self.utils
 
@@ -2757,16 +2755,16 @@ class _outputter_class():
             if O in supported_returners:
                 self.attributes['returner'] = [i.strip() for i in O.split(',')]
             else:
-                raise SystemExit("Error: Unsupported output returner '{}'. Supported: {}. Exiting".format(
-                    O, supported_returners))
+                log.critical("output.extract_returner: unsupported returner '{}'. Supported: {}. Exiting".format(O, supported_returners))
+                raise SystemExit()
 
         def extract_format(O):
             supported_formats = ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint', 'tabulate', 'table']
             if O in supported_formats:
                 self.attributes['format'] = O
             else:
-                raise SystemExit("Error: Unsupported output format '{}'. Supported: {}. Exiting".format(
-                    O, supported_formats))
+                log.critical("output.extract_format: unsupported format '{}'. Supported: {}. Exiting".format(O, supported_formats))
+                raise SystemExit()
 
         def extract_load(O):
             self.attributes['load'] = self.utils.load_struct(self.element.text, **self.element.attrib)
@@ -2794,8 +2792,8 @@ class _outputter_class():
             if O in supported_methods:
                 self.attributes['method'] = O
             else:
-                raise SystemExit("Error: Unsupported file returner method '{}'. Supported: {}. Exiting".format(
-                                O, supported_methods))
+                log.critical("output.extract_method: unsupported file returner method '{}'. Supported: {}. Exiting".format(O, supported_methods))
+                raise SystemExit()
 
         def extract_functions(O):
             funcs = self.utils.get_attributes(O)
@@ -2804,7 +2802,7 @@ class _outputter_class():
                 if name in functions:
                     functions[name](i)
                 else:
-                    print('ERROR: Unknown output function: "{}"'.format(name))
+                    log.error('output.extract_functions: unknown output function: "{}"'.format(name))
 
         def extract_macro(O):
             if isinstance(O, str):
@@ -2941,7 +2939,8 @@ class _outputter_class():
         try:
             from yaml import dump
         except ImportError:
-            raise SystemExit("yaml not installed, install: 'python -m pip install pyyaml', exiting")
+            log.critical("output.formatter_yaml: yaml not installed, install: 'python -m pip install pyyaml'. Exiting")
+            raise SystemExit()
         return dump(data, default_flow_style=False)
 
     def formatter_json(self, data):
@@ -3028,7 +3027,8 @@ class _outputter_class():
         try:
             from tabulate import tabulate
         except ImportError:
-            raise SystemExit("ERROR: tabulate not installed, install: 'python -m pip install tabulate', exiting")
+            log.critical("output.formatter_tabulate: tabulate not installed, install: 'python -m pip install tabulate'. Exiting")
+            raise SystemExit()
         # form table - list of lists
         table = self.formatter_table(data)
         headers = table.pop(0)
@@ -3043,7 +3043,8 @@ class _outputter_class():
         try:
             from jinja2 import Environment
         except ImportError:
-            raise SystemExit("Jinja2 not installed, install: 'python -m pip install jinja2', exiting")
+            log.critical("output.formatter_jinja2: Jinja2 not installed, install: 'python -m pip install jinja2'. Exiting")
+            raise SystemExit()
         # load template:
         template_obj = Environment(loader='BaseLoader', trim_blocks=True,
                                    lstrip_blocks=True).from_string(self.element.text)
@@ -3057,7 +3058,8 @@ class _outputter_class():
         try:
             from openpyxl import Workbook
         except ImportError:
-            raise SystemExit("ERROR: openpyxl not installed, install: 'python -m pip install openpyxl', exiting")
+            log.critical("output.formatter_excel: openpyxl not installed, install: 'python -m pip install openpyxl'. Exiting")
+            raise SystemExit()
         # form table - list of lists
         table = self.formatter_table(data)
         # work with workbook
@@ -3066,6 +3068,23 @@ class _outputter_class():
         ws.append(['%d' % i for i in range(200)])
         wb.save('new_big_file.xlsx')
         
+"""
+==============================================================================
+SETUP LOGGING
+==============================================================================
+"""
+def loggin_config(LOG_LEVEL, LOG_FILE):
+    valid_log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    if LOG_LEVEL.upper() in valid_log_levels:
+        logging.basicConfig(
+            format='%(asctime)s.%(msecs)d [TTP %(levelname)s] %(message)s', 
+            datefmt='%m/%d/%Y %I:%M:%S',
+            level=LOG_LEVEL.upper(),
+            filename=LOG_FILE,
+            filemode='w'
+        )
+
+
 """
 ==============================================================================
 TTP CLI PROGRAMM
@@ -3083,10 +3102,11 @@ def cli_tool():
     description_text='''-d, --data      url        Data files location
 -dp, --data-prefix         Prefix to add to template inputs' urls
 -t, --template  template   Name of the template in "templates.py"
--o, --outputer  output     Specify output format'''
+-o, --outputer  output     Specify output format
+-l, --logging              Set logging level - "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+--log-file                 Location/name of the log file'''
     argparser = argparse.ArgumentParser(description="Template Text Parser.", formatter_class=argparse.RawDescriptionHelpFormatter)
     argparser.add_argument('-T', '--Timing', action='store_true', dest='TIMING', default=False, help='Print timing')
-    argparser.add_argument('-debug', action='store_true', dest='DEBUG', default=False, help='Print debug information')
     argparser.add_argument('--one', action='store_true', dest='ONE', default=False, help='Parse all in single process')
     argparser.add_argument('--multi', action='store_true', dest='MULTI', default=False, help='Parse multiprocess')
     run_options=argparser.add_argument_group(title='run options', description=description_text)
@@ -3094,31 +3114,37 @@ def cli_tool():
     run_options.add_argument('-dp', '--data-prefix', action='store', dest='data_prefix', default='', type=str, help=argparse.SUPPRESS)
     run_options.add_argument('-t', '--template', action='store', dest='TEMPLATE', default='', type=str, help=argparse.SUPPRESS)
     run_options.add_argument('-o', '--outputter', action='store', dest='output', default='', type=str, help=argparse.SUPPRESS)
-
+    run_options.add_argument('-l', '--logging', action='store', dest='LOG_LEVEL', default='WARNING', type=str, help=argparse.SUPPRESS)
+    run_options.add_argument('-log-file', action='store', dest='LOG_FILE', default=None, type=str, help=argparse.SUPPRESS)
+    
     # extract argparser arguments:
     args = argparser.parse_args()
     DATA = args.DATA             # string, OS path to data files to parse
     TEMPLATE = args.TEMPLATE     # string, Template name
-    DEBUG = args.DEBUG           # boolean, set debug to true/false
     output = args.output         # string, set output format
     TIMING = args.TIMING         # boolean, enabled timing
     BASE_PATH = args.data_prefix        # string, to add to templates' inputs urls
     ONE = args.ONE               # boolean to indicate if run in single process
     MULTI = args.MULTI           # boolean to indicate if run in multi process
-
+    LOG_LEVEL = args.LOG_LEVEL   # level of logging
+    LOG_FILE = args.LOG_FILE   # level of logging
+    
     def timing(message):
         if TIMING:
             print(round(time.time() - t0, 5), message)
 
+    # setup logging
+    loggin_config(LOG_LEVEL, LOG_FILE)
+    
     if TIMING:
         t0 = time.time()
     else:
         t0 = 0
 
     if templates_exist and TEMPLATE in vars(ttp_templates):
-        parser_Obj = ttp(data=DATA, template=vars(ttp_templates)[TEMPLATE], DEBUG=DEBUG, base_path=BASE_PATH)
+        parser_Obj = ttp(data=DATA, template=vars(ttp_templates)[TEMPLATE], base_path=BASE_PATH)
     else:
-        parser_Obj = ttp(data=DATA, template=TEMPLATE, DEBUG=DEBUG, base_path=BASE_PATH)
+        parser_Obj = ttp(data=DATA, template=TEMPLATE, base_path=BASE_PATH)
     timing("Template and data descriptors loaded")
 
     parser_Obj.parse(one=ONE, multi=MULTI)
@@ -3137,7 +3163,7 @@ def cli_tool():
         parser_Obj.result(format='pprint', returner='terminal')
         timing("RAW pprint dumped")
     elif output:
-        print("Error: Unsuported cli output format '{}', supported [yaml, json, raw, pprint]".format(output.lower()))
+        log.error("cli: unsuported output format '{}', supported [yaml, json, raw, pprint]".format(output.lower()))
 
     timing("Done")
     
