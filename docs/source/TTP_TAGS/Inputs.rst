@@ -9,17 +9,15 @@ Assuming we have this folders structure to store data that needs to be parsed:
 
 .. code-block::
 
-    my
-    |-- base
-    |------ path
-    |---------- Data
-    |-------------- Inputs
-                    |-- data-1/
-                    |----- sw-1.conf
-                    |----- sw-1.txt
-                    |-- data-2/
-                    |----- sw-2.txt
-                    |----- sw3.txt                       
+    /my/base/path/
+             |-Data/
+               |-Inputs/
+                 |- data-1/
+                 |---- sw-1.conf
+                 |---- sw-1.txt
+                 |- data-2/
+                 |---- sw-2.txt
+                 |---- sw3.txt                       
 
 Where content::
 

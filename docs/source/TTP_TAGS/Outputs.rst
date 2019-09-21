@@ -98,6 +98,10 @@ Output system provide support for a number of functions. Functions process outpu
      - Description
    * - `is_equal`_ 
      - checks if results equal to structure loaded from the output tag text 
+   * - `set_data`_
+     - insert arbitrary data to results at given path, replacing any existing results
+   * - `dict_to_list`_
+     - transforms dictionary to list of dictionaries at given path	 
      
 is_equal
 ******************************************************************************
@@ -162,7 +166,17 @@ Results::
         "output_description": "test results equality",
         "output_name": "test output 1"
     }
-     
+  
+set_data
+******************************************************************************
+
+TBD
+  
+dict_to_list
+******************************************************************************
+
+TBD
+
 Output Returners
 ------------------------------------------------------------------------------
      

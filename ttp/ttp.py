@@ -1,14 +1,6 @@
 # -*- coding: utf-8 -*-
-"""
-Template Text Parser
 
-Module to parse semi-structured text data.
-"""
-# compatibility with python2.6:
 # from __future__ import print_function
-
-__version__ = '0.0.0'
-
 import re
 import os
 import time
@@ -16,6 +8,7 @@ import logging
 from xml.etree import cElementTree as ET
 from multiprocessing import Process, cpu_count, JoinableQueue, Queue
 from sys import version_info
+from sys import getsizeof
 
 # get version of python running the script:
 python_major_version = version_info.major
@@ -30,95 +23,121 @@ MAIN TTP CLASS
 ==============================================================================
 """
 class ttp():
+    """ Template Text Parser main class to load data, templates, lookups, variables
+    and dispatch data to parser object to parse in single or multiple processes,
+    construct final results and run outputs.
+    
+    **Parameters**
+        
+    * ``data`` file object or OS path to text file or directory with text files with data to parse
+    * ``template`` file object or OS path to text file with template
+    * ``base_path`` (str) base OS path prefix to load data from for template's inputs
+    * ``log_level`` (str) level of logging "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+    * ``log_file`` (str) path where to save log file
+    * ``vars`` dictionary of variables to make available to ttp parser
+    
+    Example::
+    
+        from ttp import ttp
+        parser = ttp(data="/os/path/to/data/dir/", template="/os/path/to/template.txt")
+        parser.parse()
+        result = parser.result(format="json")
+        print(result[0])    
     """
-    Template Text Parser main class to load data, templates and
-    dispatch data to parser object, parse the data, construct final results
-    and run outputs.
-
-    Args:
-        data : text, file object or string - OS path to either text file or
-            directory which contains .txt, .log or .conf files
-        template : text, file object of python open method or a string which is OS
-            path to text file
-        base_path (str): Contains path prefix to load data from for template inputs
-        self.multiproc_threshold (int): overall data size in bytes beyond which to use
-            multiple processes
-    """
+    
     def __init__(self, data='', template='', log_level="WARNING", log_file=None, base_path='', vars={}):
-        """
-        Args:
-            self.__data (list): list of dictionaries, each dict key is file name, value - data/text
-            self.__templates (list): list of template objects
-        """
         self.__data_size = 0
+        self.__datums_count = 0
         self.__data = []
         self.__templates = []
         self.__utils = _ttp_utils()
         self.base_path = base_path
-        self.multiproc_threshold = 5242880 # 5Mbyte
-        self.vars = vars # dictionary of variables to add to each template vars
+        self.multiproc_threshold = 5242880 # in bytes, equal to 5MBytes
+        self.vars = vars                   # dictionary of variables to add to each template vars
         self.lookups = {}
         # setup logging if used as a module
         if __name__ != '__main__':
-            loggin_config(log_level, log_file)
+            logging_config(log_level, log_file)
         # check if data given, if so - load it:
         if data is not '':
             self.add_data(data=data)
-
         # check if template given, if so - load it
         if template is not '':
-            self.add_template(data=template)
-            
-            
-    def add_lookup(self, name, text_data="", include=None, load="python", key=None):
-        """Method to load lookup table data
-        Args::
-            name(str): name of lookup table to reference in templates
-            text_data(str): text to load lookup table from
-            include(str): os/path/to/lookup/table/text
-            load(str): name of loader to use to load table data
-            key(str): used for csv loader to specify key collumn
-        """
-        lookup_data = self.__utils.load_struct(text_data=text_data,
-            include=include, load=load, key=key)
-        self.lookups.update({name: lookup_data})
-        [template.add_lookup({name: lookup_data}) for template in self.__templates]
+            self.add_template(template=template)
 
+
+    def add_data(self, data, input_name='Default_Input', groups=['all']):
+        """Method to load additional data to be parsed. This data will be used
+        to fill in template input with input_name and parse that data against
+        a list of provided groups.
         
-    def add_vars(self, data):
-        """Method to add vars to ttp and its templates
-        """
-        if isinstance(data, dict):
-            self.vars.update(data)
-            [template.add_vars(data) for template in self.__templates]
-            
-
-    def add_data(self, data, input_name='Default_Input', groups=[]):
-        """Method to load data
+        **Parameters**        
+        
+        * ``data`` file object or OS path to text file or directory with text files with data to parse
+        * ``input_name`` (str) name of the input to put data in, default is *Default_Input*
+        * ``groups`` (list) list of group names to use to parse this input data
         """
         # form a list of ((type, url|text,), input_name, groups,) tuples
         data_items = self.__utils.load_files(path=data, read=False)
         if data_items:
             self.__data.append((data_items, input_name, groups,))
-        else:
-            return
-        # get data size
-        if self.__data_size > self.multiproc_threshold:
-            return
-        for i in data_items:
-            if self.__data_size < self.multiproc_threshold:
-                if i[0] == "file_name":
-                    self.__data_size += os.path.getsize(i[1])
-            else:
-                break
 
 
-    def add_template(self, data):
-        """Method to load templates
+    def set_data(self, data, input_name='Default_Input', groups=['all']):
+        """Method to replace existing templates data with new set of data. This 
+        method run clear_data first and add_data method after that.
+        
+        **Parameters**        
+        
+        * ``data`` file object or OS path to text file or directory with text files with data to parse
+        * ``input_name`` (str) name of the input to put data in, default is *Default_Input*
+        * ``groups`` (list) list of group names to use to parse this input data        
+        """
+        self.clear_data()
+        self.add_data(data=data, input_name=input_name, groups=groups)
+        
+        
+    def clear_data(self):
+        """Method to delete all input data for all templates, can be used prior
+        to adding new set of data to parse with same templates, instead of
+        re-initializing ttp object.
+        """
+        self.__data = []    
+        self.__data_size = 0
+        self.__datums_count = 0
+        for template in self.__templates:
+            template.inputs = {}
+        
+    def _update_templates_with_data(self):
+        """Method to add data to templates from self.__data and calculate
+        overall data size and count
+        """
+        self.__data_size = 0
+        self.__datums_count = 0
+        for template in self.__templates:
+            # update template inputs with data
+            [template.set_input(data=i[0], input_name=i[1], groups=i[2]) for i in self.__data] 
+            # get overall data size and count
+            for input_name, input_det in template.inputs.items():
+                self.__datums_count += len(input_det['data'])
+                # get data size
+                for i in input_det['data']:
+                    if i[0] == "file_name":
+                        self.__data_size += os.path.getsize(i[1])
+                    elif i[0] == "text_data":
+                        self.__data_size += getsizeof(i[1])
+
+
+    def add_template(self, template):
+        """Method to load TTP templates into the parser.
+        
+        **Parameters**
+        
+        * ``template`` file object or OS path to text file with template
         """
         log.debug("ttp.add_template - loading template")
         # get a list of [(type, text,)] tuples or empty list []
-        items = self.__utils.load_files(path=data, read=True)
+        items = self.__utils.load_files(path=template, read=True)
         for i in items:
             template_obj = _template_class(
                 template_text=i[1],
@@ -129,17 +148,62 @@ class ttp():
                 self.__templates.append(template_obj)
             else:
                 self.__templates += template_obj.templates
+            
+            
+    def add_lookup(self, name, text_data="", include=None, load="python", key=None):
+        """Method to add lookup table data to all templates loaded so far. Lookup is a
+        text representation of structure that can be loaded into python dictionary using one 
+        of the available loaders - python, csv, ini, yaml, json.
+        
+        **Parameters**
+        
+        * ``name`` (str) name to assign to this lookup table to reference in templates
+        * ``text_data`` (str) text to load lookup table/dictionary from
+        * ``include`` (str) absolute or relative /os/path/to/lookup/table/file.txt
+        * ``load`` (str) name of TTP loader to use to load table data
+        * ``key`` (str) specify key column for csv loader to construct dictionary
+        
+        ``include`` can accept relative OS path - relative to the directory where TTP will be
+        invoced either using CLI tool or as a module
+        """
+        lookup_data = self.__utils.load_struct(text_data=text_data,
+                                               include=include, load=load, key=key)
+        self.lookups.update({name: lookup_data})
+        [template.add_lookup({name: lookup_data}) for template in self.__templates]
 
+        
+    def add_vars(self, vars):
+        """Method to add variables to ttp and its templates to reference during parsing
+        
+        **Parameters**
+        
+        * ``vars`` dictionary of variables to make available to ttp parser        
+        """
+        if isinstance(vars, dict):
+            self.vars.update(vars)
+            [template.add_vars(vars) for template in self.__templates]
+            
 
     def parse(self, one=False, multi=False):
-        """Method to decide how to run parsing following below rules:
-        1. if one or multi set to True run in one- or multiprocess
-        2. if overall data size is less then 5Mbyte, use single process
-        3. if overall data size is more then 5Mbytes use multiprocess
-        Args:
-            one (bool): if set to true will run parsing in single process
-            multi (bool): if set to true will run parsing in multiprocess
+        """Method to parse data with templates.
+
+        **Parameters**
+        
+        * ``one`` (boolean) if set to True will run parsing in single process
+        * ``multi`` (boolean) if set to True will run parsing in multiprocess
+        
+        By default one and multi set to False and  TTP will run parsing following below rules:
+        
+            1. if one or multi set to True run in one or multi process
+            2. if overall data size is less then 5Mbyte, use single process
+            3. if overall data size is more then 5Mbytes, use multiprocess
+        
+        In addition to 3 TTP will check if number of input data items more then 1, if so 
+        multiple processes will be used and one process otherwise.
         """
+        # add self.__data to templates and get file count and size:
+        self._update_templates_with_data()
+        log.info("ttp.parse: loaded datums - {}, overall size - {} bytes".format(self.__datums_count, self.__data_size))
         if one is True and multi is True:
             log.critical("ttp.parse - choose one or multiprocess parsing")
             raise SystemExit()
@@ -147,30 +211,26 @@ class ttp():
             self.__parse_in_one_process()
         elif multi is True:
             self.__parse_in_multiprocess()
-        elif self.__data_size <= self.multiproc_threshold:
-            self.__parse_in_one_process()
-        else:
+        elif self.__data_size > self.multiproc_threshold and self.__datums_count >= 2:
             self.__parse_in_multiprocess()
-        # run outputters defined in templates
-        self.__run_outputs()
+        else:
+            self.__parse_in_one_process()
+        # run outputters defined in templates:
+        [template.run_outputs() for template in self.__templates]
 
 
     def __parse_in_multiprocess(self):
         """Method to parse data in bulk by parsing each data item
-        against each template and saving results in results list
+        against each template and saving results in results list.
         """
+        log.info("ttp.parse: parse using multiple processes")
         num_processes = cpu_count()
 
         for template in self.__templates:
             num_jobs = 0
-
-            if self.__data:
-                [template.set_input(data=i[0], input_name=i[1], groups=i[2])
-                 for i in self.__data]
-
             tasks = JoinableQueue()
             results_queue = Queue()
-
+            
             workers = [_worker(tasks, results_queue, lookups=template.lookups,
                               vars=template.vars, groups=template.groups, 
                               macro=template.macro)
@@ -188,7 +248,7 @@ class ttp():
 
             [tasks.put(None) for i in range(num_processes)]
 
-            # wait fo all taksk to complete
+            # wait for all tasks to complete
             tasks.join()
 
             for i in range(num_jobs):
@@ -197,17 +257,15 @@ class ttp():
 
 
     def __parse_in_one_process(self):
-        """Method to parse data in bulk by parsing each data item
-        against each template and saving results in results list
+        """Method to parse data in single process, each data item parsed
+        against each template and results saved in results list
         """
+        log.info("ttp.parse: parse using single process")
         for template in self.__templates:
             parserObj = _parser_class(lookups=template.lookups,
                                      vars=template.vars,
                                      groups=template.groups,
                                      macro=template.macro)
-            if self.__data:
-                [template.set_input(data=i[0], input_name=i[1], groups=i[2])
-                 for i in self.__data]
             if template.results_method.lower() == 'per_input':
                 for input_name, input_params in sorted(template.inputs.items()):
                     for datum in input_params['data']:
@@ -222,22 +280,54 @@ class ttp():
                         parserObj.set_data(datum, main_results=results_data)
                         parserObj.parse(groups_indexes=input_params['groups_indexes'])
                         results_data = parserObj.main_results
-                template.form_results(results_data)
-
-    def __run_outputs(self):
-        """Method to run templates' outputters.
-        """
-        [template.run_outputs() for template in self.__templates]
+                template.form_results(results_data)     
 
 
     def result(self, templates=[], returner='self', **kwargs):
-        """
-        Args:
-            templates (list|str): names of the templates to return results for
-            returner (str): if 'self', results will be returned, else given returner will
-                be used to return results to
-        kwargs:
-            returner : supported ['file', 'terminal']
+        """Method to get parsing results, supports basic filtering based on 
+        templates' names, results can be formatted and returned to specified
+        returner.
+        
+        **Parameters**
+        
+        * ``templates`` (list or str) names of the templates to return results for
+        * ``returner`` (str) returner to use to return data - self, file, terminal
+        
+        **kwargs** - can contain any attributes supported by output tags, for instance:
+        
+        * ``format`` (str) formatter name - yaml, json, raw, pprint, csv, table, tabulate
+        * ``functions`` (str) reference functions to run results through
+        
+        **Example**::
+        
+            from ttp import ttp
+            parser = ttp(data="/os/path/to/data/dir/", template="/os/path/to/template.txt")
+            parser.parse()
+            json_result = parser.result(format="json")[0]
+            yaml_result = parser.result(format="yaml")[0]
+            print(json_result) 
+            print(yaml_result)    
+            
+        **Returns**
+        
+        If template results set to *per_input*, returns list of lists such as::
+        
+            [  
+               [ template_1_input_1_results,
+                 template_1_input_2_results,
+                 ...
+                 template_1_input_N_results ],
+               [ template_2_input_1_results,
+                 template_2_input_2_results,
+                 ...
+            ]       
+
+        If template results set to *per_template*, returns list of lists such as::
+        
+            [  
+               [ template_1_input_1_2...N_joined_results ],
+               [ template_2_input_1_2...N_joined_results ]
+            ]    
         """
         # filter templates to run outputs for:
         templates_obj = self.__templates
@@ -1111,15 +1201,15 @@ class _ttp_utils():
                 if python_major_version is 2:
                     # if running ttp.py directly
                     if __name__ == "__main__":
-                        from ttp_load_py2 import load_python_exec
+                        from functions.ttp_load_py2 import load_python_exec
                     # if running ttp as a module
                     else:
-                        from .ttp_load_py2 import load_python_exec
+                        from .functions.ttp_load_py2 import load_python_exec
                 elif python_major_version is 3:
                     if __name__ == "__main__":
-                        from ttp_load_py3 import load_python_exec
+                        from functions.ttp_load_py3 import load_python_exec
                     else:
-                        from .ttp_load_py3 import load_python_exec
+                        from .functions.ttp_load_py3 import load_python_exec
                 data = load_python_exec(text_data)
                 return data
             except:
@@ -1250,7 +1340,7 @@ class _template_class():
         self.attributes = {}
         self.macro = {}                   # dictionary of macro name to function mapping
         self.results_method = 'per_input' # how to join results
-        self.impot_list = [] # list of functions to import
+        self.impot_list = []              # list of functions to import
 
         # load template from string:
         self.load_template_xml(template_text)
@@ -1267,7 +1357,7 @@ class _template_class():
             log.debug("Template self.groups_outputs: \n{}".format(dump(self.groups_outputs)))
             log.debug("Template self.vars: \n{}".format(dump(self.vars)))
             log.debug("Template self.groups: \n{}".format(dump(self.groups)))
-            log.debug("Template self.inputs: \n{}".format(self.inputs))
+            log.debug("Template self.inputs: \n{}".format(dump(self.inputs)))
             log.debug("Template self.lookups: \n{}".format(self.lookups))
             log.debug("Template self.templates: \n{}".format(self.templates))
 
@@ -1324,13 +1414,16 @@ class _template_class():
                                 if grp_obj.name in groups and not grp_obj.inputs]   
         # list(set(groups_indexes)) makes copy of groups_indexes, need copy it, or python reference same list 
         groups_indexes = sorted(list(set(groups_indexes)))
-        # add input to self.inputs:
+        # add input to existing input in self.inputs:
         if input_name in self.inputs:
             if data is not None:
-                self.inputs[input_name]['data'] += data
+                for d_item in data:
+                    if not d_item in self.inputs[input_name]['data']:
+                        self.inputs[input_name]['data'].append(d_item)
             indexes = self.inputs[input_name]['groups_indexes']
             indexes += groups_indexes
             self.inputs[input_name]['groups_indexes'] = sorted(list(set(indexes)))   
+        # add new input to self.inputs:
         else:
             if data is not None:
                 self.inputs[input_name] = {'data': data, 'groups_indexes': groups_indexes, 'preference': preference}
@@ -1506,19 +1599,19 @@ class _template_class():
                 if python_major_version is 2:
                     # if running ttp script directly
                     if __name__ == "__main__":
-                        from ttp_load_py2 import load_python_exec
-                    # if runnint ttp as a module
+                        from functions.ttp_load_py2 import load_python_exec
+                    # if running ttp as a module
                     else:
-                        from .ttp_load_py2 import load_python_exec
+                        from .functions.ttp_load_py2 import load_python_exec
                 elif python_major_version is 3:
                     if __name__ == "__main__":
-                        from ttp_load_py3 import load_python_exec
+                        from functions.ttp_load_py3 import load_python_exec
                     else:
-                        from .ttp_load_py3 import load_python_exec
+                        from .functions.ttp_load_py3 import load_python_exec
                 funcs = load_python_exec(element.text, builtins=__builtins__)
                 self.macro.update(funcs)
             except SyntaxError as e:
-                log.error("template.parse_macro: Syntax error, failed to load macro:{}".format(element.text))
+                log.error("template.parse_macro: syntax error, failed to load macro: \n{},\nError: {}".format(element.text, e))
             
         def parse__anonymous_(element):
             elem = ET.XML('<g name="_anonymous_">\n{}\n</g>'.format(element.text))
@@ -1589,7 +1682,6 @@ class _template_class():
         parse_template_XML(template_text)
 
 
-
 """
 ==============================================================================
 GROUP CLASS
@@ -1606,7 +1698,7 @@ class _group_class():
             element : xml ETree element to parse
             top (bool): to indicate that group is a top xml ETree group
             path (list): list containing results tree path, have to copy it otherwise
-                it got overriden by recursion
+                it got overridden by recursion
             defaults (dict): contains group variables' default values
             runs (dict): to sotre modified defaults during parsing run
             default (str): group all variables' default value if no more specific default value given
@@ -2393,7 +2485,7 @@ class _results_class():
         self.vars=vars
         saveFuncs={
             'start'      : self.start,       # start - to start new group;
-            'add'        : self.add,         # add - to add data to group, defaul-normal action;
+            'add'        : self.add,         # add - to add data to group, default action;
             'startempty' : self.startempty,  # startempty - to start new empty group in case if _start_ found;
             'end'        : self.end,         # end - to explicitly signal the end of group to LOCK it;
             'join'       : self.join         # join - to join results for given variable, e.g. joinmatches;
@@ -2770,20 +2862,7 @@ class _outputter_class():
             self.attributes['load'] = self.utils.load_struct(self.element.text, **self.element.attrib)
 
         def extract_filename(O):
-            """File name can contain below formatters to add date time stamp:
-            %m  Month as a decimal number [01,12].
-            %d  Day of the month as a decimal number [01,31].
-            %H  Hour (24-hour clock) as a decimal number [00,23].
-            %M  Minute as a decimal number [00,59].
-            %S  Second as a decimal number [00,61].
-            %z  Time zone offset from UTC.
-            %a  Locale's abbreviated weekday name.
-            %A  Locale's full weekday name.
-            %b  Locale's abbreviated month name.
-            %B  Locale's full month name.
-            %c  Locale's appropriate date and time representation.
-            %I  Hour (12-hour clock) as a decimal number [01,12].
-            %p  Locale's equivalent of either AM or PM.            
+            """File name can contain time formatters supported by strftime      
             """
             self.attributes['filename'] = time.strftime(O)
 
@@ -2963,7 +3042,7 @@ class _outputter_class():
         path = self.attributes.get('path', [])
         missing = self.attributes.get('missing', '')
         key = self.attributes.get('key', '')
-        # normilize source_data to list:
+        # normalize source_data to list:
         if isinstance(data, list): # handle the case for template/global output
             source_data += data
         elif isinstance(data, dict): # handle the case for group specific output
@@ -3073,11 +3152,11 @@ class _outputter_class():
 SETUP LOGGING
 ==============================================================================
 """
-def loggin_config(LOG_LEVEL, LOG_FILE):
+def logging_config(LOG_LEVEL, LOG_FILE):
     valid_log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
     if LOG_LEVEL.upper() in valid_log_levels:
         logging.basicConfig(
-            format='%(asctime)s.%(msecs)d [TTP %(levelname)s] %(message)s', 
+            format='%(asctime)s.%(msecs)d [TTP %(levelname)s] %(lineno)d; %(message)s', 
             datefmt='%m/%d/%Y %I:%M:%S',
             level=LOG_LEVEL.upper(),
             filename=LOG_FILE,
@@ -3098,24 +3177,27 @@ def cli_tool():
     except ImportError:
         templates_exist = False
 
-    # form arg parser menu:
-    description_text='''-d, --data      url        Data files location
--dp, --data-prefix         Prefix to add to template inputs' urls
--t, --template  template   Name of the template in "templates.py"
--o, --outputer  output     Specify output format
--l, --logging              Set logging level - "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
---log-file                 Location/name of the log file'''
-    argparser = argparse.ArgumentParser(description="Template Text Parser.", formatter_class=argparse.RawDescriptionHelpFormatter)
-    argparser.add_argument('-T', '--Timing', action='store_true', dest='TIMING', default=False, help='Print timing')
-    argparser.add_argument('--one', action='store_true', dest='ONE', default=False, help='Parse all in single process')
-    argparser.add_argument('--multi', action='store_true', dest='MULTI', default=False, help='Parse multiprocess')
-    run_options=argparser.add_argument_group(title='run options', description=description_text)
+    # form argparser menu:
+    description_text='''-d,  --data         Data files location
+-dp, --data-prefix  Prefix to add to template inputs' urls
+-t,  --template     Name of the template in "templates.py"
+-o,  --outputer     Specify output format - yaml, json, raw, pprint
+-l,  --logging      Set logging level - "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+-lf, --log-file     Path to save log file
+-T,  --Timing       Print simple timing info
+--one               Parse using single process
+--multi             Parse using multiple processes'''
+    argparser = argparse.ArgumentParser(description="Template Text Parser, version 0.0.1.", formatter_class=argparse.RawDescriptionHelpFormatter)
+    run_options=argparser.add_argument_group(description=description_text)
+    run_options.add_argument('--one', action='store_true', dest='ONE', default=False, help=argparse.SUPPRESS)
+    run_options.add_argument('--multi', action='store_true', dest='MULTI', default=False, help=argparse.SUPPRESS)
+    run_options.add_argument('-T', '--Timing', action='store_true', dest='TIMING', default=False, help=argparse.SUPPRESS)
     run_options.add_argument('-d', '--data', action='store', dest='DATA', default='', type=str, help=argparse.SUPPRESS)
     run_options.add_argument('-dp', '--data-prefix', action='store', dest='data_prefix', default='', type=str, help=argparse.SUPPRESS)
     run_options.add_argument('-t', '--template', action='store', dest='TEMPLATE', default='', type=str, help=argparse.SUPPRESS)
     run_options.add_argument('-o', '--outputter', action='store', dest='output', default='', type=str, help=argparse.SUPPRESS)
     run_options.add_argument('-l', '--logging', action='store', dest='LOG_LEVEL', default='WARNING', type=str, help=argparse.SUPPRESS)
-    run_options.add_argument('-log-file', action='store', dest='LOG_FILE', default=None, type=str, help=argparse.SUPPRESS)
+    run_options.add_argument('-lf', '--log-file', action='store', dest='LOG_FILE', default=None, type=str, help=argparse.SUPPRESS)
     
     # extract argparser arguments:
     args = argparser.parse_args()
@@ -3134,7 +3216,7 @@ def cli_tool():
             print(round(time.time() - t0, 5), message)
 
     # setup logging
-    loggin_config(LOG_LEVEL, LOG_FILE)
+    logging_config(LOG_LEVEL, LOG_FILE)
     
     if TIMING:
         t0 = time.time()
@@ -3142,9 +3224,9 @@ def cli_tool():
         t0 = 0
 
     if templates_exist and TEMPLATE in vars(ttp_templates):
-        parser_Obj = ttp(data=DATA, template=vars(ttp_templates)[TEMPLATE], base_path=BASE_PATH)
-    else:
-        parser_Obj = ttp(data=DATA, template=TEMPLATE, base_path=BASE_PATH)
+        TEMPLATE = vars(ttp_templates)[TEMPLATE]
+        
+    parser_Obj = ttp(data=DATA, template=TEMPLATE, base_path=BASE_PATH)
     timing("Template and data descriptors loaded")
 
     parser_Obj.parse(one=ONE, multi=MULTI)

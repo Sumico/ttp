@@ -15,8 +15,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/dmulyalin/ttp",
-    #packages=["ttp", "ttp.compatibility_utils"],
-	packages=["ttp"],
+    packages=["ttp", "ttp.functions"],
+	#packages=["ttp"],
     include_package_data=True,
     classifiers=[
         "Topic :: Utilities",

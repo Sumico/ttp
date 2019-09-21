@@ -3,3 +3,4 @@ Data/*
 ttp.egg-info/*
 dist/*
 build/*
+private/*
