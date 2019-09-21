@@ -56,9 +56,7 @@ key
 CSV Example
 ------------------------------------------------------------------------------
 
-Template
-
-.. code-block:: html
+Template::
 
     <lookup name="aux_csv" load="csv">
     ASN,as_name,as_description,prefix_num
@@ -74,9 +72,7 @@ Template
     router bgp {{ bgp_as | lookup("aux_csv", add_field="as_details") }}
     </group> 
 
-Result
-
-.. code-block::
+Result::
 
     [
         {
@@ -135,9 +131,7 @@ If table provided in INI format, data will be transformed into dictionary with t
     
 As a result dictionary data to use for lookup can be referenced using "locations.cities" string in lookup/rlookup match variables function.
 
-Template
-
-.. code-block:: html
+Template::
 
     <input load="text">
     router bgp 65100
@@ -162,9 +156,7 @@ Template
      </group>
     </group> 
     
-Result
-
-.. code-block::
+Result::
 
     [
         {
@@ -191,9 +183,7 @@ YAML Example
 
 YAML data must be structured as a dictionary, once loaded it will correspond to python dictionary that will be used to lookup values.
 
-Template
-
-.. code-block:: html
+Template::
 
     <lookup name="yaml_look" load="yaml">
     '65100':
@@ -214,9 +204,7 @@ Template
     router bgp {{ bgp_as | lookup("yaml_look", add_field="as_details") }}
     </group> 
     
-Result
-
-.. code-block::
+Result::
 
     [
         {

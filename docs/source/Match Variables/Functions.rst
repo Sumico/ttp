@@ -1,15 +1,11 @@
-.. |br| raw:: html
-
-   <br />
-
 Functions
 ===============
 
-A set of ttp match variables functions that can be applied to match results to transform them in a desied way, additionally functions can be used to validate and filter match results. 
+A set of ttp match variables functions that can be applied to match results to transform them in a desired way, additionally functions can be used to validate and filter match results. 
 
 Action functions act upon match result to transform it to desired state.
   
-.. list-table:: action functions
+.. list-table:: Action functions
    :widths: 10 90
    :header-rows: 1
 
@@ -44,11 +40,11 @@ Action functions act upon match result to transform it to desired state.
    * - `lookup`_ 
      - find match value in lookup table and return result
    * - `rlookup`_ 
-     - find rlookup table key in match result and return assiciated values
+     - find rlookup table key in match result and return associated values
    * - `item`_ 
      - returns item at given index on match result
    * - `macro`_ 
-     - runs match result aginst macro function
+     - runs match result against macro function
    * - `to_list`_ 
      - creates empty list nd appends match result to it
    * - `to_int`_ 
@@ -70,7 +66,7 @@ Action functions act upon match result to transform it to desired state.
  
 Condition functions can perform various checks with match results and returns either True or False depending on check results.
 
-.. list-table:: condition functions
+.. list-table:: Condition functions
    :widths: 10 90
    :header-rows: 1
    
@@ -105,15 +101,13 @@ Condition functions can perform various checks with match results and returns ei
    * - `cidr_match`_ 
      - transforms result to ipaddress object and checks if it overlaps with given prefix
      
-Python builtins
+Python built-ins
 ------------------------------------------------------------------------------
-Apart from functions provided by ttp, python objects builtin functions can be used as well. For instance string *upper* method can be used to convert match into upper case, or list *index* method to return index of certain value.
+Apart from functions provided by ttp, python objects built-in functions can be used as well. For instance string *upper* method can be used to convert match into upper case, or list *index* method to return index of certain value.
 
 **Example**
 
-Data:
-
-.. code-block::
+Data::
 
  interface Tunnel2422
   description cpe-1
@@ -121,18 +115,14 @@ Data:
  interface GigabitEthernet1/1
   description core-1
  
-Template:
-
-.. code-block:: html
+Template::
 
  <group name="interfaces">
  interface {{ interface | upper }}
   description {{ description | split('-') }}
  </group>
 
-Result:
-
-.. code-block::
+Result::
 
  {
      "interfaces": [
@@ -153,7 +143,7 @@ chain
 
 * variable_name (mandatory) - string containing variable name
 
-Sometime when many functions needs to be run against match result the template can become difficult to read, in addition if same set of functions needs to be run agains several matches and changes needs to be done to the set of functions it can become difficult to maintain such a template. 
+Sometime when many functions needs to be run against match result the template can become difficult to read, in addition if same set of functions needs to be run against several matches and changes needs to be done to the set of functions it can become difficult to maintain such a template. 
 
 To solve above problem *chain* function can be used. Value supplied to that function must reference a valid variable name, that variable should contain string of functions names that should be used for match result, alternatively variable can reference a list of items, each item is a string representing function to run.
 
@@ -161,17 +151,13 @@ To solve above problem *chain* function can be used. Value supplied to that func
 
 chain referencing variable that contains string of functions separated by pipe symbol.
 
-Data:
-
-.. code-block::
+Data::
 
  interface GigabitEthernet3/3
   switchport trunk allowed vlan add 138,166-173 
   switchport trunk allowed vlan add 400,401,410
  
-Template:
-
-.. code-block:: html
+Template::
 
  <vars>
  vlans = "unrange(rangechar='-', joinchar=',') | split(',') | join(':') | joinmatches(':')"
@@ -182,9 +168,7 @@ Template:
   switchport trunk allowed vlan add {{ trunk_vlans | chain('vlans') }}
  </group>
 
-Result:
-
-.. code-block::
+Result::
 
  {
      "interfaces": {
@@ -197,17 +181,13 @@ Result:
 
 chain referencing variable that contains list of strings, each string is a function.
 
-Data:
-
-.. code-block::
+Data::
 
  interface GigabitEthernet3/3
   switchport trunk allowed vlan add 138,166-173 
   switchport trunk allowed vlan add 400,401,410
  
-Template:
-
-.. code-block:: html
+Template::
 
  <vars>
  vlans = [
@@ -223,9 +203,7 @@ Template:
   switchport trunk allowed vlan add {{ trunk_vlans | chain('vlans') }}
  </group>
 
-Result:
-
-.. code-block::
+Result::
 
  {
      "interfaces": {
@@ -236,9 +214,9 @@ Result:
     
 record
 ------------------------------------------------------------------------------
-``{{ name | record(name) }}``
+``{{ name | record(var_name) }}``
 
-* name (mandatory) - a string containing variable name
+* var_name (mandatory) - a string containing variable name where to record match results
 
 Records match results in template variable with given name after all functions run finished for match result. That recorded variable can be referenced within other functions such as `set`_ 
 
@@ -252,9 +230,7 @@ Statically assigns provided value to variable with name var_name, if single argu
 
 **Example**
 
-Template
-
-.. code-block:: html
+Template::
 
     <input load="text">
     interface Loopback0
@@ -269,9 +245,7 @@ Template
      ip address {{ ip | contains("24") | let("netmask", "255.255.255.0") }}
     </group>
 
-Result
-
-.. code-block::
+Result::
 
     [
         {
@@ -283,8 +257,6 @@ Result
             }
         }
     ]
-
-.. code-block::
 
 truncate
 --------
@@ -304,23 +276,23 @@ joinmatches
 
 * char (optional) - character to use to join matches, default is new line '\\n'
 
-Join results from different matches into a single result string using provider charcter or string. 
+Join results from different matches into a single result string using provider character or string. 
 
 **Example**
 
-Data:
-::
+Data::
+
     interface GigabitEthernet3/3
      switchport trunk allowed vlan add 138,166,173 
      switchport trunk allowed vlan add 400,401,410
  
-Template:
-::
+Template::
+
     interface {{ interface }}
      switchport trunk allowed vlan add {{ trunk_vlans | joinmatches(',') }}
 
-Result:
-::
+Result::
+
     {
         "interface": "GigabitEthernet3/3"  
         "trunkVlans": "138,166,173,400,401,410"
@@ -338,16 +310,16 @@ Performs re.sub(old, new, match, count) on match result and returns produced val
 
 **Example**
 
-Data:
-::
+Data::
+
     interface GigabitEthernet3/3
  
-Template is:
-::
+Template is::
+
     interface {{ interface | resub(old = '^GigabitEthernet'), new = 'Ge'}}
 
-Result:
-::
+Result::
+
     {
         "interface": "Ge3/3"  
     }
@@ -363,18 +335,18 @@ Run joins against match result using provided character and return string
 
 **Example**-1:
 
-Match is a string here and running join against it will inser '.' in between each charscter 
+Match is a string here and running join against it will insert '.' in between each character 
 
-Data:
-::
+Data::
+
     description someimportantdescription
  
-Template is:
-::
+Template is::
+
     description {{ description | join('.') }}
 
-Result:
-::
+Result::
+
     {
         "description": "s.o.m.e.i.m.p.o.r.t.a.n.t.d.e.s.c.r.i.p.t.i.o.n"  
     }
@@ -383,18 +355,18 @@ Result:
 
 After running split function match result transformed into list object, running join against list will produce string with values separated by ":" character
 
-Data:
-::
+Data::
+
     interface GigabitEthernet3/3 
      switchport trunk allowed vlan add 138,166,173,400,401,410
  
-Template:
-::
+Template::
+
     interface {{ interface }}  
      switchport trunk allowed vlan add {{ trunk_vlans | split(',') | join(':') }}
 
-Result:
-::
+Result::
+
     {
         "interface": "GigabitEthernet3/3"  
         "trunkVlans": "138:166:173:400:401:410"
@@ -404,22 +376,22 @@ append
 ------------------------------------------------------------------------------
 ``{{ name | append(string) }}``
 
-* string (mandatory) - string append to match rsult
+* string (mandatory) - string append to match result
 
 Appends string to match result and returns produced value
 
 **Example**
 
-Data:
-::
+Data::
+
     interface Ge3/3
  
-Template is:
-::
+Template is::
+
     interface {{ interface | append(' - non production') }}
 
-Result:
-::
+Result::
+
     {
         "interface": "Ge3/3 - non production"  
     }
@@ -428,48 +400,48 @@ print
 ------------------------------------------------------------------------------
 ``{{ name | print }}``
 
-Will print match result to terminal as is at the given position in chaing, can be used for debuggin purposes
+Will print match result to terminal as is at the given position, can be used for debugging purposes
 
 **Example**
 
-Data:
-::
+Data::
+
     interface GigabitEthernet3/3
      switchport trunk allowed vlan add 138,166,173  
  
-Template:
-::
+Template::
+
     interface {{ interface }}
      switchport trunk allowed vlan add {{ trunk_vlans | split(',') | print | join(':') print }}
 
-Output printer to terminal
-::
-    ['138', '166', '173'] 
-    138:166:173
+Results printed to terminal::
+
+    ['138', '166', '173']  <--First print statement
+    138:166:173            <--Second print statement
     
 unrange
 ------------------------------------------------------------------------------
 ``{{ name | unrange('rangechar', 'joinchar') }}``
 
 * rangechar (mandatory) - character to indicate range
-* joinchar (mandatory) - character used to join range after it is unranged
+* joinchar (mandatory) - character used to join range items
 
 If match result has integer range in it, this function can be used to extend that range to specific values, For instance if range is 100-105, after passing that result through this function result '101,102,103,104,105' will be produced. That is useful to extend trunk vlan ranges configured on interface.
 
 **Example**
 
-Data:
-::
+Data::
+
     interface GigabitEthernet3/3
      switchport trunk allowed vlan add 138,166,170-173
  
-Template:
-::
+Template::
+
     interface {{ interface }}
      switchport trunk allowed vlan add {{ trunk_vlans | unrange(rangechar='-', joinchar=',') }}
 
-Result:
-::
+Result::
+
     {
         "interface": "GigabitEthernet3/3"  
         "trunkVlans": "138,166,170,171,172,173"
@@ -487,10 +459,10 @@ It is also possible to use *set* function to introduce arbitrary key-value pairs
 
 **Example-1**
 
-Conditional set function - set only will be invoked in case if preceding line matched. In below example " switchport trunk encapsulation dot1q" line will be searched for, if found then "encap" variable will have "dot1q" value set.
+Conditional set function - set only will be invoked in case if preceding line matched. In below example " switchport trunk encapsulation dot1q" line will be searched for, if found, "encap" variable will have "dot1q" value set.
 
-Data
-::
+Data::
+
     interface GigabitEthernet3/4
      switchport mode access 
      switchport trunk encapsulation dot1q
@@ -504,8 +476,8 @@ Data
      switchport nonegotiate
     !
  
-Template
-::
+Template::
+
     <vars>
     mys_set_var = "my_set_value"
     </vars>
@@ -519,8 +491,8 @@ Template
     !{{ _end_ }}
     </group>
 
-Result
-::
+Result::
+
     {
         "interfacesset": [
             {
@@ -541,22 +513,22 @@ Result
         ]
     }
     
-.. note:: Multiple set statements are supported within the line, however, no other variables can be specified except with *set*, as match performed based on the string preceeding variables with *set* function, for instance below will not work: ``switchport mode {{ mode }} {{ switchport_mode | set('Trunk') }} {{ trunk_vlans | set('all') }}``
+.. note:: Multiple set statements are supported within the line, however, no other variables can be specified except with *set*, as match performed based on the string preceding variables with *set* function, for instance below will not work: ``switchport mode {{ mode }} {{ switchport_mode | set('Trunk') }} {{ trunk_vlans | set('all') }}``
 
 **Example-2**
 
 Unconditional set - in this example "interface_role" will be statically set to "Uplink", but value for "provider" variable will be taken from template variable "my_var" and set to "L2VC".
 
-Data:
-::
+Data::
+
     interface Vlan777
       description Management
       ip address 192.168.0.1/24
       vrf MGMT
     !
 
-Template:
-::
+Template::
+
     <vars>
     my_var = "L2VC"
     </vars>
@@ -571,8 +543,8 @@ Template:
     !{{_end_}}
     </group>
 
-Result:
-::
+Result::
+
     [
         {
             "description": "Management",
@@ -597,36 +569,36 @@ Run string replace method on match with *new* and *old* values derived using bel
 
 **Example-1.1** With *new* set to '' empty value
 
-Data
-::
+Data::
+
     interface GigabitEthernet3/3 
     interface GigEthernet5/7 
     interface GeEthernet1/5
  
-Template
-::
+Template::
+
     interface {{ interface | replaceall('Ethernet') }}
 
-Result
-::
+Result::
+
     {'interface': 'Gigabit3/3'} 
     {'interface': 'Gig5/7'} 
     {'interface': 'Ge1/5'}
     
 **Example-1.2** With *new* set to 'Ge'
 
-Data
-::
+Data::
+
     interface GigabitEthernet3/3 
     interface GigEth5/7 
     interface Ethernet1/5
  
-Template
-::
+Template::
+
     interface {{ interface | replaceall('Ge', 'GigabitEthernet', 'GigEth', 'Ethernet') }}
 
-Result
-::
+Result::
+
     {'interface': 'Ge3/3'} 
     {'interface': 'Ge5/7'} 
     {'interface': 'Ge1/5'}
@@ -635,14 +607,14 @@ Result
 
 **Example-2.1** With *new* set to 'GE' value
 
-Data
-::
+Data::
+
     interface GigabitEthernet3/3 
     interface GigEthernet5/7 
     interface GeEthernet1/5
  
-Template
-::
+Template::
+
     <vars load="python">
     intf_replace = ['GigabitEthernet', 'GigEthernet', 'GeEthernet']
     </vars>
@@ -651,8 +623,8 @@ Template
     interface {{ interface | replaceall('GE', 'intf_replace') }}
     <group>   
     
-Result
-::
+Result::
+
     {
         "ifs": [
             {
@@ -669,14 +641,14 @@ Result
     
 **Example-2.2** With *new* set to '' empty value
 
-Data
-::
+Data::
+
     interface GigabitEthernet3/3 
     interface GigEthernet5/7 
     interface GeEthernet1/5
  
-Template
-::
+Template::
+
     <vars load="python">
     intf_replace = ['GigabitEthernet', 'GigEthernet', 'GeEthernet']
     </vars>
@@ -685,8 +657,8 @@ Template
     interface {{ interface | replaceall('intf_replace') }}
     <group>   
     
-Result
-::
+Result::
+
     {
         "ifs": [
             {
@@ -701,14 +673,15 @@ Result
         ]
     }
     
-**Case 3** If value found in variables that variable used, if variable value is  a dictionary, function will iterate over dictioanry items and set *new* to item key and *old* to item value. 
-* If item value is a list, function will iterate over list and run replace using each entrie as *old* value
-* If item value is a string, function will use that strin as *old* value
+**Case 3** If value found in variables that variable used, if variable value is  a dictionary, function will iterate over dictionary items and set *new* to item key and *old* to item value. 
+
+* If item value is a list, function will iterate over list and run replace using each entry as *old* value
+* If item value is a string, function will use that string as *old* value
 
 **Example-3.1** With dictionary values as lists
 
-Data
-::
+Data::
+
     interface GigabitEthernet3/3 
     interface GigEthernet5/7 
     interface GeEthernet1/5
@@ -717,8 +690,8 @@ Data
     interface TeGe5/7 
     interface 10GE1/5
  
-Template
-::
+Template::
+
     <vars load="python">
     intf_replace = {
                     'Ge': ['GigabitEthernet', 'GigEthernet', 'GeEthernet'],
@@ -731,8 +704,8 @@ Template
     interface {{ interface | replaceall('intf_replace') }}
     <group>   
     
-Result
-::
+Result::
+
     {
         "ifs": [
             {
@@ -768,13 +741,13 @@ Same as `replaceall`_ but instead of string replace this function runs python re
 
 If *new* set to "Ge" and *old* set to "GigabitEthernet", running string replace against "TenGigabitEthernet" match will produce "Ten" as undesirable result, to overcome that problem regular expressions can be used. For instance, regex "^GigabitEthernet" will only match "GigabitEthernet3/3" as "^" symbol indicates beginning of the string and will not match "GigabitEthernet" in "TenGigabitEthernet".
 
-Data
-::
+Data::
+
  interface GigabitEthernet3/3 
  interface TenGigabitEthernet3/3 
  
-Template
-::
+Template::
+
  <vars load="python">
  intf_replace = {
                  'Ge': ['^GigabitEthernet'],
@@ -786,8 +759,8 @@ Template
  interface {{ interface | replaceall('intf_replace') }}
  <group>   
  
-Result
-::
+Result::
+
  {
      "ifs": [
          {
@@ -820,7 +793,7 @@ lookup
 
 Lookup function takes match value and perform lookup on that value in lookup table. Lookup table is a dictionary data where keys checked if they are equal to math result.
 
-If lookup was unsuccesful no changes introduces to match result, if it was successful we have two option on what to do with looked up values:
+If lookup was unsuccessful no changes introduces to match result, if it was successful we have two option on what to do with looked up values:
 * if add_field is False - match Result replaced with found values
 * if add_field is not False - string passed as add_field value used as a name for additional field that will be added to group match results
 
@@ -828,8 +801,8 @@ If lookup was unsuccesful no changes introduces to match result, if it was succe
 
 In this example, as 65101 will be looked up in the lookup table and replaced with found values
 
-Data
-::
+Data::
+
  router bgp 65100
    neighbor 10.145.1.9
      remote-as 65101
@@ -837,8 +810,8 @@ Data
    neighbor 192.168.101.1
      remote-as 65102
  
-Template
-::
+Template::
+
  <lookup name="ASNs" load="csv">
  ASN,as_name,as_description
  65100,Customer_1,Private ASN for CN451275
@@ -853,8 +826,8 @@ Template
   </group>
  </group> 
  
-Result
-::
+Result::
+
  {
      "bgp_config": {
          "bgp_as": "65100",
@@ -876,8 +849,8 @@ Result
 
 **Example-2** With additional field
 
-Data
-::
+Data::
+
  router bgp 65100
    neighbor 10.145.1.9
      remote-as 65101
@@ -885,8 +858,8 @@ Data
    neighbor 192.168.101.1
      remote-as 65102
  
-Template
-::
+Template::
+
  <lookup name="ASNs" load="csv">
  ASN,as_name,as_description
  65100,Customer_1,Private ASN for CN451275
@@ -901,8 +874,8 @@ Template
   </group>
  </group> 
  
-Result
-::
+Result::
+
  {
      "bgp_config": {
          "bgp_as": "65100",
@@ -932,16 +905,16 @@ rlookup
 
 This function searches rlookup table keys in match value. rlookup table is a dictionary data where keys checked if they are equal to math result.
 
-If lookup was unsuccesful no changes introduces to match result, if it was successful we have two options:
+If lookup was unsuccessful no changes introduces to match result, if it was successful we have two options:
 * if add_field is False - match Result replaced with found values
 * if add_field is not False - string passed as add_field used as a name for additional field to be added to group results, value for that new field is a data from lookup table
 
 **Example**
 
-In this example, bgp neighbours descriptions set to hostnames of peering devices, usually hostnames tend to follow some naming convention to indicate physical location of device or its network role, in below examplenaming convention is *<state>-<city>-<role><num>* 
+In this example, bgp neighbors descriptions set to hostnames of peering devices, usually hostnames tend to follow some naming convention to indicate physical location of device or its network role, in below example, naming convention is *<state>-<city>-<role><num>* 
 
-Data
-::
+Data::
+
  router bgp 65100
    neighbor 10.145.1.9
      description vic-mel-core1
@@ -949,8 +922,8 @@ Data
    neighbor 192.168.101.1
      description qld-bri-core1
  
-Template
-::
+Template::
+
  <lookup name="locations" load="ini">
  [cities]
  -mel- : 7 Name St, Suburb A, Melbourne, Postal Code
@@ -965,8 +938,8 @@ Template
   </group>
  </group> 
  
-Result
-::
+Result::
+
  {
      "bgp_config": {
          "bgp_as": "65100",
@@ -1015,14 +988,14 @@ contains
 
 * pattern(mandatory) - string pattern to check
 
-This faunction evaluates if match value contains given string pattern, returns True if so and False otherwise.
+This function evaluates if match value contains given string pattern, returns True if so and False otherwise.
 
 **Example**
 
 *contains* can be used to filter group results based on filtering start res, for instance, if we have configuration of networking device and we want to extract information only about *Vlan* interfaces.
 
-Data
-::
+Data::
+
  interface Vlan123
   description Desks vlan
   ip address 192.168.123.1 255.255.255.0
@@ -1037,16 +1010,16 @@ Data
  interface Loopback0
   description Routing ID loopback
  
-Template
-::
+Template::
+
  <group name="SVIs">
  interface {{ interface | contains('Vlan') }}
   description {{ description | ORPHRASE}}
   ip address {{ ip }} {{ mask }}
  </group>
  
-Result
-::
+Result::
+
  {
      "SVIs": [
          {
@@ -1064,7 +1037,7 @@ Result
      ]
  }
 
-If first line in the group contains match variables it is considered start re, if start re condition check result evalueated to *False*, all the matches that belong to this group will be filtered. In example above line "interface {{ interface | contains('Vlan') }}" is a start re, hence if "interface" variable match will not contain "Vlan", group results will be discarded.
+If first line in the group contains match variables it is considered start re, if start re condition check result evaluated to *False*, all the matches that belong to this group will be filtered. In example above line "interface {{ interface | contains('Vlan') }}" is a start re, hence if "interface" variable match will not contain "Vlan", group results will be discarded.
  
 notstartswith_re
 ------------------------------------------------------------------------------
@@ -1096,7 +1069,7 @@ exclude
 
 * pattern(mandatory) - string pattern to check
 
-This faunction evaluates if match value contains given string pattern, returns False if so and True otherwise.
+This function evaluates if match value contains given string pattern, returns False if so and True otherwise.
 
 equal
 ------------------------------------------------------------------------------
@@ -1104,7 +1077,7 @@ equal
 
 * value(mandatory) - string pattern to check
 
-This faunction evaluates if match is equal to given value, returns True if so and False otherwise
+This function evaluates if match is equal to given value, returns True if so and False otherwise
 
 notequal
 ------------------------------------------------------------------------------
@@ -1112,19 +1085,19 @@ notequal
 
 * value(mandatory) - string pattern to check
 
-This faunction evaluates if match is equal to given value, returns False if so and True otherwise
+This function evaluates if match is equal to given value, returns False if so and True otherwise
 
 isdigit
 ------------------------------------------------------------------------------
 ``{{ name | isdigit }}``
 
-This faunction checks if match is a digit, returns True if so and False otherwise
+This function checks if match is a digit, returns True if so and False otherwise
 
 notdigit
 ------------------------------------------------------------------------------
 ``{{ name | notdigit }}``
 
-This faunction checks if match is digit, returns False if so and True otherwise
+This function checks if match is digit, returns False if so and True otherwise
 
 greaterthan
 ------------------------------------------------------------------------------
@@ -1132,7 +1105,7 @@ greaterthan
 
 * value(mandatory) - integer value to compare with
 
-This faunction checks if match and supplied value are digits and performs comparison operation, if match is bigger than given value returns True and False otherwise
+This function checks if match and supplied value are digits and performs comparison operation, if match is bigger than given value returns True and False otherwise
 
 lessthan
 ------------------------------------------------------------------------------
@@ -1140,7 +1113,7 @@ lessthan
 
 * value(mandatory) - integer value to compare with
 
-This faunction checks if match and supplied value are digits and performs comparison, if match is smaller than provided value returns True and False otherwise
+This function checks if match and supplied value are digits and performs comparison, if match is smaller than provided value returns True and False otherwise
 
 item
 ------------------------------------------------------------------------------
@@ -1148,7 +1121,7 @@ item
 
 * item_index(mandatory) - integer, index of item to return
 
-Return item value at given index of iterable. If match result (iterable) is string, *item* returns letter at given index, if match been transformad to list by 
+Return item value at given index of iterable. If match result (iterable) is string, *item* returns letter at given index, if match been transformed to list by 
 the moment *item* function runs, returns list item at given index. item_index can be positive or negative digit, same rules as for retrieving list items applies 
 e.g. if item_index is -1, last item will be returned.
 
@@ -1177,10 +1150,10 @@ For match variables, depending on data returned by macro function, ttp will beha
 
 **Example**
 
-In this example maro functions referenced in match variables.
+In this example macro functions referenced in match variables.
 
-Template
-::
+Template::
+
     <input load="text">
     interface Vlan123
      description Desks vlan
@@ -1227,8 +1200,8 @@ Template
      ip address {{ ip }} {{ mask }}
     </group>
  
-Result
-::
+Result::
+
     [
         {
             "interfaces_macro": [
@@ -1268,13 +1241,11 @@ to_list
 ------------------------------------------------------------------------------
 ``{{ name | to_list }}``
 
-to_list transform match result in python list object in such a way that if match result is a string, empty lit will be created and result will be appended to it, if match result not a string by the time to_list fuction runs, this function does nothing.
+to_list transform match result in python list object in such a way that if match result is a string, empty lit will be created and result will be appended to it, if match result not a string by the time to_list function runs, this function does nothing.
 
 **Example**
 
-Template
-
-.. code-block:: html
+Template::
 
     <input load="text" name="test1-18">
     interface GigabitEthernet1/1
@@ -1291,9 +1262,7 @@ Template
      ip address {{ ip | to_list }} {{ mask }}
     </group>
 
-Result
-
-.. code-block::
+Result::
 
     [{
         "interfaces_functions_test1_18": {
@@ -1313,19 +1282,19 @@ to_str
 ------------------------------------------------------------------------------
 ``{{ name | to_str }}``
 
-This function transforms match result to string object runing python ``str(match_result)`` built-in function, that is useful for such a cases when match result been transformed to some other object during processing and it needs to be converted back to string.
+This function transforms match result to string object running python ``str(match_result)`` built-in function, that is useful for such a cases when match result been transformed to some other object during processing and it needs to be converted back to string.
 
 to_int
 ------------------------------------------------------------------------------
 ``{{ name | to_int }}``
 
-This function will try to transforms match result into integer object runing python ``int(match_result)`` built-in function, if it fails to do so, execution will continue, results will not e invalidated. to_int is useful if you need to convert string representaion of integer in actual integer object to run mathematical operation with it.
+This function will try to transforms match result into integer object running python ``int(match_result)`` built-in function, if it fails to do so, execution will continue, results will not e invalidated. to_int is useful if you need to convert string representation of integer in actual integer object to run mathematical operation with it.
 
 to_ip
 ------------------------------------------------------------------------------
 ``{{ name | to_ip }}`` or ``{{ name | to_ip("ipv4") }}``
 
-* to_ip(version) - uses python ipaddress module to transform match result in one of ipaddress supported objects, by default will use ipaddress module built-in logic to determine version of IP address, optionally version can be provided using *ipv4* ot *ipv6* arguments to create IPv4Address or IPv6Address ipaddress module objects. In addtion ttp does the check to detect if slash "/" present - e.g. 137.168.1.3/27 - in match result or space " " present in match result - e.g. 137.168.1.3 255.255.255.224, if so it will create IPInterface, IPv4Interface or IPv6Interface object depending on provided arguments.
+* to_ip(version) - uses python ipaddress module to transform match result in one of ipaddress supported objects, by default will use ipaddress module built-in logic to determine version of IP address, optionally version can be provided using *ipv4* or *ipv6* arguments to create IPv4Address or IPv6Address ipaddress module objects. In addition ttp does the check to detect if slash "/" present - e.g. 137.168.1.3/27 - in match result or space " " present in match result - e.g. 137.168.1.3 255.255.255.224, if so it will create IPInterface, IPv4Interface or IPv6Interface object depending on provided arguments.
 
 After match result transformed into ipaddress' IPaddress or IPInterface object, built-in functions and attributes of these objects can be called using match variable functions chains.
 
@@ -1333,11 +1302,9 @@ After match result transformed into ipaddress' IPaddress or IPInterface object, 
 
 **Example**
 
-It is often that devices use "ip address 137.168.1.3 255.255.255.224" syntaxis to configure interface's IP addresses, let's assume we need to convert it to "137.168.1.3/27" represenation and vice versa.
+It is often that devices use "ip address 137.168.1.3 255.255.255.224" syntaxes to configure interface's IP addresses, let's assume we need to convert it to "137.168.1.3/27" representation and vice versa.
 
-Template
-
-.. code-block:: html
+Template::
 
     <input load="text">
     interface Loopback0
@@ -1354,9 +1321,7 @@ Template
      ip address {{ ip | to_ip | with_netmask }}
     </group>
     
-Result
-
-.. code-block::
+Result::
 
     [
         {
@@ -1379,15 +1344,14 @@ to_net
 ------------------------------------------------------------------------------
 ``{{ name | to_net }}``
 
-This function leverages python built-in ipaddress module to transfor match result into IPNetwork object provided that match is a valid ipv4 or ipv6 network strings e.g. 192.168.0.0/24
+This function leverages python built-in ipaddress module to transform match result into IPNetwork object provided that match is a valid ipv4 or ipv6 network strings e.g. 192.168.0.0/24
  or fe80:ab23::/64.
  
 **Example**
 
 Let's assume we need to get results for private routes only from below data, to_net can be used to transform match result into network object together with IPNetwork built-in function is_private to filter results.
 
-Template
-.. code-block:: html
+Template::
 
     <input load="text">
     RP/0/0/CPU0:XR4#show route
@@ -1400,9 +1364,7 @@ Template
     {{ code }} {{ subcode }} {{ net | to_net | is_private | to_str }} [{{ ad }}/{{ metric }}] via {{ nh_ip }}, {{ age }}, {{ nh_interface }}
     </group>
     
-Result
-
-.. code-block::
+Result::
 
     [
         {
@@ -1437,7 +1399,7 @@ to_cidr
 ------------------------------------------------------------------------------
 ``{{ name | to_cidr }}``
 
-Function to convert subnet mask in prefix lenght representation, for instance if match result is "255.255.255.0", to_cidr function will return "24"
+Function to convert subnet mask in prefix length representation, for instance if match result is "255.255.255.0", to_cidr function will return "24"
 
 ip_info
 ------------------------------------------------------------------------------
@@ -1447,11 +1409,9 @@ Python ipaddress module helps to convert plain text string into IP addresses obj
 
 **Example**
 
-Below loopback0 IP address will be converted to IPv4Address object and ip_info will return information about that IP only, for other interfaces ttp will be able to create IPInterface objects, that apart from IP details contains infromtation about network.
+Below loopback0 IP address will be converted to IPv4Address object and ip_info will return information about that IP only, for other interfaces ttp will be able to create IPInterface objects, that apart from IP details contains information about network.
 
-Template
-
-.. code-block:: html
+Template::
 
     <input load="text">
     interface Loopback0
@@ -1471,9 +1431,7 @@ Template
      ip address {{ ip | to_ip | ip_info }}
     </group>
     
-Result
-
-.. code-block::
+Result::
 
     [
         {
@@ -1561,9 +1519,7 @@ is_ip function tries to convert provided match result in Python ipaddress module
 
 **Example**
 
-Template
-
-.. code-block:: html
+Template::
 
     <input load="text">
     interface Loopback0
@@ -1579,9 +1535,7 @@ Template
      ip address {{ ip | is_ip }}
     </group>
 
-Result
-
-.. code-block::
+Result::
 
     [
         {
@@ -1597,7 +1551,7 @@ Result
         }
     ]
     
-192.168.1.341/24 match result was invalidated as it is a not valid IP addrress.
+192.168.1.341/24 match result was invalidated as it is a not valid IP address.
 
 cidr_match
 ------------------------------------------------------------------------------
@@ -1609,9 +1563,7 @@ This function allows to convert provided prefix in ipaddress IPNetwork object an
 
 In example below IP of Loopback1 interface is not overlapping with 192.168.0.0/16 range, hence it will be invalidated.
 
-Template
-
-.. code-block:: html
+Template::
 
     <input load="text">
     interface Loopback0
@@ -1627,9 +1579,7 @@ Template
      ip address {{ ip | cidr_match("192.168.0.0/16") }}
     </group>
 
-Result
-
-.. code-block::
+Result::
 
     [{
         "interfaces": [
@@ -1763,7 +1713,7 @@ Template::
      ip address {{ ip | rdns(add_field='FQDN') }} {{ mask }}
     </group>
 	
-Results::
+Result::
 
     [
         {

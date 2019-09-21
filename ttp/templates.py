@@ -3199,3 +3199,207 @@ set interfaces {{ interface }} unit {{ unit }} description "{{ description | ORP
 {{ group | set("group-0") }}
 </group>
 """
+
+test218="""
+<input load="text">
+interface Loopback0
+ description Router-id-loopback
+ ip address 192.168.0.113/24
+!
+interface Vlan778
+ ip address 2002::fd37/124
+ ip vrf CPE1
+!
+</input>
+
+<group name="interfaces_1">
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description }}
+ ip vrf {{ vrf }}
+</group>
+
+<group name="interfaces_2">
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description }}
+ ip vrf {{ vrf }}
+</group>
+
+<output 
+format="excel" 
+returner="file"
+url="C:/result/"
+filename="excel_out_%Y-%m-%d_%H-%M-%S"
+load="yaml"
+>
+table:
+  - headers: interface, ip, mask, vrf, description
+    path: interfaces_1
+    tab_name: tab-1
+  - path: interfaces_2
+    tab_name: tab-2
+</output>
+"""
+
+test219="""
+<input load="text">
+router bgp 12.34
+ address-family ipv4 unicast
+  router-id 1.1.1.1
+ !
+ vrf CT2S2
+  rd 102:103
+  !
+  neighbor 10.1.102.102
+   remote-as 102.103
+   address-family ipv4 unicast
+    send-community-ebgp
+    route-policy vCE102-link1.102 in
+    route-policy vCE102-link1.102 out
+   !
+  !
+  neighbor 10.2.102.102
+   remote-as 102.103
+   address-family ipv4 unicast
+    route-policy vCE102-link2.102 in
+    route-policy vCE102-link2.102 out
+   !
+  !
+ vrf AS65000
+  rd 102:104
+  !
+  neighbor 10.1.37.7
+   remote-as 65000
+   address-family ipv4 labeled-unicast
+    route-policy PASS-ALL in
+    route-policy PASS-ALL out
+</input>
+
+<group name="bgp_cfg">
+router bgp {{ ASN }}
+ <group name="ipv4_afi">
+ address-family ipv4 unicast {{ _start_ }}
+  router-id {{ bgp_rid }}
+ </group>
+ !
+ <group name="vrfs">
+ vrf {{ vrf }}
+  rd {{ rd }}
+  !
+  <group name="neighbors">
+  neighbor {{ neighbor }}
+   remote-as {{ neighbor_asn }}
+   <group name="ipv4_afi">
+   address-family ipv4 unicast {{ _start_ }}
+    send-community-ebgp {{ send_community_ebgp | set("Enabled") }}
+    route-policy {{ RPL_IN }} in
+    route-policy {{ RPL_OUT }} out
+   </group>
+  </group>
+ </group>
+</group>
+"""
+
+test220="""
+<input load="text">
+router bgp 12.34
+ address-family ipv4 unicast
+  router-id 1.1.1.1
+ !
+ vrf CT2S2
+  rd 102:103
+  !
+  neighbor 10.1.102.102
+   remote-as 102.103
+   address-family ipv4 unicast
+    send-community-ebgp
+    route-policy vCE102-link1.102 in
+    route-policy vCE102-link1.102 out
+   !
+  !
+  neighbor 10.2.102.102
+   remote-as 102.103
+   address-family ipv4 unicast
+    route-policy vCE102-link2.102 in
+    route-policy vCE102-link2.102 out
+   !
+  !
+ vrf AS65000
+  rd 102:104
+  !
+  neighbor 10.1.37.7
+   remote-as 65000
+   address-family ipv4 labeled-unicast
+    route-policy PASS-ALL in
+    route-policy PASS-ALL out
+</input>
+
+<group name="bgp_cfg">
+router bgp {{ ASN }}
+ <group name="ipv4_afi">
+ address-family ipv4 unicast {{ _start_ }}
+  router-id {{ bgp_rid }}
+ </group>
+ !
+ <group name="vrfs.{{ vrf }}">
+ vrf {{ vrf }}
+  rd {{ rd }}
+  !
+  <group name="peers.{{ neighbor }}**">
+  neighbor {{ neighbor }}
+   remote-as {{ neighbor_asn }}
+   <group name="ipv4_afi">
+   address-family ipv4 unicast {{ _start_ }}
+    send-community-ebgp {{ send_community_ebgp | set("Enabled") }}
+    route-policy {{ RPL_IN }} in
+    route-policy {{ RPL_OUT }} out
+   </group>
+  </group>
+ </group>
+</group>
+"""
+
+test221="""
+<input load="text">
+interface Loopback0
+ description Router-id-loopback
+ ip address 192.168.0.113/24
+!
+interface Vlan778
+ description CPE_Acces_Vlan
+ ip address 2002::fd37/124
+ ip vrf CPE1
+!
+</input>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description }}
+ ip vrf {{ vrf }}
+</group>
+"""
+
+test222="""
+<input load="text">
+interface Loopback0
+ description Router-id-loopback
+ ip address 192.168.0.113/24
+!
+interface Vlan778
+ description CPE_Acces_Vlan
+ ip address 2002::fd37/124
+ ip vrf CPE1
+!
+</input>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description }}
+ ip vrf {{ vrf }}
+</group>
+
+<output format="csv" returner="terminal"/>
+"""

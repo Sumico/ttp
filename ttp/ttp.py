@@ -128,12 +128,13 @@ class ttp():
                         self.__data_size += getsizeof(i[1])
 
 
-    def add_template(self, template):
+    def add_template(self, template, template_name=None):
         """Method to load TTP templates into the parser.
         
         **Parameters**
         
         * ``template`` file object or OS path to text file with template
+        * ``template_name`` (str) name of the template
         """
         log.debug("ttp.add_template - loading template")
         # get a list of [(type, text,)] tuples or empty list []
@@ -142,7 +143,8 @@ class ttp():
             template_obj = _template_class(
                 template_text=i[1],
                 base_path=self.base_path, 
-                ttp_vars=self.vars)
+                ttp_vars=self.vars,
+                name=template_name)
             # if templates are empty - no 'template' tags in template:
             if template_obj.templates == []:
                 self.__templates.append(template_obj)
@@ -164,7 +166,7 @@ class ttp():
         * ``key`` (str) specify key column for csv loader to construct dictionary
         
         ``include`` can accept relative OS path - relative to the directory where TTP will be
-        invoced either using CLI tool or as a module
+        invoked either using CLI tool or as a module
         """
         lookup_data = self.__utils.load_struct(text_data=text_data,
                                                include=include, load=load, key=key)
@@ -283,7 +285,7 @@ class ttp():
                 template.form_results(results_data)     
 
 
-    def result(self, templates=[], returner='self', **kwargs):
+    def result(self, templates=[], structure="list", returner='self', **kwargs):
         """Method to get parsing results, supports basic filtering based on 
         templates' names, results can be formatted and returned to specified
         returner.
@@ -292,6 +294,7 @@ class ttp():
         
         * ``templates`` (list or str) names of the templates to return results for
         * ``returner`` (str) returner to use to return data - self, file, terminal
+        * ``structure`` (str) structure type, valid values - ``list`` or ``dictionary``
         
         **kwargs** - can contain any attributes supported by output tags, for instance:
         
@@ -310,7 +313,7 @@ class ttp():
             
         **Returns**
         
-        If template results set to *per_input*, returns list of lists such as::
+        By default template results set to *per_input* and structure set to *list*, returns list such as::
         
             [  
                [ template_1_input_1_results,
@@ -322,12 +325,35 @@ class ttp():
                  ...
             ]       
 
-        If template results set to *per_template*, returns list of lists such as::
+        If template results set to *per_template* and structure set to *list*, returns list such as::
         
             [  
                [ template_1_input_1_2...N_joined_results ],
                [ template_2_input_1_2...N_joined_results ]
             ]    
+            
+        If template results set to *per_input* and structure set to *dictionary*, returns dictionary such as::
+        
+            { 
+               template_1_name: [
+                 input_1_results,
+                 input_2_results,
+                 ...
+                 input_N_results 
+                ],
+               template_2_name: [
+                 input_1_results,
+                 input_2_results
+                ],
+                 ...
+            }      
+
+        If template results set to *per_template* and structure set to *dictionary*, returns dictionary such as::
+        
+            {
+               template_1_name: input_1_2...N_joined_results,
+               template_2_name: input_1_2...N_joined_results
+            }
         """
         # filter templates to run outputs for:
         templates_obj = self.__templates
@@ -341,9 +367,16 @@ class ttp():
         if kwargs:
             kwargs['returner'] = returner
             outputter = _outputter_class(**kwargs)
-            return [outputter.run(template.results, macro=template.macro) for template in templates_obj]
+            if structure.lower() == 'list':
+                return [outputter.run(template.results, macro=template.macro) for template in templates_obj]
+            elif structure.lower() == 'dictionary':
+                return {template.name: outputter.run(template.results, macro=template.macro) 
+                        for template in templates_obj if template.name}
         else:
-            return [template.results for template in templates_obj]
+            if structure.lower() == 'list':
+                return [template.results for template in templates_obj]
+            elif structure.lower() == 'dictionary':
+                return {template.name: template.results for template in templates_obj if template.name}
 
 
 """
@@ -1213,7 +1246,7 @@ class _ttp_utils():
                 data = load_python_exec(text_data)
                 return data
             except:
-              log.error("ttp_utils.load_struct: Unable to load Python formatted data\n'{}'".format(text_data))
+              log.error("ttp_utils.load_struct: Unable to load Python formatted data\n'{}'Make sure that correct loader used to load data".format(text_data))
 
         def load_yaml(text_data, **kwargs):
             from yaml import safe_load
@@ -1319,16 +1352,17 @@ TTP TEMPLATE CLASS
 class _template_class():
     """Template class to hold template data
     """
-    def __init__(self, template_text, base_path='', ttp_vars={}):
+    def __init__(self, template_text, base_path='', ttp_vars={}, name=None):
         self.PATHCHAR = '.'          # character to separate path items, like ntp.clock.time, '.' is pathChar here
-        self.outputs = []            # list htat contains global outputs
-        self.groups_outputs = []     # list that contains groups specific outputs
         # _vars_to_results_ is a dict of {pathN:[var_key1, var_keyN]} data
         # to indicate variables and patch where they should be saved in results
         self.vars = {"_vars_to_results_":{}}
         # add vars from ttp class that supplied during ttp object instantiation
         self.ttp_vars = ttp_vars
         self.vars.update(ttp_vars)
+        # initialize other variables and objects:
+        self.outputs = []            # list hat contains global outputs
+        self.groups_outputs = []     # list that contains groups specific outputs
         self.groups = []
         self.inputs = {}
         self.lookups = {}
@@ -1336,8 +1370,7 @@ class _template_class():
         self.base_path = base_path
         self.utils = _ttp_utils()
         self.results = []
-        self.name = None
-        self.attributes = {}
+        self.name = name
         self.macro = {}                   # dictionary of macro name to function mapping
         self.results_method = 'per_input' # how to join results
         self.impot_list = []              # list of functions to import
@@ -1352,7 +1385,6 @@ class _template_class():
 
         if log.isEnabledFor(logging.DEBUG):
             from yaml import dump
-            log.debug("Template self.attributes: \n {}".format(self.attributes))
             log.debug("Template self.outputs: \n{}".format(dump(self.outputs)))
             log.debug("Template self.groups_outputs: \n{}".format(dump(self.groups_outputs)))
             log.debug("Template self.vars: \n{}".format(dump(self.vars)))
@@ -1491,19 +1523,23 @@ class _template_class():
     def get_template_attributes(self, element):
 
         def extract_name(O):
-            self.name = O
+            if not self.name:
+                self.name = O
             
         def extract_base_path(O):
             self.base_path = O
     
         def extract_results_method(O):
             self.results_method = O
+        
+        def extract_pathchar(O):
+            self.PATHCHAR = str(O)
 
         opt_funcs = {
         'name'      : extract_name,
         'base_path' : extract_base_path,
-        'results'   : extract_results_method
-        # pathchar
+        'results'   : extract_results_method,
+        'pathchar'  : extract_pathchar
         }
 
         [opt_funcs[name](options) for name, options in element.attrib.items()
@@ -2851,7 +2887,7 @@ class _outputter_class():
                 raise SystemExit()
 
         def extract_format(O):
-            supported_formats = ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint', 'tabulate', 'table']
+            supported_formats = ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint', 'tabulate', 'table', 'excel']
             if O in supported_formats:
                 self.attributes['format'] = O
             else:
@@ -2911,7 +2947,10 @@ class _outputter_class():
             self.attributes['path'] = [i.strip() for i in O.split('.')]
 
         def extract_headers(O):
-            self.attributes['headers'] = [i.strip() for i in O.split(',')]
+            if isinstance(O, str):
+                self.attributes['headers'] = [i.strip() for i in O.split(',')]
+            else:
+                self.attributes['headers'] = O
 
         def extract_dict_to_list(O):
             if isinstance(O, str):
@@ -2983,11 +3022,20 @@ class _outputter_class():
         # check if path exists already, create it if not:
         if not os.path.exists(url):
             os.mkdir(url)
-        with open(url + filename, 'w') as f:
-            if not isinstance(D, str):
-                f.write(str(D))
-            else:
-                f.write(D)
+        # save text data to file
+        if isinstance(D, str):
+            log.info("output.returner_file: saving text results to file")
+            with open(url + filename, 'w') as f:
+                if not isinstance(D, str):
+                    f.write(str(D))
+                else:
+                    f.write(D)
+        # save excel workbook to file:
+        elif hasattr(D, "save") and hasattr(D, "worksheets"):
+            log.info("output.returner_file: saving excel workbook")
+            if not filename.endswith('.xlsx'):
+                filename += '.xlsx'
+            D.save(url + filename)
 
     def returner_terminal(self, D):
         if python_major_version is 2:
@@ -3038,7 +3086,7 @@ class _outputter_class():
         data_to_table = []
         source_data = []
         # get attributes:
-        provided_headers = self.attributes.get('headers', [])
+        provided_headers = self.attributes.get('headers', None)
         path = self.attributes.get('path', [])
         missing = self.attributes.get('missing', '')
         key = self.attributes.get('key', '')
@@ -3127,7 +3175,7 @@ class _outputter_class():
         # load template:
         template_obj = Environment(loader='BaseLoader', trim_blocks=True,
                                    lstrip_blocks=True).from_string(self.element.text)
-        # render data making whole results accessible from _data_ variable in jinja
+        # render data making whole results accessible from _data_ variable in Jinja2
         result = template_obj.render(_data_=data)
         return result
 
@@ -3139,13 +3187,35 @@ class _outputter_class():
         except ImportError:
             log.critical("output.formatter_excel: openpyxl not installed, install: 'python -m pip install openpyxl'. Exiting")
             raise SystemExit()
-        # form table - list of lists
-        table = self.formatter_table(data)
-        # work with workbook
+        # form table_tabs - list of dictionaries
+        try:
+            table = self.attributes['load']['table']
+        except KeyError:
+            log.critical("output.formatter_excel: output tag missing table definition. Exiting")
+            raise SystemExit()
+        table_tabs = []
+        for index, tab_det in enumerate(table):
+            if 'tab_name' in tab_det:
+                tab_name = tab_det.pop('tab_name')
+            else:
+                tab_name = "Sheet{}".format(index)
+            # get attributes out of tab_det
+            self.get_attributes(data={
+                "path": tab_det.get("path", []),
+                "headers": tab_det.get("headers", None),
+                "missing": tab_det.get("missing", ""),
+                "key": tab_det.get("key", "")
+            })
+            # form tab table
+            tab_table_data = self.formatter_table(data)
+            table_tabs.append({"name": tab_name, "data": tab_table_data})
+        # create workbook
         wb = Workbook(write_only=True)
-        ws = wb.create_sheet()
-        ws.append(['%d' % i for i in range(200)])
-        wb.save('new_big_file.xlsx')
+        for tab in table_tabs:
+            ws = wb.create_sheet(title=tab["name"])
+            [ws.append(row) for row in tab["data"]]
+        return wb
+        
         
 """
 ==============================================================================

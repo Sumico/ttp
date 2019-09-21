@@ -3,11 +3,9 @@ Inputs
    
 Inputs can be used to specify data location and how it should be loaded or filtered. Inputs can be attached to groups for parsing, for instance this particular input data should be parsed by this set of groups only. That can help to increase the overall performance as only data belonging to particular group will be parsed. 
 
-.. warning:: Order of inputs defined not preserved, i.e. even though input tag with name input2 can come after input1, input2 data might be parsed first, followed by input1 data. That is due to the fact that internally ttp uses dictionary to store inputs details and runs sorted function against dictionary items prior to parse it.
+.. warning:: Order of inputs not preserved, i.e. even though input tag with name input2 can come after input1, input2 data might be parsed first, followed by input1 data. That is due to the fact that internally ttp uses dictionary to store inputs details and runs sorted function against dictionary items prior to parse it.
 
-Assuming we have this folders structure to store data that needs to be parsed:
-
-.. code-block::
+Assuming we have this folders structure to store data that needs to be parsed::
 
     /my/base/path/
              |-Data/
@@ -55,9 +53,7 @@ Template below uses inputs in such a way that for "data-1" folder only files tha
 
 As a result of inputs filtering, only "sw-1.txt" will be processed by "dataset-1" input because it is the only file that has ".txt" extension, only  "sw-2.txt" will be processed by input "dataset-2" because "sw3.txt" not matched by "sw\-\d.*" regular expression.
 
-Template
-
-.. code-block:: html
+Template::
 
     <template base_path="/my/base/path/">
     <input name="dataset-1" load="yaml" groups="interfaces1">
@@ -155,9 +151,7 @@ load
 
 Below template contains input with text data that should be parsed, that is useful for testing purposes or for small data sets.
 
-Template:
-
-.. code-block:: html
+Template::
 
     <input name="test1" load="text" groups="interfaces.trunks">
     interface GigabitEthernet3/3
@@ -175,9 +169,7 @@ Template:
      switchport trunk allowed vlan add {{ trunk_vlans }}
     </group>
 
-Result:
-
-.. code-block::
+Result::
 
     [
         {
@@ -209,7 +201,7 @@ Apart from input attributes specified in <input> tag, text payload of <input> ta
    :widths: 10 90
    :header-rows: 1
 
-   * - Parametr
+   * - Parameter
      - Description
    * - `url`_   
      - Single url string or list of urls of input data location 

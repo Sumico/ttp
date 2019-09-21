@@ -15,9 +15,7 @@ For example, this is how industry standard CLI configuration data for interfaces
      description [uplink to core]
      ip address 192.168.10.3 255.255.255.0
 
-It is easy to notice that there is a lot of data which is the same and there is a lot of information which is different as well, if we would say that overall device's interfaces configuration is a collection of repetitive data, with interfaces being a smallest available datum, we can outline it in ttp template below and use it parse valuable information from text data:
-
-.. code-block:: html
+It is easy to notice that there is a lot of data which is the same and there is a lot of information which is different as well, if we would say that overall device's interfaces configuration is a collection of repetitive data, with interfaces being a smallest available datum, we can outline it in ttp template below and use it parse valuable information from text data::
 
     <group name="interfaces">
     interface {{ interface }}

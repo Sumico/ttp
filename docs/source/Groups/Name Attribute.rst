@@ -3,9 +3,7 @@ Name Attribute
 
 Group attribute *name* used to uniquely identify group and its results within results structure. This attribute is a dot separated string, there is every dot represents a next level in hierarchy. This string is split into **path items** using dot character and converted into nested hierarchy of dictionaries and/or lists.
 
-Consider a group with this name attribute value:
-
-.. code-block:: html
+Consider a group with this name attribute value::
 
     <group name="interfaces.vlan.L3.vrf-enabled" containsall="ip, vrf">
     interface {{ interface }}
@@ -14,9 +12,7 @@ Consider a group with this name attribute value:
       vrf {{ vrf }}
     </group>
 	
-If below data parsed with that template:
-
-.. code-block::
+If below data parsed with that template::
 
     interface Port-Chanel11
       description Storage Management
@@ -30,9 +26,7 @@ If below data parsed with that template:
       ip address 192.168.0.1/24
       vrf MGMT
 	  
-This result will be prodiced:
-
-.. code-block::
+This result will be produced::
 
     [
         {
@@ -57,9 +51,7 @@ Name attribute allows to from arbitrary (from practical perspective) depth struc
 Path formatters
 ---------------
 
-By default ttp assumes that all the *path items* must be joined into a dictionary structure, in other words group name "item1.item2.item3" will be transponded into nested dictionary:
-
-.. code-block::
+By default ttp assumes that all the *path items* must be joined into a dictionary structure, in other words group name "item1.item2.item3" will be transformed into nested dictionary::
 
     {"item1": 
 	 {"item2": 
@@ -68,7 +60,7 @@ By default ttp assumes that all the *path items* must be joined into a dictionar
       }
     }
 
-That structure will be populated with results as parsing progresses, but in case if for "item3" more than single result datum needs to be saved, ttp will transform "item3" child to list and save further results by appending them to that list. That process happens automaticaly but can be imfluenced using *path formatters*.
+That structure will be populated with results as parsing progresses, but in case if for "item3" more than single result datum needs to be saved, ttp will transform "item3" child to list and save further results by appending them to that list. That process happens automatically but can be influenced using *path formatters*.
 
 Supported path formatters \* and \*\* for group *name* attribute can be used following below rules:
 
@@ -77,9 +69,7 @@ Supported path formatters \* and \*\* for group *name* attribute can be used fol
 
 **Example**
 
-Consider this group with name attribute formed in such a way that interfaces item child will be a list and child of L3 path item also will be a list.
-
-.. code-block:: html
+Consider this group with name attribute formed in such a way that interfaces item child will be a list and child of L3 path item also will be a list.::
 
     <group name="interfaces*.vlan.L3*.vrf-enabled" containsall="ip, vrf">
     interface {{ interface }}
@@ -88,9 +78,7 @@ Consider this group with name attribute formed in such a way that interfaces ite
       vrf {{ vrf }}
     </group>
 	
-If below data parsed with that template:
-
-.. code-block::
+If below data parsed with that template::
 
     interface Port-Chanel11
       description Storage Management
@@ -104,9 +92,7 @@ If below data parsed with that template:
       ip address 192.168.0.1/24
       vrf MGMT
 	  
-This result will be prodiced:
-
-.. code-block::
+This result will be produced::
 
     [
         {
@@ -130,14 +116,12 @@ This result will be prodiced:
         }
     ]
 	
-.. Note:: 
-
-    containsall group function in above template just to demonstrate filtering capabilites and not related to path formatters
+.. Note:: containsall group function in above template just to demonstrate filtering capabilities and not related to path formatters
 	
 Dynamic Path
 ------------
 
-Above are examples of static path, where all the path items are known and predefined beforehand, however, ttp suppots dynamic path formation using match variable results for certain match variable names, i.e we have match variable name set to *interface* and correspondent match result would be Gi0/1, it is possible to use Gi0/1 as a path item. 
+Above are examples of static path, where all the path items are known and predefined beforehand, however, ttp supports dynamic path formation using match variable results for certain match variable names, i.e we have match variable name set to *interface* and correspondent match result would be Gi0/1, it is possible to use Gi0/1 as a path item. 
 
 Search for dynamic path item value happens using below sequence:
 
@@ -152,9 +136,7 @@ Dynamic path items specified in group *name* attribute using "*{{ item_name }}*"
 
 In this example interface variable match values will be used to substitute {{ interface }} dynamic path items.
 
-Data:
-
-.. code-block::
+Data::
 
     interface Port-Chanel11
       description Storage
@@ -168,9 +150,7 @@ Data:
       ip address 192.168.0.1/24
       vrf MGMT
 	  
-Template:
-
-.. code-block:: html
+Template::
 
     <group name="interfaces.{{ interface }}">
     interface {{ interface }}
@@ -179,9 +159,7 @@ Template:
       vrf {{ vrf }}
     </group>
 	  
-Result:
-
-.. code-block::
+Result::
 
     [
         {
@@ -207,9 +185,7 @@ Result:
 Because each path item is a string, and each item produced by spilling name attributes using '.' dot character, it is possible to produce dynamic path there portions of path item will be dynamically substituted.
 
 
-Data:
-
-.. code-block::
+Data::
 
     interface Port-Chanel11
       description Storage
@@ -223,9 +199,7 @@ Data:
       ip address 192.168.0.1/24
       vrf MGMT
 	  
-Template:
-
-.. code-block:: html
+Template::
 
     <group name="interfaces.cool_{{ interface }}_interface">
     interface {{ interface }}
@@ -234,9 +208,7 @@ Template:
       vrf {{ vrf }}
     </group>
 	  
-Result:
-
-.. code-block::
+Result::
 
     [
         {
@@ -259,17 +231,15 @@ Result:
         }
     ]
 	
-.. note::
-    
-	Substitution of dynamic path items happens using re.sub method without the limit set on the count of such a substitutions, e.g. if path item "cool_{{ interface }}_interface_{{ interface }}" and if interface value is "Gi0/1" resulted path item will be "cool_Gi0/1_interface_Gi0/1"
+.. note:: 
+ 
+  Substitution of dynamic path items happens using re.sub method without the limit set on the count of such a substitutions, e.g. if path item "cool_{{ interface }}_interface_{{ interface }}" and if interface value is "Gi0/1" resulted path item will be "cool_Gi0/1_interface_Gi0/1"
 	
 Nested hierarchies also supported with dynamic path, as if no variable found in the group match results ttp will try to find variable in the dynamic path cache or template variables.
 
 **Example-3**
 
-Data:
-
-.. code-block::
+Data::
 
     ucs-core-switch-1#show run | section bgp
     router bgp 65100
@@ -290,9 +260,7 @@ Data:
             route-map AAPTVRF-LB-BGP-IMPORT-V4 in
             route-map AAPTVRF-LB-BGP-EXPORT-V4 out
 	  
-Template:
-
-.. code-block:: html
+Template::
 
     <vars>
     hostname = "gethostname"
@@ -315,9 +283,7 @@ Template:
        </group>
     </group>
 	
-Result:
-
-.. code-block:: yaml
+Result::
 
     - ucs-core-switch-1:
         router:
@@ -354,9 +320,7 @@ Dynamic path with path formatters is also supported. In example below child for 
 
 **Example**
 
-Data:
-
-.. code-block::
+Data::
 
     interface Port-Chanel11
       description Storage
@@ -370,9 +334,7 @@ Data:
       ip address 192.168.0.1/24
       vrf MGMT
 	  
-Template:
-
-.. code-block:: html
+Template::
 
     <group name="interfaces*.{{ interface }}">
     interface {{ interface }}
@@ -381,9 +343,7 @@ Template:
       vrf {{ vrf }}
     </group>
 	  
-Result:
-
-.. code-block::
+Result::
 
     [
         {
@@ -411,23 +371,21 @@ Result:
 No name attribute
 -----------------
 
-If no nested functionality required or results structure needs to be kept as flat as possible, templates without <group> tag can be used - so called *non heirarchichal templates*. 
+If no nested functionality required or results structure needs to be kept as flat as possible, templates without <group> tag can be used - so called *non hierarchical templates*. 
 
 There is a notion of *top* <group> tag exists, that at the tag that located in the top of xml document hierarchy,  that tag can be lacking name attribute as well. 
 
-In both cases above, ttp will automaticaly reconstruct <group> tag and name attribute for it, setting name to "_anonymous_" value. At the end _anonymous_ path will be stripped of results tree to flatten it.
+In both cases above, ttp will automatically reconstruct <group> tag and name attribute for it, setting name to "_anonymous_" value. At the end _anonymous_ path will be stripped of results tree to flatten it.
 
 .. note::
 
-    <group> tag without name attribute does have support for all the other group attributes as wel as nested groups, however, nested groups *must* have name attribute set on them otherwise nested hierarchy will not be preserved leading to unpredictable results.
+    <group> tag without name attribute does have support for all the other group attributes as well as nested groups, however, nested groups *must* have name attribute set on them otherwise nested hierarchy will not be preserved leading to unpredictable results.
 
 **Example**
 
 Example for <group> without *name* attribute.
 
-Data:
-
-.. code-block::
+Data::
 
     interface Port-Chanel11
       description Storage
@@ -442,9 +400,7 @@ Data:
       vrf MGMT
     !
 	
-Template:
-
-.. code-block:: html
+Template::
 
     <group>
     interface {{ interface }}
@@ -456,9 +412,7 @@ Template:
     !{{_end_}}
     </group>
 	
-Result:
-
-.. code-block::
+Result::
 
     [
         {

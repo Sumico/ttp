@@ -7,9 +7,9 @@ Template Text Parser
    Overview
    Installation
    Quick start
+   Writing templates
    CLI tool
    API reference
    Groups/index
    Match Variables/index
-   Writing templates
    TTP_TAGS/index

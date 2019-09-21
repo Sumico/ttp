@@ -57,10 +57,10 @@ Name of the loader to use to render supplied output tag text data, default is py
 
 Supported loaders:
 
-* python - uses python *exec* method to load data structured in native Python formats
-* yaml - relies on PyYAML to load YAML structured data
-* json - used to load json formatted variables data
-* ini - *configparser* Python standard module used to read variables from ini structured file
+* python - uses python `exec <https://docs.python.org/3/library/functions.html#exec>`_ method to load data structured in native Python formats
+* yaml - relies on `PyYAML <https://pyyaml.org/>`_ to load YAML structured data
+* json - used to load JSON formatted variables data
+* ini - `configparser <https://docs.python.org/3/library/configparser.html>`_ Python standard module used to read variables from ini structured file
 * csv - csv formatted data loaded with Python *csv* standard library module
 
 If load is csv, first column by default will be used to create lookup dictionary, it is possible to supply `key`_ with column name that should be used as a keys for row data. If any other type of load provided e.g. python or yaml, that data must have a dictionary structure, there keys will be compared against match result and on success data associated with given key will be included in results.
@@ -101,7 +101,7 @@ Output system provide support for a number of functions. Functions process outpu
    * - `set_data`_
      - insert arbitrary data to results at given path, replacing any existing results
    * - `dict_to_list`_
-     - transforms dictionary to list of dictionaries at given path	 
+     - transforms dictionary to list of dictionaries at given path     
      
 is_equal
 ******************************************************************************
@@ -214,7 +214,7 @@ Returner attributes
    * - file
      - `filename`_ 
      - name of the file to save data in  
-	 
+     
 url
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -241,12 +241,12 @@ Time filename formatters::
    * ``%I``  Hour (12-hour clock) as a decimal number [01,12].
    * ``%p``  Locale's equivalent of either AM or PM. 
    
-For instance, filename="OUT_%Y-%m-%d_%H-%M-%S_results.txt" will be rendered to "OUT_2019-09-09_18-19-58_results.txt" filename. By default filename is set to "output_<ctime>.txt", where "ctime" is a string produced after rendering "%Y-%m-%d_%H-%M-%S" by python time.strftime() function.
+For instance, filename="OUT_%Y-%m-%d_%H-%M-%S_results.txt" will be rendered to "OUT_2019-09-09_18-19-58_results.txt" filename. By default filename is set to "output_<ctime>.txt", where "ctime" is a string produced after rendering "%Y-%m-%d_%H-%M-%S" by python `time.strftime() <https://docs.python.org/3/library/time.html#time.strftime>`_ function.
      
 Output Formatters
 ------------------------------------------------------------------------------
 
-TTP supports `raw`_, `yaml`_, `json`_, `csv`_, `jinja2`_, `pprint`_, `tabulate`_, `table`_ formatters. Formatters have a number of attributes that can be used to supply additional information or modify behavior. 
+TTP supports `raw`_, `yaml`_, `json`_, `csv`_, `jinja2`_, `pprint`_, `tabulate`_, `table`_, `excel`_ formatters. Formatters have a number of attributes that can be used to supply additional information or modify behavior. 
 
 In general case formatters take python structured data - dictionary, list, list of dictionaries etc. - as an input, format that data in certain way and return string representation of results, except for `raw`_ output formatter, which just returns input data without modifying it.
 
@@ -327,12 +327,12 @@ Results::
             {'interface': 'Vlan710', 'ip': '2002::fd10', 'mask': '124'}]]
             
     Above data will serve as an input to second outputter, that outputter 
-	will format data in table list of lists:
+    will format data in table list of lists:
     [['interface', 'ip', 'mask'], 
-	['Loopback0', '192.168.0.113', '24'], 
-	['Vlan778', '2002::fd37', '124'], 
-	['Loopback10', '192.168.0.10', '24'], 
-	['Vlan710', '2002::fd10', '124']]
+    ['Loopback0', '192.168.0.113', '24'], 
+    ['Vlan778', '2002::fd37', '124'], 
+    ['Loopback10', '192.168.0.10', '24'], 
+    ['Vlan710', '2002::fd10', '124']]
 
 .. note:: csv and tabulate outputters use table outputter to construct a list of lists, after that they use it to represent data in certain format. Meaning all the attributes supported by table outputter, inherently supported by csv and tabulate outputters.
 
@@ -360,7 +360,7 @@ Template::
     </group>
     
     <output format="csv" returner="terminal"/>
-	
+    
 Results::
 
     interface,ip,mask
@@ -370,7 +370,7 @@ Results::
 tabulate
 ******************************************************************************
 
-**Prerequisites:** tabulate module needs to be installed on the system.
+**Prerequisites:** `tabulate <https://pypi.org/project/tabulate/>`_ module needs to be installed on the system.
 
 Tabulate outputter uses python tabulate module to transform and emit results in a plain-text table.
 
@@ -393,7 +393,7 @@ Template::
     </group>
     
     <output format="tabulate" returner="terminal"/>
-	
+    
 Results::
 
     interface    ip               mask
@@ -404,7 +404,7 @@ Results::
 jinja2
 ******************************************************************************
 
-**Prerequisites:** Jinja2 module needs to be installed on the system
+**Prerequisites:** `Jinja2 <https://palletsprojects.com/p/jinja/>`_ module needs to be installed on the system
 
 This outputters allow to render parsing results with jinja2 template. Jinja2 template can be enclosed in output tag text data. Jinja2 templates can help to produce any text output out of parsing results. There are lots of use cases for it, to name a few:
 
@@ -445,12 +445,12 @@ Template::
     {% for item in input_result %}
     if_cfg id {{ item['interface'] }}
         ip address {{ item['ip'] }} 
-		subnet mask {{ item['mask'] }}
+        subnet mask {{ item['mask'] }}
     #
     {% endfor %}
     {% endfor %}
     </output>
-	
+    
 Results::
 
     if_cfg id Loopback0
@@ -469,7 +469,60 @@ Results::
         ip address 2002::fd10
         subnet mask 124
     #
-	
+    
+excel
+******************************************************************************
+
+**Prerequisites:** `openpyxl <https://openpyxl.readthedocs.io/en/stable/#>`_ module needs to be installed on the system
+
+This formatter takes table structure defined in output tag text and transforms parsing results into table on a per tab basis using `table`_ formatter, as a results all attributes supported by table formatter can be used in excel formatter as well. 
+
+**Example**
+
+Template::
+
+    <input load="text">
+    interface Loopback0
+     description Router-id-loopback
+     ip address 192.168.0.113/24
+    !
+    interface Vlan778
+     ip address 2002::fd37/124
+     ip vrf CPE1
+    !
+    </input>
+    
+    <group name="interfaces_1">
+    interface {{ interface }}
+     ip address {{ ip }}/{{ mask }}
+     description {{ description }}
+     ip vrf {{ vrf }}
+    </group>
+    
+    <group name="interfaces_2">
+    interface {{ interface }}
+     ip address {{ ip }}/{{ mask }}
+     description {{ description }}
+     ip vrf {{ vrf }}
+    </group>
+    
+    <output 
+    format="excel" 
+    returner="file"
+    filename="excel_out_%Y-%m-%d_%H-%M-%S"
+    url="C:/result/"
+    load="yaml"
+    >
+    table:
+      - headers: interface, ip, mask, vrf, description
+        path: interfaces_1
+        tab_name: tab-1
+      - path: interfaces_2
+        tab_name: tab-2
+    </output>
+    
+TTP will produce excel table with two tabs using results from different groups. Table will be saved under *C:/result/* path in *excel_out_%Y-%m-%d_%H-%M-%S.xslx* file.
+    
 Formatter attributes
 ******************************************************************************
 
@@ -480,22 +533,22 @@ Formatter attributes
    * - Formatter
      - Attribute
      - Description  
-   * - table, csv, tabulate 
+   * - table, csv, tabulate, excel 
      - `path`_ 
      - dot separated string that denotes path to data within results tree
    * - tabulate
      - `format_attributes`_ 
      - string of `*args`, `**kwargs` to pass to formatter
-   * - table, csv, tabulate
+   * - table, csv, tabulate, excel
      - `headers`_    
      - comma separated string of table headers    
    * - csv
      - `sep`_ 
      - character to separate items, by default it is comma
-   * - table, csv, tabulate 
+   * - table, csv, tabulate, excel
      - `missing`_ 
      - string to replace missing items based on provided headers
-   * - table, csv, tabulate 
+   * - table, csv, tabulate, excel
      - `key`_ 
      - string to use while flattening dictionary of data results
 
@@ -536,7 +589,7 @@ Template::
     <output name="out1" format="pprint" returner="terminal"/>
     
     <output name="out2" path="bgp_config.peers" format="csv" returner="terminal"/>
-	
+    
 Results::
 
     [   {   'bgp_config': {   'bgp_as': '65100',
@@ -547,7 +600,7 @@ Results::
     description,peer
     vic-mel-core1,10.145.1.9
     qld-bri-core1,192.168.101.1
-	
+    
 Outputter *out1* will emit data in native python format but structured by pprint for ease of read, while outputter `out2` will format peers data in a table using tabulate formatter. Returner *terminal* will print results to command line screen.
 
 format_attributes
@@ -585,8 +638,8 @@ Template::
     </group> 
         
     <output name="out2" path="bgp_config.peers" format="csv" 
-	returner="terminal" format_attributes="tablefmt='fancy_grid'"/>
-	
+    returner="terminal" format_attributes="tablefmt='fancy_grid'"/>
+    
 Results::
 
     ╒═══════════════╤═══════════════╕
@@ -596,7 +649,7 @@ Results::
     ├───────────────┼───────────────┤
     │ qld-bri-core1 │ 192.168.101.1 │
     ╘═══════════════╧═══════════════╛
-	
+    
 headers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ``headers="header1, header2, ... headerN"``  
@@ -642,7 +695,7 @@ Results::
     -----------  ------------------  -----  -------------  ------
     Loopback0    Router-id-loopback         192.168.0.113      24
     Vlan778      CPE_Acces_Vlan      CPE1   2002::fd37        124
-	
+    
 sep
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ``sep="char"``  
@@ -684,16 +737,16 @@ Template::
     <output 
     format="tabulate" 
     returner="terminal"
-	missing="UNDEFINED"
+    missing="UNDEFINED"
     />
-	
+    
 Results::
 
     description         interface    ip               mask  vrf
     ------------------  -----------  -------------  ------  ---------
     Router-id-loopback  Loopback0    192.168.0.113      24  UNDEFINED
     UNDEFINED           Vlan778      2002::fd37        124  CPE1
-	
+    
 key
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ``key="name"``
@@ -714,18 +767,18 @@ This attribute helps to solve specific problem when results data is a dictionary
             "vrf": "CPE1"
         }
     }
-	
+    
 If ``key`` will be set to "intf_name", above data will be transformed into list of dictionaries such as::
 
     [
         {
-		    "intf_name": "Loopback0",
+            "intf_name": "Loopback0",
             "description": "Router-id-loopback",
             "ip": "192.168.0.113",
             "mask": "24"
         },
         {
-		    "intf_name": "Vlan778",
+            "intf_name": "Vlan778",
             "ip": "2002::fd37",
             "mask": "124",
             "vrf": "CPE1"
@@ -733,13 +786,13 @@ If ``key`` will be set to "intf_name", above data will be transformed into list 
     ]
 
 With that list of lists table formatter will be able to create below list of lists and emit it in desirable format (csv, tabulate)::
-	
+    
     [
-	['description', 'intf_name', 'ip', 'mask', 'vrf'], 
-	['Router-id-loopback', 'Loopback0', '192.168.0.113', '24', ''], 
-	['', 'Vlan778', '2002::fd37', '124', 'CPE1']
-	]
-	
+    ['description', 'intf_name', 'ip', 'mask', 'vrf'], 
+    ['Router-id-loopback', 'Loopback0', '192.168.0.113', '24', ''], 
+    ['', 'Vlan778', '2002::fd37', '124', 'CPE1']
+    ]
+    
 **Example**
 
 Template::
@@ -767,7 +820,7 @@ Template::
     returner="terminal"
     key="intf_name"
     />
-	
+    
 Results::
 
     description         intf_name    ip               mask  vrf

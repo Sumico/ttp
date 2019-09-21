@@ -14,7 +14,7 @@ Condition functions help to evaluate group results and return *False* or *True*,
    * - `containsall`_ 
      - checks if group result contains matches for all given variables
    * - `contains`_ 
-     - checks if group result contains matche at least for one of given variables
+     - checks if group result contains match at least for one of given variables
    * - `macro`_   
      - Name of the macros function to run against group result 
    * - `group functions`_   
@@ -35,9 +35,7 @@ containsall
 For instance we want to get results only for interfaces that has IP address configured on them **and** vrf, 
 all the rest of interfaces should not make it to results.
 
-Data:
-
-.. code-block::
+Data::
 
     interface Port-Chanel11
       description Storage Management
@@ -51,9 +49,7 @@ Data:
       ip address 192.168.0.1/24
       vrf MGMT
 
-Template:
-
-.. code-block:: html
+Template::
 
     <group name="interfaces" containsall="ip, vrf">
     interface {{ interface }}
@@ -62,9 +58,7 @@ Template:
       vrf {{ vrf }}
     </group>
 
-Result:
-
-.. code-block::
+Result::
 
     {
         "interfaces": {
@@ -88,9 +82,7 @@ contains
 
 For instance we want to get results only for interfaces that has IP address configured on them **or** vrf.
 
-Data:
-
-.. code-block::
+Data::
 
     interface Port-Chanel11
       description Storage Management
@@ -104,9 +96,7 @@ Data:
       ip address 192.168.0.1/24
       vrf MGMT
 
-Template:
-
-.. code-block:: html
+Template::
 
     <group name="interfaces" contains="ip, vrf">
     interface {{ interface }}
@@ -115,9 +105,7 @@ Template:
       vrf {{ vrf }}
     </group>
 
-Result:
-
-.. code-block::
+Result::
 
     {
         "interfaces": [
@@ -155,9 +143,7 @@ Depending on data returned by macro function, ttp will behave differently accord
 
 **Example**
 
-Template
-
-.. code-block:: html
+Template::
 
     <input load="text">
     interface GigabitEthernet1/1
@@ -203,9 +189,7 @@ Template
      ip address {{ ip }} {{ mask }}
     </group>
 
-Result
-
-.. code-block::
+Result::
 
     [
         {
@@ -236,13 +220,11 @@ group functions
 ------------------------------------------------------------------------------
 ``functions="function1('attributes') | function2('attributes') | ... | functionN('attributes')"``
 
-* functionN - nmame of the group function together with it's attributes
+* functionN - name of the group function together with it's attributes
 
-The main advantage of using string of functions against defining functions directly in the group tag is the fact that it allows to define sequence of functions to run group results through and that order will be honored. For instance we have two below grop definitions:
+The main advantage of using string of functions against defining functions directly in the group tag is the fact that it allows to define sequence of functions to run group results through and that order will be honored. For instance we have two below group definitions:
 
-Group1:
-
-.. code-block:: html
+Group1::
 
     <group name="interfaces_macro" functions="contains('ip') | macro('description_mod') | macro('check_if_svi') | macro('check_if_loop')">
     interface {{ interface }}
@@ -250,9 +232,7 @@ Group1:
      ip address {{ ip }} {{ mask }}
     </group>
 
-Group2:
-
-.. code-block:: html
+Group2::
 
     <group name="interfaces_macro" contains="ip" macro="description_mod, check_if_svi, check_if_loop">
     interface {{ interface }}
@@ -266,9 +246,7 @@ While above groups have same set of functions defined, for Group1 function will 
 
 **Example**
 
-Template
-
-.. code-block:: html
+Template::
 
     <input load="text">
     interface GigabitEthernet1/1
@@ -316,9 +294,7 @@ Template
      ip address {{ ip }} {{ mask }}
     </group>
     
-Result
-
-.. code-block::
+Result::
 
     [
         {

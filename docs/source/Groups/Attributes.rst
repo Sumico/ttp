@@ -40,9 +40,7 @@ Input attribute of the group considered to be more specific in case if group nam
 
 **Example-1**
 
-Template:
-
-.. code-block:: html
+Template::
 
     <input name="test1" load="text">
     interface GigabitEthernet3/3
@@ -54,9 +52,7 @@ Template:
      switchport trunk allowed vlan add {{ trunk_vlans }}
     </group>
     
-Result:
-
-.. code-block::
+Result::
 
     [
         {
@@ -136,9 +132,7 @@ default
 
 **Example**
 
-Template: 
-
-.. code-block:: html
+Template::
 
     <input name="test1" load="text">
     interface GigabitEthernet3/3
@@ -152,9 +146,7 @@ Template:
      ip address {{ ip }}
     </group>
 
-Result:
-
-.. code-block::
+Result::
 
     [
         {
@@ -179,9 +171,7 @@ On the other hand, if method set to *table* each and every regular expression in
 
 In this example arp table needs to be parsed, but to match all the variations we have to define several template expressions.
 
-Data:
-
-.. code-block::
+Data::
 
     CSR1Kv-3-lab#show ip arp
     Protocol  Address          Age (min)  Hardware Addr   Type   Interface
@@ -190,27 +180,21 @@ Data:
 
 Template:
 
-This is the template with default method *group*
-
-.. code-block:: html
+This is the template with default method *group*::
 
     <group name="arp">
     Internet  {{ ip }}  {{ age | DIGIT }}   {{ mac }}  ARPA   {{ interface }}
     Internet  {{ ip }}  -                   {{ mac }}  ARPA   {{ interface| _start_}}
     </group>
 
-This is functionally the same template but with method *table*
-
-.. code-block:: html
+This is functionally the same template but with method *table*::
 
     <group name="arp" method="table">
     Internet  {{ ip }}  {{ age | DIGIT }}   {{ mac }}  ARPA   {{ interface }}
     Internet  {{ ip }}  -                   {{ mac }}  ARPA   {{ interface }}
     </group>
 
-Result:
-
-.. code-block::
+Result::
 
     [
         {

@@ -71,10 +71,10 @@ Result will be:
      }
  }
  
-As you can see ipv6 part of vrf configuration was matched as well and we got undesirable results, one of the possible solutions would be to use _exact_ directive to indicate taht "ipv4" should be matches exactly.
+As you can see ipv6 part of vrf configuration was matched as well and we got undesirable results, one of the possible solutions would be to use _exact_ directive to indicate that "ipv4" should be matches exactly.
 
-If template is:
-::
+If template is::
+
  <group name="vrfs">
  vrf {{ vrf }}
   <group name="ipv4_config">
@@ -84,8 +84,8 @@ If template is:
   </group>
  </group>
  
-Result will be:
-::
+Result will be::
+
  {
      "vrfs": {
          "ipv4_config": {
@@ -106,8 +106,8 @@ This directive can be used to explicitly indicate start of the group by matching
 
 In this example line "-------------------------" can serve as indicator of the beginning of the group, but we do not have any match variables defined in it.
 
-Sample data:
-::
+Sample data::
+
  switch-a#show cdp neighbors detail 
  -------------------------
  Device ID: switch-b
@@ -119,8 +119,8 @@ Sample data:
  Entry address(es): 
    IP address: 131.0.0.2
    
-Template is:
-::
+Template is::
+
  <group name="cdp_peers">
  ------------------------- {{ _start_ }}
  Device ID: {{ peer_hostname }}
@@ -128,8 +128,8 @@ Template is:
    IP address: {{ peer_ip }}
  </group>
  
-Result:
-::
+Result::
+
  {
      "cdp_peers": [
          {
@@ -143,28 +143,28 @@ Result:
      ]
  }
  
-**Exaple-2**
+**Example-2**
 
 Here two different lines can serve as an indicator of the start for the same group.
 
-Sample Data:
-::
+Sample Data::
+
  interface Tunnel2422
   description cpe-1
  !
  interface GigabitEthernet1/1
   description core-1
   
-Template is:
-::
+Template is::
+
  <group name="interfaces">
  interface Tunnel{{ if_id }}
  interface GigabitEthernet{{ if_id | _start_ }}
   description {{ description }}
  </group>
  
-Result will be:
-::
+Result will be::
+
  {
      "interfaces": [
          {
@@ -194,4 +194,4 @@ ignore
 ------------------------------------------------------------------------------
 ``{{ ignore }}`` or ``{{ ignore("regular_expression") }}``
 
-* regular_expression (optional) - regex to use to substitute portion of the string, default is "\S+", meaning any non-space sharacter one or more times
+* regular_expression (optional) - regex to use to substitute portion of the string, default is "\S+", meaning any non-space character one or more times
