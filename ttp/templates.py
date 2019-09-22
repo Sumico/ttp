@@ -3403,3 +3403,142 @@ interface {{ interface }}
 
 <output format="csv" returner="terminal"/>
 """
+
+test223="""
+<input load="text">
+interface Loopback0
+ description Router-id-loopback
+ ip address 192.168.0.113/24
+!
+interface Gi0/37
+ description CPE_Acces
+ switchport port-security
+ switchport port-security maximum 5
+ switchport port-security mac-address sticky
+!
+</input>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description }}
+ ip vrf {{ vrf }}
+ {{ port_security_cfg | _line_ | contains("port-security") | joinmatches }}
+! {{ _end_ }}
+</group>
+"""
+
+test224="""
+<input load="text">
+FastEthernet0/0 is up, line protocol is up
+  Hardware is Gt96k FE, address is c201.1d00.0000 (bia c201.1d00.1234)
+  MTU 1500 bytes, BW 100000 Kbit/sec, DLY 1000 usec,
+FastEthernet0/1 is up, line protocol is up
+  Hardware is Gt96k FE, address is b20a.1e00.8777 (bia c201.1d00.1111)
+  MTU 1500 bytes, BW 100000 Kbit/sec, DLY 1000 usec,
+</input>
+
+<group>
+{{ interface }} is up, line protocol is up
+  Hardware is Gt96k FE, address is {{ ignore }} (bia {{MAC}})
+  MTU {{ mtu }} bytes, BW 100000 Kbit/sec, DLY 1000 usec,
+</group>
+"""
+
+test225="""
+<vars>
+GE_INTF = "GigabitEthernet\S+"
+</vars>
+
+<input load="text">
+Protocol  Address     Age (min)  Hardware Addr   Type   Interface
+Internet  10.12.13.1        98   0950.5785.5cd1  ARPA   FastEthernet2.13
+Internet  10.12.13.3       131   0150.7685.14d5  ARPA   GigabitEthernet2.13
+Internet  10.12.13.4       198   0950.5C8A.5c41  ARPA   GigabitEthernet2.17
+</input>
+
+<group>
+Internet  {{ ip | re("IP")}}  {{ age | re("\d+") }}   {{ mac }}  ARPA   {{ interface | re("GE_INTF") }}
+</group>
+"""
+
+test226="""
+<input load="text">
+interface Loopback0
+ description Router id - OSPF, BGP
+ ip address 192.168.0.113/24
+!
+interface Vlan778
+ description CPE_Acces_Vlan
+ ip address 2002::fd37/124
+!
+</input>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description | ORPHRASE }}
+</group>
+"""
+
+
+test227="""
+<input load="text">
+Pesaro# show ip vrf detail Customer_A
+VRF Customer_A; default RD 100:101
+  Interfaces:
+    Loopback101      Loopback111      Vlan707    
+</input>
+
+<group name="vrfs">
+VRF {{ vrf }}; default RD {{ rd }}
+<group name="interfaces">
+  Interfaces: {{ _start_ }}
+    {{ intf_list | ROW }} 
+</group>
+</group>
+"""
+
+
+test228="""
+<input load="text">
+interface Vlan778
+ ip address 2002::fd37::91/124
+!
+</input>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip | IPV6 | is_ip }}/{{ mask }}
+</group>
+"""
+
+test229="""
+<input load="text">
+interface Vlan778
+ ip address 2002::fd37::91/124
+!
+interface Loopback991
+ ip address 192.168.0.1/32
+!
+</input>
+
+<macro>
+def check_svi(data):
+    # data is list of lists:
+    # [[{'interface': 'Vlan778', 'ip': '2002::fd37::91', 'mask': '124'}, 
+    #   {'interface': 'Loopback991', 'ip': '192.168.0.1', 'mask': '32'}]]
+    for item in data[0]:
+        if "Vlan" in item["interface"]:
+            item["is_svi"] = True
+        else:
+            item["is_svi"] = False
+</macro>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+</group>
+
+<output macro="check_svi"/>
+"""

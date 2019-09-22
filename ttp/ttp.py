@@ -2036,7 +2036,7 @@ class _variable_class():
         self.var_name = self.var_dict['name']
 
         # add defaults
-        # list of variables names that should not have dafaults:
+        # list of variables names that should not have defaults:
         self.skip_defaults = ["_end_", "_line_", "ignore", "_start_"]
         if self.group.default is not "_Not_Given_":
             if self.var_name not in self.group.defaults:
@@ -2129,6 +2129,19 @@ class _variable_class():
                 except ImportError:
                     log.error("match_variable.import_dnspython: var - '{}', dnspython not installed, install: python -m pip install dnspython".format(self.var_name))
             self.functions.append(data)
+            
+        def extract_re(data):
+            regex = data['args'][0]
+            re_from_var = self.group.vars.get(regex, None)
+            # check group variables
+            if re_from_var:
+                self.var_res.append(re_from_var)
+            # check built int RE patterns
+            elif regex in self.REs.patterns:
+                self.var_res.append(self.REs.patterns[regex])
+            # use regex as is
+            else:
+                self.var_res.append(regex)
 
         extract_funcs = {
         'ignore'        : extract_ignore,
@@ -2144,7 +2157,7 @@ class _variable_class():
         'is_ip'  : import_ipaddress, 'cidr_match': import_ipaddress,
         'dns'    : import_dnspython, 'rdns'      : import_dnspython,
         # regex formatters:
-        're'       : lambda data: self.var_res.append(self.REs.patterns[data['args'][0]]),
+        're'       : extract_re,
         'PHRASE'   : lambda data: self.var_res.append(self.REs.patterns['PHRASE']),
         'ROW'      : lambda data: self.var_res.append(self.REs.patterns['ROW']),
         'ORPHRASE' : lambda data: self.var_res.append(self.REs.patterns['ORPHRASE']),
@@ -2184,7 +2197,7 @@ class _variable_class():
         if regex == '':
             self.regex = esc_line
             self.regex = self.indent * ' ' + self.regex       # reconstruct indent
-            self.regex = '\\n' + self.regex + ' *(?=\\n)'     # use lookalhead assertion for end of line and match any number of trailing spaces
+            self.regex = '\\n' + self.regex + ' *(?=\\n)'     # use lookahead assertion for end of line and match any number of trailing spaces
         else:
             self.regex = regex
 
@@ -2209,7 +2222,7 @@ class _variable_class():
             if result:
                 self.regex = result
 
-        # for variables like {{ ignore() }}
+        # for variables like {{ ignore }}
         regexFuncsVar={
         'ignore'   : regex_ignore,
         '_start_'  : regex_deleteVar,
@@ -2229,7 +2242,7 @@ class _variable_class():
         # assign default re if variable without regex formatters:
         if self.var_res == []: self.var_res.append(self.REs.patterns['WORD'])
 
-        # form variable regex by replacing escaped variable, if it is in regex
+        # form variable regex by replacing escaped variable, if it is in regex,
         # except for the case if variable is "ignore" as it already was replaced
         # in regex_ignore function:
         if self.var_name != "ignore":

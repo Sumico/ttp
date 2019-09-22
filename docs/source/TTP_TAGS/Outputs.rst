@@ -102,6 +102,8 @@ Output system provide support for a number of functions. Functions process outpu
      - insert arbitrary data to results at given path, replacing any existing results
    * - `dict_to_list`_
      - transforms dictionary to list of dictionaries at given path     
+   * - `macro`_
+     - passes results through macro function
      
 is_equal
 ******************************************************************************
@@ -176,6 +178,63 @@ dict_to_list
 ******************************************************************************
 
 TBD
+
+macro
+******************************************************************************
+``macro="func_name"`` or ``functions="macro('func_name1') | macro('func_name2')"``
+
+Output macro function allows to process whole results using custom function(s) defined within <macro> tag.
+
+**Example**
+
+Template::
+
+    <input load="text">
+    interface Vlan778
+     ip address 2002::fd37::91/124
+    !
+    interface Loopback991
+     ip address 192.168.0.1/32
+    !
+    </input>
+    
+    <macro>
+    def check_svi(data):
+        # data is a list of lists:
+        # [[{'interface': 'Vlan778', 'ip': '2002::fd37::91', 'mask': '124'}, 
+        #   {'interface': 'Loopback991', 'ip': '192.168.0.1', 'mask': '32'}]]
+        for item in data[0]:
+            if "Vlan" in item["interface"]:
+                item["is_svi"] = True
+            else:
+                item["is_svi"] = False
+    </macro>
+    
+    <group>
+    interface {{ interface }}
+     ip address {{ ip }}/{{ mask }}
+    </group>
+    
+    <output macro="check_svi"/>
+	
+Results::
+
+    [
+        [
+            {
+                "interface": "Vlan778",
+                "ip": "2002::fd37::91",
+                "is_svi": true,
+                "mask": "124"
+            },
+            {
+                "interface": "Loopback991",
+                "ip": "192.168.0.1",
+                "is_svi": false,
+                "mask": "32"
+            }
+        ]
+    ]
 
 Output Returners
 ------------------------------------------------------------------------------

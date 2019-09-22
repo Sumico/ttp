@@ -24,8 +24,25 @@ Variable tag attributes
      - Specifies location of the file with variables data to load
    * - `key`_   
      - If csv loader used, *key* specifies column name to use as a key
-	
 
+Variable getters
+----------------
+	
+TTP template variables also support a number of getters - functions targeted to get some information and assign it to variable.
+
+.. list-table::
+   :widths: 10 90
+   :header-rows: 1
+
+   * - Function
+     - Description
+   * - `gethostname`_   
+     - this function tries to extract hostname out of source data prompts
+   * - `getfilename`_   
+     - returns a name of the source data
+   * - `gettime`_   
+     - not implemented yet
+	 
 load
 ------------------------------------------------------------------------------
 ``load="loader_name"``	
@@ -208,3 +225,21 @@ key
 ``key="column_name"``	
 
 * column_name - optional string attribute that can be used by csv loader to use given column values as a key for dictionary constructed out of csv data.
+
+gethostname
+------------------------------------------------------------------------------
+``var_name="gethostname"``	
+
+TBD
+
+getfilename
+------------------------------------------------------------------------------
+``var_name="getfilename"``	
+
+TBD
+
+gettime
+------------------------------------------------------------------------------
+``var_name="gettime"``	
+
+TBD

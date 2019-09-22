@@ -1,9 +1,9 @@
 Functions
 ===============
 
-A set of ttp match variables functions that can be applied to match results to transform them in a desired way, additionally functions can be used to validate and filter match results. 
+TTP contains a set of TTP match variables functions that can be applied to match results to transform them in a desired way or validate and filter match results. 
 
-Action functions act upon match result to transform it to desired state.
+Action functions act upon match result to transform into desired state.
   
 .. list-table:: Action functions
    :widths: 10 90
@@ -756,7 +756,7 @@ Template::
  </vars>
  
  <group name="ifs">
- interface {{ interface | replaceall('intf_replace') }}
+ interface {{ interface | resuball('intf_replace') }}
  <group>   
  
 Result::
@@ -1551,7 +1551,7 @@ Result::
         }
     ]
     
-192.168.1.341/24 match result was invalidated as it is a not valid IP address.
+192.168.1.341/24 match result was invalidated as it is not a valid IP address.
 
 cidr_match
 ------------------------------------------------------------------------------

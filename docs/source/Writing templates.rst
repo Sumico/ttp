@@ -26,7 +26,7 @@ Above data and template can be saved in two files, and ttp CLI tool can be used 
 
     ttp -d "/path/to/data/file.txt" -t "/path/to/template.txt" --outputter json	
 	
-After parsing we will get these results::
+And get these results::
 
     [
         [
@@ -46,9 +46,13 @@ After parsing we will get these results::
         ]
     ]
 
-Above process is very similar to writing `Jinja2 <https://palletsprojects.com/p/jinja/>`_ templates but in reverse direction - you have text and you need to extract structured data out of it, as opposed to having structured data, that needs to be rendered with Jinja2 template to produce text.
+Above process is very similar to writing `Jinja2 <https://palletsprojects.com/p/jinja/>`_ templates but in reverse direction - we have text and we need to transform it into structured data, as opposed to having structured data, that needs to be rendered with Jinja2 template to produce text.
 
-What if we need to emit data not in json but csv format, in that case we can use simple outputter and write this template::
+.. warning:: Leading spaces (indentation) are important. Trailing spaces are ignored by TTP.
+
+TTP use leading spaces to produce better match results, exact number of leading spaces used to form regular expressions. There is a way to ignore indentation by the use of :ref:`Match Variables/Indicators:ignore` indicator coupled with ``\s*`` or ``\s+`` or ``\s{1,3}`` regular expressions. 
+
+TTP supports various output formats, for instance, if we need to emit data not in json but csv format we can use outputter and write this template::
 
     <group>
     interface {{ interface }}
@@ -61,7 +65,7 @@ What if we need to emit data not in json but csv format, in that case we can use
 
 .. note:: run ttp CLI tool without -o option to print only results produced by outputter defined within template - ttp -d "/path/to/data/file.txt" -t "/path/to/template.txt"
 
-As we told TTP that destination for returner is ``terminal``, below results will be printed to screen::
+We told TTP that returner is ``terminal``, because of that results will be printed to terminal screen::
 
     description,interface,ip,mask,vrf
     Router-id-loopback,Loopback0,192.168.0.113,24,
@@ -100,7 +104,7 @@ Above examples use simple templates that does not contain much hierarchy, same a
         route-policy PASS-ALL in
         route-policy PASS-ALL out
     
-In such a case we have to use ttp groups to define nested - hierarchical structure in below template::
+In such a case we have to use ttp groups to define nested, hierarchical structure, sample template might look like this::
 
     <group name="bgp_cfg">
     router bgp {{ ASN }}
@@ -126,11 +130,11 @@ In such a case we have to use ttp groups to define nested - hierarchical structu
      </group>
     </group>
     
-Above data and template can be saved in two files, and ttp CLI tool can be used to parse it with command::
+Above data and template can be saved in two files and run using ttp CLI tool with command::
 
     ttp -d "/path/to/data/file.txt" -t "/path/to/template.txt" --outputter yaml	
 	
-And we will get this results printed to screen::
+These results will be printed to screen::
 
     - bgp_cfg:
         ASN: '12.34'
@@ -160,7 +164,7 @@ And we will get this results printed to screen::
           rd: 102:104
           vrf: AS65000
 
-Not too bad, but let's say we want VRFs to be represented as a dictionary there VRF names will be keys, same goes for neighbors - we want them to be a dictionary with neighbor IPs as a key, we can use TTP dynamic path feature together with path formatters to accomplish exactly that, here is the template::
+Not too bad, but let's say we want VRFs to be represented as a dictionary with VRF names as keys, same goes for neighbors - we want them to be a dictionary with neighbor IPs as a key, we can use TTP dynamic path feature together with path formatters to accomplish exactly that, here is the template::
 
     <group name="bgp_cfg">
     router bgp {{ ASN }}
@@ -186,7 +190,7 @@ Not too bad, but let's say we want VRFs to be represented as a dictionary there 
      </group>
     </group>
     
-After parsing data again, TTP will produce these results::
+After parsing TTP will print these structure::
 
     - bgp_cfg:
         ASN: '12.34'

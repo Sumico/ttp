@@ -62,7 +62,7 @@ Data can be an OS path to file or directory with files to parse, template can be
 
     parser = ttp(data="/path/to/data/file.txt", template="/path/to/template.txt")
     
-Data and templates can be loaded to the parser object on the go::
+Data and templates can be loaded to the parser object after instantiation::
 
     from ttp import ttp
     
