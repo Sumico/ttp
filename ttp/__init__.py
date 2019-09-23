@@ -3,5 +3,12 @@ name = "ttp"
 __all__ = ['ttp']
 __author__ = 'Denis Mulyalin <d.mulyalin@gmail.com>'
 __version__ = '0.1.0'
+from sys import version_info
 
-from ttp.ttp import ttp
+# get python version:
+python_major_version = version_info.major
+
+if python_major_version == 3:
+    from ttp.ttp import ttp
+elif python_major_version == 2:
+    from ttp import ttp
