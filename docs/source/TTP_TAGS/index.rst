@@ -11,5 +11,5 @@ TTP includes a number of additional tags to structure templates or provide addit
    Inputs
    Variables
    Lookups
-   Outputs
+   Outputs/index
    Macro

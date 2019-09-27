@@ -1467,10 +1467,12 @@ class _template_class():
         for G in self.groups:
             for input_name in G.inputs:
                 input_name = self.base_path + input_name.lstrip('.')
+                # uodate existing input with group inputs
                 if input_name in self.inputs:
                     if 'group_inputs' not in self.inputs[input_name]:
                         self.inputs[input_name]['group_inputs'] = []
                     self.inputs[input_name]['group_inputs'].append(G.grp_index)
+                # add new input and set preference to group_inputs
                 else:
                     data_items = self.utils.load_files(path=input_name, read=False)
                     # skip 'text_data' from data as if by the time this method runs
@@ -1481,7 +1483,8 @@ class _template_class():
                     self.inputs[input_name] = {
                         'data': data,
                         'groups_indexes': [],
-                        'group_inputs': [G.grp_index]                    
+                        'group_inputs': [G.grp_index],
+                        'preference': 'group_inputs'                        
                     }
         for input_name, input_details in self.inputs.items():
             if input_details['preference'] == 'group_inputs' and 'group_inputs' in input_details:
@@ -2480,6 +2483,7 @@ class _parser_class():
           [group_result[key] for key in sorted(list(group_result.keys()))]
           ) for group_result in unsort_rslts if group_result ]
         # form results for global groups:
+
         RSLTSOBJ = _results_class(macro=self.macro)
         RSLTSOBJ.make_results(self.vars['globals']['vars'], raw_results, main_results=self.main_results)
         self.main_results = RSLTSOBJ.results
@@ -2840,7 +2844,6 @@ class _results_class():
             # if conditions check been false, return False:
             if flags == False:
                 return False
-
         # check if dynamic path and form it
         processed_path = self.form_path(self.record['PATH'])
         if processed_path:
@@ -3030,7 +3033,8 @@ class _outputter_class():
         """
         url = self.attributes.get('url', './Output/')
         filename = self.attributes.get('filename', 'output_{}.txt'.format(ctime))
-        if self.name:
+        # if no filename provided, add outputter name to filename
+        if not self.attributes.get('filename', False):
             filename = self.name + '_' + filename
         # check if path exists already, create it if not:
         if not os.path.exists(url):

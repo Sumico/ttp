@@ -3542,3 +3542,101 @@ interface {{ interface }}
 
 <output macro="check_svi"/>
 """
+
+test230="""
+<input load="text">
+interface Vlan778
+ ip address 2002::fd37::91/124
+!
+interface Loopback991
+ ip address 192.168.0.1/32
+!
+</input>
+
+<group>
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+</group>
+"""
+
+test231="""
+<input load="text">
+    profiles {
+        /Common/tcp { }
+        /Common/http
+        /Common/clientssl {
+            context clientside
+       }
+    }
+</input>
+
+
+<group name="profiles_config.{{ profile }}.{{ type }}">
+    profiles { {{ _start_ }}
+        /{{ profile }}/{{ type }} { }
+</group>
+
+<group name="profiles_config.{{ profile }}.{{ type }}">
+    profiles { {{ _start_ }}
+        /{{ profile }}/{{ type }}
+</group>
+
+<group name="profiles_config.{{ profile }}.{{ type }}">
+        /{{ profile }}/{{ type }} {
+            context {{ context }}
+</group>
+"""
+
+test232="""
+<input load="text">
+interface GigabitEthernet2.56
+ description "to_CSR2_Gi2.56"
+ encapsulation dot1Q 56
+ ip address 10.1.56.5 255.255.255.0
+ ipv6 address 2001:56::5/64
+!
+interface GigabitEthernet2.100
+ description "to_vCE100_Gi0/1.100"
+ encapsulation dot1Q 100
+ ip address 10.1.100.5 255.255.255.0
+ ipv6 address 2001:100::5/64
+!
+</input>
+
+<group name="interfaces">
+interface {{ interface }}
+ description {{ description | strip('"') }}
+ encapsulation dot1Q {{ vid }}
+ ip address {{ ip }} {{ mask | to_cidr }}
+ ipv6 address {{ ipv6 }}/{{ maskv6 }}
+</group>
+
+<output format="jinja2" returner="terminal">
+set interfaces ge-0/0/1 vlan-tagging
+{% for intf_details in _data_[0]["interfaces"] %}
+set interfaces ge-0/0/1 unit {{ intf_details["vid"] }} description {{ intf_details['descripotion'] }}
+set interfaces ge-0/0/1 unit {{ intf_details["vid"] }} vlan-id {{ intf_details['vid'] }}
+set interfaces ge-0/0/1 unit {{ intf_details["vid"] }} family inet address {{ intf_details['ip'] }}/{{ intf_details['mask'] }}
+set interfaces ge-0/0/1 unit {{ intf_details["vid"] }} family inet6 address {{ intf_details['ipv6'] }}/{{ intf_details['maskv6'] }}
+!
+{% endfor %}
+</output>
+"""
+
+test233="""
+<input load="text">
+switch1#show run int
+interface GigabitEthernet3/11
+ description input_1_data
+</input>
+
+<vars name="vars">
+hostname_var = "gethostname"
+filename_var = "getfilename"
+</vars>
+
+<group name="interfaces">
+interface {{ interface }}
+ description {{ description }}
+</group>
+"""

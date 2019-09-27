@@ -71,7 +71,10 @@ We told TTP that returner is ``terminal``, because of that results will be print
     Router-id-loopback,Loopback0,192.168.0.113,24,
     CPE_Acces_Vlan,Vlan778,2002::fd37,124,CPE1
 
-Above examples use simple templates that does not contain much hierarchy, same as data that been parsed, but what if we want to extract information from below text::
+Parse hierarchical data
+-----------------------
+
+TTP can use simple templates that does not contain much hierarchy (same as the data that parsed by them), but what to do if we want to extract information from below text::
 
     router bgp 12.34
      address-family ipv4 unicast
@@ -227,3 +230,18 @@ TTP group's name attribute actually used as a path where to save group parsing r
 In addition we used TTP dynamic path feature by introducing ``{{ vrf }}`` and ``{{ neighbor }}`` in the name of the group, that will be dynamically substituted with matching results.
 
 Moreover, we also have to use double star ``**`` path formatter to tell TTP that ``{{ neighbor }}`` child content should be kept as a dictionary and not transformed into list (default behavior) whenever we add new data to that portion of results tree.
+
+Parse text tables
+-----------------
+
+TBD
+
+Parse show commands output
+--------------------------
+
+TBD
+
+Outputting results
+------------------
+
+TBD

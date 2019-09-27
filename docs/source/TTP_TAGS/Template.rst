@@ -5,7 +5,9 @@ TTP templates support <template> tag to define several templates within single t
 
 Only two levels of hierarchy supported - top template tag and a number of child template tags within it, further template tags nested within children are ignored.
 
-Use case of this functionality is to allow templates grouping under single definition and simplify loading - instead of adding each template to TTP object, all of the can be loaded in one go.
+First use case for this functionality stems from the fact that templates executed in sequence, meaning it is possible to organize such a work flow when results produced by one template can be leveraged by next template(s), for instance first template can produce lookup table text file and other template will rely on.
+
+Another use case is templates grouping under single definition and that can simplify loading - instead of adding each template to TTP object, all of them can be loaded in one go.
 
 For instance::
 

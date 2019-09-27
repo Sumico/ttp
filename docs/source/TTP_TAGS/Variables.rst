@@ -230,13 +230,53 @@ gethostname
 ------------------------------------------------------------------------------
 ``var_name="gethostname"``	
 
-TBD
+Using this getter function TTP tries to extract device's hostname out of it prompt. Supported prompts are:
+
+* juniper such as ``some.user@hostname>``
+* huawei such as ``<hostname>``
+* Cisco IOS Exec such as ``hostname>``
+* Cisco IOS XR such as ``RP/0/4/CPU0:hostname#``
+* Cisco IOS Priviledged such as ``hostname#``
+* Fortigate such as ``hostname (context) #``
+
+**Example**
+
+Template::
+
+    <input load="text">
+    switch1#show run int
+    interface GigabitEthernet3/11
+     description input_1_data
+    </input>
+    
+    <vars name="vars">
+    hostname_var = "gethostname"
+    </vars>
+    
+    <group name="interfaces">
+    interface {{ interface }}
+     description {{ description }}
+    </group>
+
+Result::
+
+    [
+        {
+            "interfaces": {
+                "description": "input_1_data",
+                "interface": "GigabitEthernet3/11"
+            },
+            "vars": {
+                "hostname_var": "switch1"
+            }
+        }
+    ]
 
 getfilename
 ------------------------------------------------------------------------------
 ``var_name="getfilename"``	
 
-TBD
+This function returns the name of input data file if data was loaded from file, if data was loaded from text it will return "text_data".
 
 gettime
 ------------------------------------------------------------------------------
