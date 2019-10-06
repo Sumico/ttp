@@ -27,6 +27,7 @@ class CahedModule():
         self.function_name = function_name
 
     def __call__(self, *args, **kwargs):
+        log.info("calling CachedModule: module '{}', function '{}'".format(self.import_path, self.function_name))
         # replace _ttp_ import_path with imported functions
         abs_import = "ttp."
         if __name__ == "__main__" or __name__ == "__mp_main__": 
@@ -643,7 +644,7 @@ class _template_class():
                     self.inputs[input_name]['group_inputs'].append(G.grp_index)
                 # add new input and set preference to group_inputs
                 else:
-                    data_items = self.utils.load_files(path=input_name, read=False)
+                    data_items = _ttp_["utils"]["load_files"](path=input_name, read=False)
                     # skip 'text_data' from data as if by the time this method runs
                     # no input with such name found it means that group input is os path
                     # string and text_data will be returned by self.utils.load_files
@@ -766,7 +767,7 @@ class _template_class():
             # load data:
             for url in urls:
                 url = self.base_path + url.lstrip('.')
-                data += self.utils.load_files(url, extensions, filters, read=False)
+                data += _ttp_["utils"]["load_files"](url, extensions, filters, read=False)
 
             self.set_input(data=data, input_name=name, groups=groups, preference=preference)
 
@@ -1418,7 +1419,7 @@ class _parser_class():
             self.DATATEXT = '\n' + D[1] + '\n\n'
             self.DATANAME = 'text_data'
         else:
-            data = self.utils.load_files(path=D[1], read=True)
+            data = _ttp_["utils"]["load_files"](path=D[1], read=True)
             # data is a list of one tuple - [(data_type, data_text,)]
             self.DATATEXT = '\n' + data[0][1] + '\n\n'
             self.DATANAME = D[1]

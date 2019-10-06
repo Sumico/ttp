@@ -74,13 +74,13 @@ def load_struct(text_data="", **kwargs):
         'text'  : load_text
     }
     # run function to load structured data
-    result = loaders[loader](text_data, include, **kwargs)
+    result = loaders[loader](text_data, **kwargs)
     return result
     
-def load_text(text_data, include, **kwargs):
+def load_text(text_data, include=None, **kwargs):
     return text_data
     
-def load_ini(text_data, include, **kwargs):
+def load_ini(text_data, include=None, **kwargs):
     if _ttp_["python_major_version"] is 3:
         import configparser
         cfgparser = configparser.ConfigParser()
@@ -130,7 +130,7 @@ def load_ini(text_data, include, **kwargs):
             result.pop("DEFAULT")
     return result
     
-def load_python(text_data, include, **kwargs):
+def load_python(text_data, include=None, **kwargs):
     data = {}
     if include:
         files = load_files(path=include, extensions=[], filters=[], read=True)
@@ -142,7 +142,7 @@ def load_python(text_data, include, **kwargs):
     except SyntaxError as e:
         log.error("ttp_utils.load_struct: Unable to load Python formatted data\n'{}'Make sure that correct loader used to load data, error:\n{}".format(text_data, e))
         
-def load_yaml(text_data, include, **kwargs):
+def load_yaml(text_data, include=None, **kwargs):
     from yaml import safe_load
     data = {}
     if include:
@@ -155,7 +155,7 @@ def load_yaml(text_data, include, **kwargs):
     except:
         log.error("ttp_utils.load_struct: Unable to load YAML formatted data\n'{}'".format(text_data))
 
-def load_json(text_data, include, **kwargs):
+def load_json(text_data, include=None, **kwargs):
     from json import loads
     data = {}
     if include:
@@ -168,7 +168,7 @@ def load_json(text_data, include, **kwargs):
     except:
          log.error("ttp_utils.load_struct: Unable to load JSON formatted data\n'{}'".format(text_data))
          
-def load_csv(text_data, include, **kwargs):
+def load_csv(text_data, include=None, **kwargs):
     """Method to load csv data and convert it to dictionary
     using given key-header-column as keys or first column as keys
     """

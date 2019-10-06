@@ -1,4 +1,7 @@
 import re
+import logging
+log = logging.getLogger(__name__)
+
 
 def get_attributes(line):
     """Extract attributes from variable line string.
