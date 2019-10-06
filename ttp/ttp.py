@@ -16,7 +16,80 @@ python_major_version = version_info.major
 # Initiate global variables:
 ctime = time.strftime("%Y-%m-%d_%H-%M-%S")
 log = logging.getLogger(__name__)
+_ttp_ = {"match": {}, "python_major_version": python_major_version}
 
+
+class CahedModule():
+    
+    def __init__(self, import_path, parent_dir, function_name):
+        self.import_path = import_path
+        self.parent_dir = parent_dir
+        self.function_name = function_name
+
+    def __call__(self, *args, **kwargs):
+        # replace _ttp_ import_path with imported functions
+        abs_import = "ttp."
+        if __name__ == "__main__" or __name__ == "__mp_main__": 
+            abs_import = ""
+        path = "{abs}{imp}".format(abs=abs_import, imp=self.import_path)
+        module = __import__(path, fromlist=[None])
+        setattr(module, "_ttp_", _ttp_)
+        func_names = [f for f in dir(module) if (not f.startswith("_"))]
+        try: _name_map_ = getattr(module, "_name_map_")
+        except AttributeError: _name_map_ = {}
+        for func_name in func_names:
+            name = _name_map_.get(func_name, func_name)
+            _ttp_[self.parent_dir][name] = getattr(module, func_name)
+        # call original function
+        return _ttp_[self.parent_dir][self.function_name](*args, **kwargs)
+
+    
+def lazy_import_functions():
+    log.info("ttp.lazy_import_functions: starting functions lazy import")
+    import ast
+    # get exclusion suffix     
+    if python_major_version == 2:
+        exclude = "_py3.py"
+    elif python_major_version == 3:
+        exclude = "_py2.py"
+    module_files = []
+    exclude_modules = ["ttp.py"]
+    # create a list of all modules files
+    for item in os.walk(os.path.dirname(__file__)):
+        root, dirs, files = item
+        module_files += [open("{}/{}".format(root, f), "r") for f in files if (
+            f.endswith(".py") and not f.startswith("_") and not f.endswith(exclude)
+            and not f in exclude_modules)]
+    log.info("ttp.lazy_import_functions: files loaded, starting ast parsing")
+    # get all the functions from modules and cache them in _ttp_
+    for module_file in module_files:
+        node = ast.parse(module_file.read())
+        assignments = [n  for n in node.body if isinstance(n, ast.Assign)]
+        functions = [n.name for n in node.body if isinstance(n, ast.FunctionDef)]
+        # get _name_map_
+        _name_map_ = {}
+        for assignment in assignments:
+            # stop of _name_map already found
+            if _name_map_: 
+                break
+            for target in assignment.targets:
+                if target.id == "_name_map_":
+                    _name_map_.update({
+                        key.s: assignment.value.values[index].s
+                        for index, key in enumerate(assignment.value.keys)
+                    })   
+        # fill in _ttp_ dictionary with references
+        parent_path, filename = os.path.split(module_file.name)
+        _, parent_dir = os.path.split(parent_path)
+        for func_name in functions:
+            name = _name_map_.get(func_name, func_name)
+            if not parent_dir in _ttp_:
+                _ttp_[parent_dir] = {}
+            path = "{}.{}".format(parent_dir, filename.replace(".py", ""))
+            _ttp_[parent_dir][name] = CahedModule(path, parent_dir, name)
+    log.info("ttp.lazy_import_functions: finished functions lazy import")
+        
+            
 """
 ==============================================================================
 MAIN TTP CLASS
@@ -50,7 +123,6 @@ class ttp():
         self.__datums_count = 0
         self.__data = []
         self.__templates = []
-        self.__utils = _ttp_utils()
         self.base_path = base_path
         self.multiproc_threshold = 5242880 # in bytes, equal to 5MBytes
         self.vars = vars                   # dictionary of variables to add to each template vars
@@ -58,13 +130,15 @@ class ttp():
         # setup logging if used as a module
         if __name__ != '__main__':
             logging_config(log_level, log_file)
+        # lazy import all functions
+        lazy_import_functions()
         # check if data given, if so - load it:
         if data is not '':
             self.add_data(data=data)
         # check if template given, if so - load it
         if template is not '':
             self.add_template(template=template)
-
+            
 
     def add_data(self, data, input_name='Default_Input', groups=['all']):
         """Method to load additional data to be parsed. This data will be used
@@ -78,7 +152,7 @@ class ttp():
         * ``groups`` (list) list of group names to use to parse this input data
         """
         # form a list of ((type, url|text,), input_name, groups,) tuples
-        data_items = self.__utils.load_files(path=data, read=False)
+        data_items = _ttp_["utils"]["load_files"](path=data, read=False)
         if data_items:
             self.__data.append((data_items, input_name, groups,))
 
@@ -107,6 +181,7 @@ class ttp():
         self.__datums_count = 0
         for template in self.__templates:
             template.inputs = {}
+        
         
     def _update_templates_with_data(self):
         """Method to add data to templates from self.__data and calculate
@@ -138,7 +213,7 @@ class ttp():
         """
         log.debug("ttp.add_template - loading template")
         # get a list of [(type, text,)] tuples or empty list []
-        items = self.__utils.load_files(path=template, read=True)
+        items = _ttp_["utils"]["load_files"](path=template, read=True)
         for i in items:
             template_obj = _template_class(
                 template_text=i[1],
@@ -168,7 +243,7 @@ class ttp():
         ``include`` can accept relative OS path - relative to the directory where TTP will be
         invoked either using CLI tool or as a module
         """
-        lookup_data = self.__utils.load_struct(text_data=text_data,
+        lookup_data = _ttp_["utils"]["load_struct"](text_data=text_data,
                                                include=include, load=load, key=key)
         self.lookups.update({name: lookup_data})
         [template.add_lookup({name: lookup_data}) for template in self.__templates]
@@ -235,7 +310,7 @@ class ttp():
             
             workers = [_worker(tasks, results_queue, lookups=template.lookups,
                               vars=template.vars, groups=template.groups, 
-                              macro=template.macro)
+                              macro_text=template.macro_text)
                        for i in range(num_processes)]
             [w.start() for w in workers]
 
@@ -388,13 +463,16 @@ class _worker(Process):
     """Class used in multiprocessing to parse data
     """
 
-    def __init__(self, task_queue, results_queue, lookups, vars, groups, macro):
+    def __init__(self, task_queue, results_queue, lookups, vars, groups, macro_text):
         Process.__init__(self)
         self.task_queue = task_queue
         self.results_queue = results_queue
-        self.parserObj = _parser_class(lookups, vars, groups, macro)
+        self.parserObj = _parser_class(lookups, vars, groups, macro_text)
 
     def run(self):
+        # lazy import all functions for this process
+        lazy_import_functions()
+        # run tasks
         while True:
             next_task = self.task_queue.get()
             # check for dead pill to stop process
@@ -438,914 +516,6 @@ class _ttp_patterns():
 
 """
 ==============================================================================
-TTP FUNCTIONS CLASS
-==============================================================================
-"""
-class _ttp_functions():
-    """Class to store ttp built in functions used for parsing results
-    Notes:
-        functions to implement
-        # 'variable_wrap'         : add \n at given position to wrap long text
-        # 'variable_is_mac'       : to check that data is valid  mac-address
-        # 'variable_to_digit' : convert variable to digit
-        # 'group_exclude_all/exclude'  : to exclude group if group contains certain values
-    """
-    def __init__(self, parser_obj=None, results_obj=None, out_obj=None, macro=None):
-        self.pobj = parser_obj
-        self.robj = results_obj
-        self.out_obj = out_obj
-        self.macro = macro
-        self.utils = _ttp_utils()
-
-    def invalid(self, data, name, scope, skip=True):
-        if skip == True:
-            log.error("ttp_functions.invalid: data - {}, {} function '{}' not found".format(data, scope, name))
-        else:
-            log.error("ttp_functions.invalid: data - {}, {} function '{}' not found, valid functions are: \n{}".format(
-                data, scope, name, getattr(self, scope).keys() ))
-
-    def output_is_equal(self, data):
-        data_to_compare_with = self.out_obj.attributes['load']
-        is_equal = False
-        if "_anonymous_" in data:
-            if data["_anonymous_"] == data_to_compare_with:
-                is_equal = True               
-        elif data == data_to_compare_with:
-            is_equal = True
-        return {
-            'output_name'        : self.out_obj.name,
-            'output_description' : self.out_obj.attributes.get('description', 'None'),
-            'is_equal'           : is_equal
-        }
-        
-    def output_set_data(self, data, path, new_data):
-        # add new_data to data at given path or override existing results
-        if isinstance(path, str):
-            path = [i.strip() for i in path.split('.')]
-        last_index = len(path) - 1
-        datum = data
-        for path_index, path_item in enumerate(path):
-            if not isinstance(datum, dict): 
-                break
-            if last_index == path_index:
-                datum[path_item] = new_data
-                break        
-            if path_item in datum:
-                datum = datum[path_item]
-            else:
-                datum[path_item] = {}
-        
-    def output_dict_to_list(self, data, key_name='key', path=[]):
-        if isinstance(path, str):
-            path = [i.strip() for i in path.split('.')]
-        # transform dict to list at given path
-        if isinstance(data, dict):
-            data_to_work_with = self.utils.traverse_dict(data, path)
-            result = []
-            for k, v in data_to_work_with.items():
-                v.update({key_name: k})
-                result.append(v)
-            # save list into results tree:
-            if result:
-                self.output_set_data(data, path, result)
-        elif isinstance(data, list):
-            [self.output_dict_to_list(item, key_name, path) for item in data
-             if isinstance(item, dict)]
-        return data
-
-    def group_containsall(self, data, *args):
-        # args = ('v4address', 'v4mask',)
-        for var in args:
-            if var in data:
-                if var in self.robj.record['DEFAULTS']:
-                    if self.robj.record['DEFAULTS'][var] == data[var]:
-                        return data, False
-            else:
-                return data, False
-        return data, None
-
-    def group_contains(self, data, *args):
-        # args = ('v4address', 'v4mask',)
-        for var in args:
-            if var in data:
-                if var in self.robj.record['DEFAULTS']:
-                    if self.robj.record['DEFAULTS'][var] == data[var]:
-                        return data, False
-                return data, None
-        return data, False
-        
-    def group_macro(self, data, macro_name):
-        result = None
-        if macro_name in self.macro:
-            result = self.macro[macro_name](data)
-        # process macro result
-        if result is True:
-            return data, True
-        elif result is False:
-            return data, False
-        elif result is None:
-            return data, None
-        return result, None
-        
-    def output_macro(self, data, macro_name):
-        result = None
-        if macro_name in self.macro:
-            result = self.macro[macro_name](data)
-        # process macro result
-        if result is None:
-            return data
-        return result
-        
-    def group_to_ip(self, data, ip_key, mask_key):
-        """This method takes ip_key and mask_key and tries to 
-        convert them into ip object
-        """
-        if ip_key in data and mask_key in data:
-            ip_string = "{}/{}".format(data[ip_key], data[mask_key])
-            try:
-                data[ip_key] = self.match_to_ip(ip_string)[0]
-            except:
-                pass
-        return data, None
-
-    def match_joinmatches(self, data, *args, **kwargs):
-        return data, None
-
-    def match_startswith_re(self, data, pattern):
-        if re.search('^{}'.format(pattern), data):
-            return data, True
-        return data, False
-
-    def match_endswith_re(self, data, pattern):
-        if re.search('{}$'.format(pattern), data):
-            return data, True
-        return data, False
-
-    def match_contains_re(self, data, pattern):
-        if re.search(pattern, data):
-            return data, True
-        return data, False
-
-    def match_contains(self, data, pattern):
-        if pattern in data:
-            return data, True
-        return data, False
-
-    def match_notstartswith_re(self, data, pattern):
-        if not re.search('^{}'.format(pattern), data):
-            return data, True
-        return data, False
-
-    def match_notendswith_re(self, data, pattern):
-        if not re.search('{}$'.format(pattern), data):
-            return data, True
-        return data, False
-
-    def match_exclude_re(self, data, pattern):
-        if not re.search(pattern, data):
-            return data, True
-        return data, False
-
-    def match_exclude(self, data, pattern):
-        if not pattern in data:
-            return data, True
-        return data, False
-
-    def match_equal(self, data, value):
-        if data == value:
-            return data, True
-        return data, False
-
-    def match_notequal(self, data, value):
-        if data != value:
-            return data, True
-        return data, False
-
-    def match_isdigit(self, data):
-        if data.strip().isdigit():
-            return data, True
-        return data, False
-
-    def match_notdigit(self, data):
-        if not data.strip().isdigit():
-            return data, True
-        return data, False
-
-    def match_greaterthan(self, data, value):
-        if data.strip().isdigit() and value.strip().isdigit():
-            if int(data.strip()) > int(value.strip()):
-                return data, True
-        return data, False
-
-    def match_lessthan(self, data, value):
-        if data.strip().isdigit() and value.strip().isdigit():
-            if int(data.strip()) < int(value.strip()):
-                return data, True
-        return data, False
-
-    def match_resub(self, data, old, new, count=1):
-        return re.sub(old, new, data, count=count), None
-
-    def match_join(self, data, char):
-        if isinstance(data, list):
-            return char.join(data), None
-        else:
-            return data, None
-
-    def match_append(self, data, char):
-        if isinstance(data, str):
-            return (data + char), None
-        elif isinstance(data, list):
-            data.append(char)
-            return data, None
-        else:
-            return data, None
-    
-    def match_prepend(self, data, char):
-        if isinstance(data, str):
-            return (char + data), None
-        elif isinstance(data, list):
-            data.insert(0, char)
-            return data, None
-        else:
-            return data, None
-
-    def match_print(self, data):
-        print(data)
-        return data, None
-
-    def match_unrange(self, data, rangechar, joinchar):
-        """
-        data - string, e.g. '8,10-13,20'
-        rangechar - e.g. '-' for above string
-        joinchar - e.g.',' for above string
-        returns - e.g. '8,10,11,12,13,20 string
-        """
-        result=[]
-        # check if range char actually in data:
-        if not rangechar in data: return data, None
-
-        for item in data.split(rangechar):
-            # form split list checking that i is not empty
-            item_split=[i for i in item.split(joinchar) if i]
-            if result:
-                start_int=int(result[-1])
-                end_int=int(item_split[0])
-                list_of_ints_range=[str(i) for i in list(range(start_int,end_int))]
-                result += list_of_ints_range[1:] + item_split
-            else:
-                result=item_split
-        data = joinchar.join(result)
-        return data, None
-
-    def match_set(self, data, value, match_line):
-        vars = self.pobj.vars['globals']['vars']
-        if data.rstrip() == match_line:
-            if isinstance(value, str):
-                if value in vars:
-                    return vars[value], None
-            return value, None
-        else:
-            return data, False
-            
-    def match_let(self, data, name_or_value, var_value="" ):
-        if not var_value:
-            data = name_or_value
-            return data, None
-        else:
-            return data, {'new_field': {name_or_value: var_value}}
-
-    def match_replaceall(self, data, *args):
-        vars = self.pobj.vars['globals']['vars']
-        args = list(args)
-        new = ''
-        if len(args) > 1: new = args.pop(0)
-        for oldValue in args:
-            if oldValue in vars:
-                if isinstance(vars[oldValue], list):
-                    for oldVal in vars[oldValue]:
-                        if isinstance(oldVal, str):
-                            data = data.replace(oldVal, new)
-                elif isinstance(vars[oldValue], dict):
-                    for newVal, oldVal in vars[oldValue].items():
-                        if isinstance(oldVal, list):
-                            for i in oldVal:
-                                if isinstance(i, str):
-                                    data = data.replace(i, newVal)
-                        elif isinstance(oldVal, str):
-                            data = data.replace(oldVal, newVal)
-            else:
-                data = data.replace(oldValue, new)
-        return data, None
-
-    def match_resuball(self, data, *args):
-        vars = self.pobj.vars['globals']['vars']
-        args = list(args)
-        new = ''
-        if len(args) > 1: new = args.pop(0)
-        for oldValue in args:
-            if oldValue in vars:
-                if isinstance(vars[oldValue], list):
-                    for oldVal in vars[oldValue]:
-                        if isinstance(oldVal, str):
-                            data = re.sub(oldVal, new, data)
-                elif isinstance(vars[oldValue], dict):
-                    for newVal, oldVal in vars[oldValue].items():
-                        if isinstance(oldVal, list):
-                            for i in oldVal:
-                                if isinstance(i, str):
-                                    data = re.sub(i, newVal, data)
-                        elif isinstance(oldVal, str):
-                            data = re.sub(oldVal, newVal, data)
-            else:
-                data = re.sub(oldValue, new, data)
-        return data, None
-
-    def match_truncate(self, data, truncate):
-        d_split=data.split(' ')
-        if len(truncate) == 1:
-            t_len=int(truncate[0])
-            if len(d_split) >= t_len:
-                data = ' '.join(d_split[0:t_len])
-        return data, None
-
-    def match_record(self, data, record):
-        self.pobj.vars['globals']['vars'].update({record: data})
-        # self.pobj.update_groups_runs({record: data})
-        return data, None
-
-    def match_lookup(self, data, name, add_field=False):
-        path = [i.strip() for i in name.split('.')]
-        found_value = None
-        # get lookup dictionary/data:
-        try:
-            lookup = self.pobj.lookups
-            for i in path:
-                lookup = lookup.get(i,{})
-        except KeyError:
-            return D, None
-        # perfrom lookup:
-        try:
-            found_value = lookup[data]
-        except KeyError:
-            return data, None
-        # decide to replace match result or add new field:
-        if add_field is not False:
-            return data, {'new_field': {add_field: found_value}}
-        else:
-            return found_value, None
-
-    def match_rlookup(self, data, name, add_field=False):
-        path = [i.strip() for i in name.split('.')]
-        found_value = None
-        # get lookup dictionary/data:
-        try:
-            rlookup = self.pobj.lookups
-            for i in path:
-                rlookup = rlookup.get(i,{})
-        except KeyError:
-            return data, None
-        # perfrom rlookup:
-        if isinstance(rlookup, dict) is False:
-            return data, None
-        for key in rlookup.keys():
-            if key in data:
-                found_value = rlookup[key]
-                break
-        # decide to replace match result or add new field:
-        if found_value is None:
-            return data, None
-        elif add_field is not False:
-            return data, {'new_field': {add_field: found_value}}
-        else:
-            return found_value, None
-            
-    def match_item(self, data, item_index):
-        """Method to return item of iterable at given index
-        """
-        item_index = int(item_index)
-        # item_index not out of range
-        if 0 <= item_index and item_index <= len(data) - 1:
-            return data[item_index], None
-        # item_index out of right range - return last item
-        elif 0 <= item_index and item_index >= len(data) - 1:
-            return data[-1], None
-        # negative item_index not out of range 
-        elif 0 >= item_index and abs(item_index) <= len(data) - 1: 
-            return data[item_index], None    
-        # negative item_index out of range - return first item
-        elif 0 >= item_index and abs(item_index) >= len(data): 
-            return data[0], None    
-            
-    def match_macro(self, data, macro_name):
-        result = None
-        if macro_name in self.macro:
-            result = self.macro[macro_name](data)
-        # process macro result
-        if result is True:
-            return data, True
-        elif result is False:
-            return data, False
-        elif result is None:
-            return data, None
-        elif isinstance(result, tuple):
-            if len(result) == 2:
-                if isinstance(result[1], dict):
-                    return result[0], {"new_field": result[1]}
-        return result, None
-
-    def match_to_str(self, data):
-        return str(data), None
-        
-    def match_to_list(self, data):
-        return [data], None
-        
-    def match_to_int(self, data):
-        try:
-            return int(data), None
-        except ValueError:
-            return data, None
-
-    def match_is_ip(self, data, *args):
-        try:
-            _ = self.match_to_ip(data, *args)
-            return data, True
-        except:
-            return data, False
-            
-    def match_to_ip(self, data, *args):
-        # for py2 support need to convert data to unicode:
-        if python_major_version is 2:
-            ipaddr_data = unicode(data)
-        elif python_major_version is 3:
-            ipaddr_data = data
-        if "ipv4" in args:
-            if "/" in ipaddr_data or " " in ipaddr_data:
-                return ipaddress.IPv4Interface(ipaddr_data.replace(" ", "/")), None
-            else:
-                return ipaddress.IPv4Address(ipaddr_data), None
-        elif "ipv6" in args:
-            if "/" in ipaddr_data:
-                return ipaddress.IPv6Interface(ipaddr_data), None
-            else:
-                return ipaddress.IPv6Address(ipaddr_data), None
-        elif "/" in ipaddr_data or " " in ipaddr_data:
-            return ipaddress.ip_interface(ipaddr_data.replace(" ", "/")), None
-        else:
-            return ipaddress.ip_address(ipaddr_data), None
-                
-    def match_to_net(self, data, *args):
-        # for py2 support need to convert data to unicode:
-        if python_major_version is 2:
-            ipaddr_data = unicode(data)
-        elif python_major_version is 3:
-            ipaddr_data = data
-        if "ipv4" in args:
-            return ipaddress.IPv4Network(ipaddr_data), None
-        elif "ipv6" in args:
-            return ipaddress.IPv6Network(ipaddr_data), None
-        else:
-            return ipaddress.ip_network(ipaddr_data), None
-        
-    def match_to_cidr(self, data):
-        """Method to convet 255.255.255.0 like mask to CIDR prefix len 
-        such as 24
-        """
-        try:
-            ret = sum([bin(int(x)).count('1') for x in data.split('.')])
-            return ret, None
-        except:
-            log.error("ttp_functions.match_to_cidr: '{}' is not a valid netmask".format(data))
-            return data, None   
-            
-    def match_ip_info(self, data, *args):
-        if isinstance(data, str):
-            try:
-                ip_obj = self.match_to_ip(data, *args)[0]
-            except ValueError:
-                return data, None
-        else:
-            ip_obj = data
-        if isinstance(ip_obj, ipaddress.IPv4Interface) or isinstance(ip_obj, ipaddress.IPv6Interface):
-            ret = {
-                'compressed': ip_obj.compressed, 
-                'exploded': ip_obj.exploded, 
-                'hostmask': str(ip_obj.hostmask), 
-                'ip': str(ip_obj.ip), 
-                'is_link_local': ip_obj.is_link_local, 
-                'is_loopback': ip_obj.is_loopback, 
-                'is_multicast': ip_obj.is_multicast, 
-                'is_private': ip_obj.is_private, 
-                'is_reserved': ip_obj.is_reserved, 
-                'is_unspecified': ip_obj.is_unspecified, 
-                'max_prefixlen': ip_obj.max_prefixlen, 
-                'netmask': str(ip_obj.netmask), 
-                'network': str(ip_obj.network), 
-                'version': ip_obj.version, 
-                'with_hostmask': ip_obj.with_hostmask, 
-                'with_netmask': ip_obj.with_netmask, 
-                'with_prefixlen': ip_obj.with_prefixlen,  
-                'broadcast_address': str(ip_obj.network.broadcast_address), 
-                'network_address': str(ip_obj.network.network_address), 
-                'num_addresses': ip_obj.network.num_addresses, 
-                'hosts': ip_obj.network.num_addresses - 2,
-                'prefixlen': ip_obj.network.prefixlen        
-            }
-        elif isinstance(ip_obj, ipaddress.IPv4Address) or isinstance(ip_obj, ipaddress.IPv6Address):
-            ret = {
-                'ip' : str(ip_obj),
-                'compressed': ip_obj.compressed, 
-                'exploded': ip_obj.exploded , 
-                'is_link_local': ip_obj.is_link_local, 
-                'is_loopback': ip_obj.is_loopback, 
-                'is_multicast': ip_obj.is_multicast, 
-                'is_private': ip_obj.is_private, 
-                'is_reserved': ip_obj.is_reserved, 
-                'is_unspecified': ip_obj.is_unspecified, 
-                'max_prefixlen': ip_obj.max_prefixlen, 
-                'version': ip_obj.version                
-            }
-        else:
-            ret = data
-        return ret, None
-        
-    def match_cidr_match(self, data, prefix):
-        # convert data to ipaddress object:
-        if isinstance(data, str):
-            try:
-                ip_obj = self.match_to_ip(data)[0]
-            except ValueError:
-                return data, None
-        else:
-            ip_obj = data 
-        # create ipaddress ipnetwork object out of prefix
-        ip_net = self.match_to_net(prefix)[0]         
-        if isinstance(ip_obj, ipaddress.IPv4Interface) or isinstance(ip_obj, ipaddress.IPv6Interface):
-            # if object is ipnetwork, can check it as is:
-            check = ip_obj.network.overlaps(ip_net)
-        elif isinstance(ip_obj, ipaddress.IPv4Address) or isinstance(ip_obj, ipaddress.IPv6Address):
-            # if object is ipaddress, need to convert it itno ipinterface with /32 mask:
-            if ip_obj.version is 4:
-                # for py2 support need to convert data to unicode:
-                if python_major_version is 2:
-                    ipaddr_data = unicode("{}/32".format(str(ip_obj)))
-                elif python_major_version is 3:
-                    ipaddr_data = "{}/32".format(str(ip_obj))
-                ip_obj = ipaddress.IPv4Interface(ipaddr_data)
-            elif ip_obj.version is 6:
-                # for py2 support need to convert data to unicode:
-                if python_major_version is 2:
-                    ipaddr_data = unicode("{}/128".format(str(ip_obj)))
-                elif python_major_version is 3:
-                    ipaddr_data = "{}/128".format(str(ip_obj))
-                ip_obj = ipaddress.IPv6Interface(ipaddr_data)
-            check = ip_obj.network.overlaps(ip_net)
-        else:
-            check = None
-        return data, check
-        
-    def match_dns(self, data, record='A', timeout=1, servers=[], add_field=False):
-        """Performs forward dns lookup using dns_resolver_obj global object
-        """
-        dns_resolver_obj.timeout = timeout
-        if servers:
-            if isinstance(servers, str):
-                servers = [i.strip() for i in servers.split(',')]
-            dns_resolver_obj.nameservers = sorted(servers)
-        dns_resolver_obj.lifetime = timeout * len(dns_resolver_obj.nameservers)
-        try:
-            dns_records = [i.to_text() for i in dns_resolver_obj.query(data, record)]
-            if add_field and isinstance(add_field, str):
-                return data, {'new_field': {add_field: dns_records}}
-            else:
-                return dns_records, None
-        except dns.resolver.NXDOMAIN:
-            pass
-        except dns.resolver.NoAnswer:
-            pass
-        except dns.exception.Timeout:
-            # re-initialize dns_resolver object, as it will fail to resolve names for 
-            # whatever reason after it timeouts
-            globals()['dns_resolver_obj'] = dns.resolver.Resolver()
-        return data, None
-
-    def match_rdns(self, data, timeout=1, servers=[], add_field=False):
-        """Performs reverse dns lookup using global dns_resolver_obj
-        """
-        dns_resolver_obj.timeout = timeout
-        if servers:
-            if isinstance(servers, str):
-                servers = [i.strip() for i in servers.split(',')]
-            dns_resolver_obj.nameservers = servers
-        dns_resolver_obj.lifetime = timeout * len(dns_resolver_obj.nameservers)
-        rev_name = dns.reversename.from_address(data)
-        try:
-            reverse_record = str(dns_resolver_obj.query(rev_name,"PTR")[0]).rstrip('.')
-            if add_field and isinstance(add_field, str):
-                return data, {'new_field': {add_field: reverse_record}}
-            else:
-                return reverse_record, None
-        except dns.resolver.NXDOMAIN:
-            pass
-        except dns.resolver.NoAnswer:
-            pass
-        except dns.exception.Timeout:
-            globals()['dns_resolver_obj'] = dns.resolver.Resolver()
-        return data, None
-
-    def variable_gethostname(self, data, data_name, *args, **kwargs):
-        """Description: Method to find hostname in show
-        command output, uses symbols '# ', '<', '>' to find hostname
-        """
-        REs = [ # ios-xr prompt re must go before ios privilege prompt re
-            {'juniper': '\n\S*@(\S+)>.*(?=\n)'},       # e.g. 'some.user@router-fw-host>'
-            {'huawei': '\n\S*<(\S+)>.*(?=\n)'},        # e.g. '<hostname>'
-            {'ios_exec': '\n(\S+)>.*(?=\n)'},          # e.g. 'hostname>'
-            {'ios_xr': '\n\S+:(\S+)#.*(?=\n)'},        # e.g. 'RP/0/4/CPU0:hostname#'
-            {'ios_priv': '\n(\S+)#.*(?=\n)'},          # e.g. 'hostname#'
-            {'fortigate': '\n(\S+ \(\S+\)) #.*(?=\n)'} # e.g. 'forti-hostname (Default) #'
-        ]
-        for item in REs:
-            name, regex = list(item.items())[0]
-            match_iter = re.finditer(regex, data)
-            try:
-                match = next(match_iter)
-                return match.group(1)
-            except StopIteration:
-                continue
-        log.error('ttp.functions.variable_gethostname: "{}" file, Hostname not found'.format(data_name))
-        return False
-
-    def variable_getfilename(self, data, data_name, *args, **kwargs):
-        """Return dataname
-        """
-        return data_name
-
-
-"""
-==============================================================================
-TTP UTILITIES CLASS
-==============================================================================
-"""
-class _ttp_utils():
-    """Class to store various functions for the use along the code
-    """
-    def __init__(self):
-        pass
-
-    def traverse_dict(self, data, path):
-        """Method to traverse dictionary data and return element
-        at given path.
-        """
-        if not isinstance(data, dict):
-            log.info("ttp_utils.traverse_dict - data is not a dictionary, will not traverse it, data: \n{}".format(data))
-            return data
-        result = data
-        for i in path:
-            result = result.get(i, {})
-        return result
-
-    def load_files(self, path, extensions=[], filters=[], read=False):
-        """
-        Method to load files from path, and filter file names with
-        REs filters and extensions.
-        Args:
-            path (str): string that contains OS path
-            extensions (list): list of strings files' extensions like ['txt', 'log', 'conf']
-            filters (list): list of strings regexes to filter files
-            read (bool): if False will return file names, if true will
-        Returns:
-            List of (type, text_data) tuples or empty list []  if
-            read True, if read False return (type, url,) or []
-        """
-        files=[]
-        # check if path is a path to file:
-        if os.path.isfile(path):
-            if read:
-                try:
-                    if python_major_version is 2:
-                        return [('text_data', open(path, 'r').read(),)]
-                    return [('text_data', open(path, 'r', encoding='utf-8').read(),)]
-                except UnicodeDecodeError:
-                    log.warning('ttp_utils.load_files: Unicode read error, file "{}"'.format(path))
-            else:
-                return [('file_name', path,)]
-        # check if path is a directory:
-        elif os.path.isdir(path):
-            files = [f for f in os.listdir(path) if os.path.isfile(path + f)]
-            if extensions:
-                files=[f for f in files if f.split('.')[-1] in extensions]
-            for filter in filters:
-                files=[f for f in files if re.search(filter, f)]
-            if read:
-                if python_major_version is 2:
-                    return [('text_data', open((path + f), 'r').read(),) for f in files]
-                return [('text_data', open((path + f), 'r', encoding='utf-8').read(),) for f in files]
-            else:
-                return [('file_name', path + f,) for f in files]
-        # check if path is a string:
-        elif isinstance(path, str):
-            return [('text_data', path,)]
-        # check if path is a file object:
-        elif hasattr(path, 'read') and hasattr(path, 'name'):
-            if read:
-                return [('text_data', path.read(),)]
-            else:
-                return [('file_name', path.name(),)]
-        else:
-            return []
-
-        
-    def load_struct(self, text_data="", **kwargs):
-        """Method to load structured data from text
-        or from file(s) given in include attribute
-        Args:
-            element (obj): ETree xml tag object
-        Returns:
-            empy {} dict if nothing found, or python dictionary of loaded
-            data from elemnt.text string or from included text files
-        """
-        result = {}
-        loader = kwargs.get('load', 'python').lower()
-        include = kwargs.get('include', None)
-        if not text_data and include is None:
-            return None        
-
-        def load_text(text_data, **kwargs):
-            return text_data
-
-        def load_ini(text_data, **kwargs):
-            if python_major_version is 3:
-                import configparser
-                cfgparser = configparser.ConfigParser()
-                # to make cfgparser keep the case, e.g. VlaN222 will not become vlan222:
-                cfgparser.optionxform = str
-                # read from ini files first
-                if include:
-                    files = self.load_files(path=include, extensions=[], filters=[], read=False)
-                    for datum in files:
-                        try:
-                            cfgparser.read(datum[1])
-                        except:
-                            log.error("ttp_utils.load_struct: Pythom3, Unable to load ini formatted data\n'{}'".format(text_data))
-                # read from tag text next to make it more specific:
-                if text_data:
-                    try:
-                        cfgparser.read_string(text_data)
-                    except:
-                        log.error("ttp_utils.load_struct: Python3, Unable to load ini formatted data\n'{}'".format(text_data))
-                # convert configparser object into dictionary
-                result = {k: dict(cfgparser.items(k)) for k in list(cfgparser.keys())}
-            elif python_major_version is 2:
-                import ConfigParser
-                import StringIO
-                cfgparser = ConfigParser.ConfigParser()
-                # to make cfgparser keep the case, e.g. VlaN222 will not become vlan222:
-                cfgparser.optionxform = str
-                # read from ini files first
-                if include:
-                    files = self.load_files(path=include, extensions=[], filters=[], read=False)
-                    for datum in files:
-                        try:
-                            cfgparser.read(datum[1])
-                        except:
-                            log.error("ttp_utils.load_struct: Python2, Unable to load ini formatted data\n'{}'".format(text_data))
-                # read from tag text next to make it more specific:
-                if text_data:
-                    buf_text_data = StringIO.StringIO(text_data)
-                    try:
-                        cfgparser.readfp(buf_text_data)
-                    except:
-                        log.error("ttp_utils.load_struct: Python2, Unable to load ini formatted data\n'{}'".format(text_data))
-                # convert configparser object into dictionary
-                result = {k: dict(cfgparser.items(k)) for k in list(cfgparser.sections())}
-            if "DEFAULT" in result:
-                if not result["DEFAULT"]: # delete empty DEFAULT section
-                    result.pop("DEFAULT")
-            return result
-
-        def load_python(text_data, **kwargs):
-            data = {}
-            if include:
-                files = self.load_files(path=include, extensions=[], filters=[], read=True)
-                for datum in files:
-                    text_data += "\n" + datum[1]
-            try:
-                if python_major_version is 2:
-                    # if running ttp.py directly
-                    if __name__ == "__main__":
-                        from functions.ttp_load_py2 import load_python_exec
-                    # if running ttp as a module
-                    else:
-                        from .functions.ttp_load_py2 import load_python_exec
-                elif python_major_version is 3:
-                    if __name__ == "__main__":
-                        from functions.ttp_load_py3 import load_python_exec
-                    else:
-                        from .functions.ttp_load_py3 import load_python_exec
-                data = load_python_exec(text_data)
-                return data
-            except:
-              log.error("ttp_utils.load_struct: Unable to load Python formatted data\n'{}'Make sure that correct loader used to load data".format(text_data))
-
-        def load_yaml(text_data, **kwargs):
-            from yaml import safe_load
-            data = {}
-            if include:
-                files = self.load_files(path=include, extensions=[], filters=[], read=True)
-                for datum in files:
-                    text_data += "\n" + datum[1]
-            try:
-                data = safe_load(text_data)
-                return data
-            except:
-                log.error("ttp_utils.load_struct: Unable to load YAML formatted data\n'{}'".format(text_data))
-
-        def load_json(text_data, **kwargs):
-            from json import loads
-            data = {}
-            if include:
-                files = self.load_files(path=include, extensions=[], filters=[], read=True)
-                for datum in files:
-                    text_data += "\n" + datum[1]
-            try:
-                data = loads(text_data)
-                return data
-            except:
-                 log.error("ttp_utils.load_struct: Unable to load JSON formatted data\n'{}'".format(text_data))
-
-        def load_csv(text_data, **kwargs):
-            """Method to load csv data and convert it to dictionary
-            using given key-header-column as keys or first column as keys
-            """
-            from csv import reader
-            key = kwargs.get('key', None)
-            data = {}
-            headers = []
-            for row in reader(iter(text_data.splitlines())):
-                if not row:
-                    continue
-                if not headers:
-                    headers = row
-                    if not key:
-                        key = headers[0]
-                    elif key and key not in headers:
-                        return data
-                    continue
-                temp = {headers[index]: i for index, i in enumerate(row)}
-                data[temp.pop(key)] = temp
-            return data
-        # dispatcher:
-        loaders = {
-            'ini'   : load_ini,
-            'python': load_python,
-            'yaml'  : load_yaml,
-            'json'  : load_json,
-            'csv'   : load_csv,
-            'text'  : load_text
-        }
-        # run function to load structured data
-        result = loaders[loader](text_data, **kwargs)
-        return result
-
-    def get_attributes(self, line):
-        """Extract attributes from variable line string.
-        Example:
-            'peer | orphrase | exclude(-VM-)' -> [{'peer': []}, {'orphrase': []}, {'exclude': ['-VM-']}]
-        Args:
-            line (str): string that contains variable attributes i.e. "contains('vlan') | upper | split('.')"
-      s  Returns:
-            List of opts dictionaries containing extracted attributes
-        """
-        def get_args_kwargs(*args, **kwargs):
-            return {'args': args, 'kwargs': kwargs}
-
-        result=[]
-        ATTRIBUTES=[i.strip() for i in line.split('|')]
-        for item in ATTRIBUTES:
-            opts = {'args': (), 'kwargs': {}, 'name': ''}
-            if not item.strip(): # skip empty items like {{ bla | | bla2 }}
-                continue
-            # re search attributes like set(), upper, joinchar(',','-')
-            itemDict = re.search('^(?P<name>\S+?)\s?(\((?P<options>.*)\))?$', item).groupdict()
-            opts['name'] = itemDict['name']
-            options = itemDict['options']
-            # create options list from options string using eval:
-            if options:
-                try:
-                    args_kwargs = eval("get_args_kwargs({})".format(options))
-                except NameError:
-                    log.critical("""ERROR: Failed to load arg/kwargs from line '{}' for options '{}' - possibly wrong syntaxes, 
-make sure that all string arguments are within quotes, e.g. split(',') not split(,)""".format(line, options))
-                    raise SystemExit()
-                opts.update(args_kwargs)
-            else:
-                options = []
-            result.append(opts)
-        return result
-
-"""
-==============================================================================
 TTP TEMPLATE CLASS
 ==============================================================================
 """
@@ -1368,12 +538,11 @@ class _template_class():
         self.lookups = {}
         self.templates = []
         self.base_path = base_path
-        self.utils = _ttp_utils()
         self.results = []
         self.name = name
         self.macro = {}                   # dictionary of macro name to function mapping
         self.results_method = 'per_input' # how to join results
-        self.impot_list = []              # list of functions to import
+        self.macro_text = {} # dict to contain macro functions text to transfer into other processes
 
         # load template from string:
         self.load_template_xml(template_text)
@@ -1552,7 +721,7 @@ class _template_class():
 
         def parse_vars(element):
             # method to parse vars data
-            vars = self.utils.load_struct(element.text, **element.attrib)
+            vars = _ttp_["utils"]["load_struct"](element.text, **element.attrib)
             if vars:
                 self.vars.update(vars)
             #check if var has name attribute:
@@ -1570,7 +739,7 @@ class _template_class():
             data = []
 
             # load input parameters:
-            input_data = self.utils.load_struct(element.text, **element.attrib)
+            input_data = _ttp_["utils"]["load_struct"](element.text, **element.attrib)
 
             # get parameters from input attributes:
             name = element.attrib.get('name', 'Default_Input')
@@ -1608,8 +777,7 @@ class _template_class():
                     top=True,
                     pathchar=self.PATHCHAR,
                     vars=self.vars,
-                    grp_index=grp_index,
-                    impot_list = self.impot_list
+                    grp_index=grp_index
                 )
             )
 
@@ -1619,7 +787,7 @@ class _template_class():
             except KeyError:
                 log.warning("Lookup 'name' attribute not found but required, skipping it")
                 return
-            lookup_data = self.utils.load_struct(element.text, **element.attrib)
+            lookup_data = _ttp_["utils"]["load_struct"](element.text, **element.attrib)
             if lookup_data is None:
                 return
             self.lookups[name] = lookup_data
@@ -1635,19 +803,8 @@ class _template_class():
             funcs = {}
             # extract macro with all the __builtins__ provided
             try:
-                if python_major_version is 2:
-                    # if running ttp script directly
-                    if __name__ == "__main__":
-                        from functions.ttp_load_py2 import load_python_exec
-                    # if running ttp as a module
-                    else:
-                        from .functions.ttp_load_py2 import load_python_exec
-                elif python_major_version is 3:
-                    if __name__ == "__main__":
-                        from functions.ttp_load_py3 import load_python_exec
-                    else:
-                        from .functions.ttp_load_py3 import load_python_exec
-                funcs = load_python_exec(element.text, builtins=__builtins__)
+                funcs = _ttp_["utils"]["load_python_exec"](element.text, builtins=__builtins__)
+                self.macro_text.update({k: element.text for k in funcs.keys()})
                 self.macro.update(funcs)
             except SyntaxError as e:
                 log.error("template.parse_macro: syntax error, failed to load macro: \n{},\nError: {}".format(element.text, e))
@@ -1750,7 +907,6 @@ class _group_class():
             children (list): contains child group objects
             vars (dict): variables dictionary from template class
             grp_index (int): uniqie index of the group
-            impot_list (list): list of functions or modules to import
         """
         self.pathchar = pathchar
         self.top      = top
@@ -1767,9 +923,7 @@ class _group_class():
         self.children = []
         self.name     = ''
         self.vars     = vars
-        self.utils    = _ttp_utils()
         self.grp_index = grp_index
-        self.impot_list = impot_list
         self.inputs = []
         # extract data:
         self.get_attributes(element.attrib)
@@ -1836,7 +990,7 @@ class _group_class():
 
         def extract_to_ip(O):
             if isinstance(O, str):
-                to_ip_attributes = self.utils.get_attributes(
+                to_ip_attributes = _ttp_["utils"]["get_attributes"](
                                 'to_ip_attributes({})'.format(O))
                 self.funcs.append({
                     'name': 'to_ip',
@@ -1852,7 +1006,7 @@ class _group_class():
                     log.error("match_variable.extract_to_ip: No ipaddress module installed, install: python -m pip install ipaddress")                
      
         def extract_functions(O):
-            funcs = self.utils.get_attributes(O)
+            funcs = _ttp_["utils"]["get_attributes"](O)
             for i in funcs:
                 func_name = i['name']
                 if func_name in functions: 
@@ -1907,7 +1061,7 @@ class _group_class():
             is_line = False
             skip_regex = False
             for variable in i['variables']:
-                variableObj = _variable_class(variable, i['line'], group=self, impot_list=self.impot_list)
+                variableObj = _variable_class(variable, i['line'], group=self)
 
                 # check if need to skip appending regex dict to regexes list
                 # have to skip it for unconditional 'set' function
@@ -1971,8 +1125,7 @@ class _group_class():
                 top=False,
                 path=self.path,
                 pathchar=self.pathchar,
-                vars=self.vars,
-                impot_list=self.impot_list))
+                vars=self.vars))
             # get regexes from tail
             if g.tail.strip():
                 self.get_regexes(data=g.tail, tail=True)
@@ -2008,7 +1161,7 @@ class _variable_class():
     """
     variable class - to define variables and associated actions, conditions, regexes.
     """
-    def __init__(self, variable, line, group='', impot_list=[]):
+    def __init__(self, variable, line, group=''):
         """
         Args:
             variable (str): contains variable content
@@ -2027,14 +1180,12 @@ class _variable_class():
         self.skip_variable_dict = False              # will be set to true for 'ignore'
         self.skip_regex_dict = False                 # will be set to true for 'set'
         self.var_res = []                            # list of variable regexes
-        self.utils = _ttp_utils()                    # ttp utils
-        self.impot_list = impot_list                 # list of functions to import
 
         # add formatters:
         self.REs = _ttp_patterns()
 
         # form attributes - list of dictionaries:
-        self.attributes = self.utils.get_attributes(variable)
+        self.attributes = _ttp_["utils"]["get_attributes"](variable)
         self.var_dict = self.attributes.pop(0)
         self.var_name = self.var_dict['name']
 
@@ -2103,11 +1254,11 @@ class _variable_class():
                 log.error("match_variable.extract_chain: match variable - '{}', chain var '{}' not found".format(self.var_name, data['args'][0]))
                 return
             if isinstance(variable_value, str):
-                attributes =  self.utils.get_attributes(variable_value)
+                attributes =  _ttp_["utils"]["get_attributes"](variable_value)
             elif isinstance(variable_value, list):
                 attributes = []
                 for i in variable_value:
-                    i_attribs = self.utils.get_attributes(i)
+                    i_attribs = _ttp_["utils"]["get_attributes"](i)
                     attributes += i_attribs
             for i in attributes:
                 name = i['name']
@@ -2115,23 +1266,6 @@ class _variable_class():
                     extract_funcs[name](i)
                 else:
                     self.functions.append(i)
-        
-        def import_ipaddress(data):
-            if "ipaddress" not in globals():
-                try:
-                    globals()["ipaddress"] = __import__("ipaddress")
-                except ImportError:
-                    log.error("match_variable.import_ipaddress: var - '{}', ipaddress module not installed, install: python -m pip install ipaddress".format(self.var_name))
-            self.functions.append(data)
-            
-        def import_dnspython(data):
-            if "dns" not in globals():
-                try:
-                    globals()["dns"] = __import__("dns.resolver")
-                    globals()['dns_resolver_obj'] = dns.resolver.Resolver()
-                except ImportError:
-                    log.error("match_variable.import_dnspython: var - '{}', dnspython not installed, install: python -m pip install dnspython".format(self.var_name))
-            self.functions.append(data)
             
         def extract_re(data):
             regex = data['args'][0]
@@ -2145,7 +1279,7 @@ class _variable_class():
             # use regex as is
             else:
                 self.var_res.append(regex)
-
+            
         extract_funcs = {
         'ignore'        : extract_ignore,
         '_start_'       : extract__start_,
@@ -2155,10 +1289,6 @@ class _variable_class():
         'set'           : extract_set,
         'default'       : extract_default,
         'joinmatches'   : extract_joinmatches,
-        'to_ip'  : import_ipaddress,
-        'to_net' : import_ipaddress, 'ip_info'   : import_ipaddress,
-        'is_ip'  : import_ipaddress, 'cidr_match': import_ipaddress,
-        'dns'    : import_dnspython, 'rdns'      : import_dnspython,
         # regex formatters:
         're'       : extract_re,
         'PHRASE'   : lambda data: self.var_res.append(self.REs.patterns['PHRASE']),
@@ -2257,7 +1387,7 @@ class _variable_class():
         if log.isEnabledFor(logging.DEBUG) == False:
             del self.attributes, esc_line
             del self.LINE, self.skip_defaults, self.indent
-            del self.var_dict, self.REs, self.var_res, self.utils
+            del self.var_dict, self.REs, self.var_res
 
         return self.regex
 
@@ -2275,9 +1405,7 @@ class _parser_class():
         self.lookups = lookups
         self.original_vars = vars
         self.groups = groups
-        self.functions = _ttp_functions(parser_obj=self, macro=macro)
-        self.utils = _ttp_utils()
-        self.macro = macro
+        _ttp_["macro"] = macro
 
 
     def set_data(self, D, main_results={}):
@@ -2310,11 +1438,12 @@ class _parser_class():
                 'vars' : self.original_vars.copy()
             }
         }
-        # run macro functions to update vars with functions results:
+        # run variable getters functions to update vars with functions results:
         self.run_functions()
         # create groups' runs dictionaries to hold defaults updated with var values
         [G.set_runs() for G in self.groups]
-        # self.update_groups_runs(self.vars['globals']['vars'])
+        # re initiate _ttp_ dictionary parser object
+        _ttp_["parser_object"] = self
 
 
     def update_groups_runs(self, D):
@@ -2323,16 +1452,19 @@ class _parser_class():
         """
         [G.update_runs(D) for G in self.groups]
 
+
     def run_functions(self):
         """Method to run variables functions before parsing data
         """
         for VARname, VARvalue in self.vars['globals']['vars'].items():
             if isinstance(VARvalue, str):
                 try:
-                    result = getattr(self.functions, 'variable_' + VARvalue)(self.DATATEXT, self.DATANAME)
+                    result = _ttp_["variable"][VARvalue](self.DATATEXT, self.DATANAME)
                     self.vars['globals']['vars'].update({VARname: result})
-                except AttributeError:
+                except KeyError:
                     continue
+                except:
+                    log.error("ttp_parser.run_functions: {} function failed".format(VARvalue))
 
 
     def parse(self, groups_indexes):
@@ -2364,9 +1496,9 @@ class _parser_class():
                         args = item['args']
                         kwargs = item['kwargs']
                         try: # try variable function
-                            data, flag = getattr(self.functions, 'match_' + func_name)(data, *args, **kwargs)
-                        except AttributeError:
-                            try: # try data bilt-in finction. e.g. if data is string, can run data.upper()
+                            data, flag = _ttp_["match"][func_name](data, *args, **kwargs)
+                        except KeyError:
+                            try: # try data built-in function. e.g. if data is string, can run data.upper()
                                 attrib = getattr(data, func_name)
                                 if callable(attrib):
                                     run_result = attrib(*args, **kwargs)
@@ -2381,7 +1513,7 @@ class _parser_class():
                                     flag = None        
                             except AttributeError as e:
                                 flag = None
-                                self.functions.invalid(data, func_name, scope='variable', skip=True)
+                                log.error("ttp_parser.check_matches: match variable '{}' function failed, data '{}', error '{}'".format(func_name, data, e))
                         if flag is True or flag is None:
                             continue
                         elif flag is False:
@@ -2483,8 +1615,7 @@ class _parser_class():
           [group_result[key] for key in sorted(list(group_result.keys()))]
           ) for group_result in unsort_rslts if group_result ]
         # form results for global groups:
-
-        RSLTSOBJ = _results_class(macro=self.macro)
+        RSLTSOBJ = _results_class()
         RSLTSOBJ.make_results(self.vars['globals']['vars'], raw_results, main_results=self.main_results)
         self.main_results = RSLTSOBJ.results
 
@@ -2495,7 +1626,7 @@ class _parser_class():
         ) for group_result in grps_unsort_rslts if group_result[0] ]
         # form results for groups specific results with running groups through outputs:
         for grp_raw_result in grps_raw_results:
-            RSLTSOBJ = _results_class(macro=self.macro)
+            RSLTSOBJ = _results_class()
             RSLTSOBJ.make_results(self.vars['globals']['vars'], [grp_raw_result[0]], main_results={})
             grp_result = RSLTSOBJ.results
             for output in grp_raw_result[1]:
@@ -2522,7 +1653,7 @@ class _results_class():
     Args:
         self.dyn_path_cache (dict): used to store dynamic path variables
     """
-    def __init__(self, macro):
+    def __init__(self):
         self.results = {}
         self.GRPLOCK = {'LOCK': False, 'GROUP': ()} # GROUP - path tuple of locked group
         self.record={
@@ -2531,7 +1662,8 @@ class _results_class():
             'FUNCTIONS' : []
         }
         self.dyn_path_cache={}
-        self.functions = _ttp_functions(results_obj=self, macro=macro)
+        _ttp_["results_object"] = self
+        
 
     def make_results(self, vars, raw_results, main_results):
         self.results = main_results
@@ -2575,10 +1707,6 @@ class _results_class():
                         elif item_re['IS_LINE'] is True:
                             re = item[0]
                             result_data = item[1]
-                        # old logic - pick up first non IS_LINE re:
-                        # elif re['IS_LINE'] == False:
-                        #     result_data = item[1]
-                        #     break
                 group = re['GROUP']
                 # check if result is false, lock the group if so:
                 if result_data == False:
@@ -2837,9 +1965,10 @@ class _results_class():
             func_name = item['name']
             args = item.get('args', [])
             kwargs = item.get('kwargs', {})
-            try: # try group function
-                self.record['result'], flags = getattr(self.functions, 'group_' + func_name)(self.record['result'], *args, **kwargs)
-            except AttributeError:
+            try: # try group functions
+                self.record['result'], flags = _ttp_["group"][func_name](self.record['result'], *args, **kwargs)
+            except KeyError:
+                log.error("ttp_results.processgrp: group '{}' function failed, data '{}'".format(func_name, self.record['result']))
                 flags = False
             # if conditions check been false, return False:
             if flags == False:
@@ -2869,7 +1998,6 @@ class _outputter_class():
         method (str): how to save results, in separate files or in one file
     """
     def __init__(self, element=None, **kwargs):
-        self.utils = _ttp_utils()
         # set attributes default values:
         self.attributes = {
             'returner'    : ['self'],
@@ -2881,7 +2009,6 @@ class _outputter_class():
         self.name = None
         self.return_to_self = False
         self.funcs = []
-        self.functions_obj = _ttp_functions(out_obj=self)
         # get output attributes:
         if element is not None:
             self.element = element
@@ -2911,7 +2038,7 @@ class _outputter_class():
                 raise SystemExit()
 
         def extract_load(O):
-            self.attributes['load'] = self.utils.load_struct(self.element.text, **self.element.attrib)
+            self.attributes['load'] = _ttp_["utils"]["load_struct"](self.element.text, **self.element.attrib)
 
         def extract_filename(O):
             """File name can contain time formatters supported by strftime      
@@ -2927,7 +2054,7 @@ class _outputter_class():
                 raise SystemExit()
 
         def extract_functions(O):
-            funcs = self.utils.get_attributes(O)
+            funcs = _ttp_["utils"]["get_attributes"](O)
             for i in funcs:
                 name = i['name']
                 if name in functions:
@@ -2952,7 +2079,7 @@ class _outputter_class():
         def extract_format_attributes(O):
             """Extract formatter attributes
             """
-            format_attributes = self.utils.get_attributes(
+            format_attributes = _ttp_["utils"]["get_attributes"](
                             'format_attributes({})'.format(O))
             self.attributes['format_attributes'] = {
                 'args': format_attributes[0]['args'],
@@ -2970,7 +2097,7 @@ class _outputter_class():
 
         def extract_dict_to_list(O):
             if isinstance(O, str):
-                dict_to_list_attrs = self.utils.get_attributes(
+                dict_to_list_attrs = _ttp_["utils"]["get_attributes"](
                     'dict_to_list({})'.format(O))
                 self.funcs.append(dict_to_list_attrs[0])
             elif isinstance(O, dict):
@@ -2999,8 +2126,9 @@ class _outputter_class():
             else: self.attributes[attr_name] = attributes
 
     def run(self, data, macro={}):
+        _ttp_["output_object"] = self
         if macro:
-            self.functions_obj = _ttp_functions(out_obj=self, macro=macro)
+            _ttp_["macro"] = macro
         returners = self.attributes['returner']
         format = self.attributes['format']
         results = data
@@ -3009,229 +2137,19 @@ class _outputter_class():
             func_name = item['name']
             args = item.get('args', [])
             kwargs = item.get('kwargs', {})
-            results = getattr(self.functions_obj, 'output_' + func_name)(results, *args, **kwargs)
+            try:
+                results = _ttp_["output"][func_name](results, *args, **kwargs)
+            except KeyError:
+                log.error("ttp_output.run: output '{}' function not found.".format(func_name))
         # format data using requested formatter:
-        results = getattr(self, 'formatter_' + format)(results)
+        results = _ttp_["formatters"][format](results)
         # run returners:
-        [getattr(self, 'returner_' + returner)(results) for returner in returners]
+        [_ttp_["returners"][returner](results) for returner in returners]
         # check if need to return processed data:
         if self.return_to_self is True:
             return results        
         # return unmodified data:
         return data
-
-    def returner_self(self, D):
-        """Method to indicate that processed data need to be returned
-        """
-        self.return_to_self = True
-
-    def returner_file(self, D):
-        """Method to write data into file
-        Args:
-            url (str): os path there to save files
-            filename (str): name of the file
-        """
-        url = self.attributes.get('url', './Output/')
-        filename = self.attributes.get('filename', 'output_{}.txt'.format(ctime))
-        # if no filename provided, add outputter name to filename
-        if not self.attributes.get('filename', False):
-            filename = self.name + '_' + filename
-        # check if path exists already, create it if not:
-        if not os.path.exists(url):
-            os.mkdir(url)
-        # save text data to file
-        if isinstance(D, str):
-            log.info("output.returner_file: saving text results to file")
-            with open(url + filename, 'w') as f:
-                if not isinstance(D, str):
-                    f.write(str(D))
-                else:
-                    f.write(D)
-        # save excel workbook to file:
-        elif hasattr(D, "save") and hasattr(D, "worksheets"):
-            log.info("output.returner_file: saving excel workbook")
-            if not filename.endswith('.xlsx'):
-                filename += '.xlsx'
-            D.save(url + filename)
-
-    def returner_terminal(self, D):
-        if python_major_version is 2:
-            if isinstance(D, str) or isinstance(D, unicode):
-                print(D)
-            else:
-                print(str(D).replace('\\n', '\n'))
-        elif python_major_version is 3:
-            if isinstance(D, str):
-                print(D)
-            else:
-                print(str(D).replace('\\n', '\n'))
-                
-    def formatter_raw(self, data):
-        """Method returns parsing results as python list or dictionary.
-        """
-        return data
-
-    def formatter_pprint(self, data):
-        """Method to pprint format results
-        """
-        from pprint import pformat
-        return pformat(data, indent=4)
-
-    def formatter_yaml(self, data):
-        """Method returns parsing results in yaml format.
-        """
-        try:
-            from yaml import dump
-        except ImportError:
-            log.critical("output.formatter_yaml: yaml not installed, install: 'python -m pip install pyyaml'. Exiting")
-            raise SystemExit()
-        return dump(data, default_flow_style=False)
-
-    def formatter_json(self, data):
-        """Method returns parsing result in json format.
-        """
-        from json import dumps
-        return dumps(data, sort_keys=True, indent=4, separators=(',', ': '))
-
-    def formatter_table(self, data):
-        """Method to form table there table is list of lists,
-        firts item - heders row. Method used by csv/tabulate/excel
-        formatters.
-        """
-        table = []
-        headers = set()
-        data_to_table = []
-        source_data = []
-        # get attributes:
-        provided_headers = self.attributes.get('headers', None)
-        path = self.attributes.get('path', [])
-        missing = self.attributes.get('missing', '')
-        key = self.attributes.get('key', '')
-        # normalize source_data to list:
-        if isinstance(data, list): # handle the case for template/global output
-            source_data += data
-        elif isinstance(data, dict): # handle the case for group specific output
-            source_data.append(data)
-        # form data_to_table:
-        for datum in source_data:
-            item = self.utils.traverse_dict(datum, path)
-            if not item: # skip empty results
-                continue
-            elif isinstance(item, list):
-                data_to_table += item
-            elif isinstance(item, dict):
-                # flatten dictionary data if key was given and set to "interface", 
-                # in that case if item looks like this dictionary:
-                # { "Fa0"  : {"admin": "administratively down"},
-                #   "Ge0/1": {"access_vlan": "24"}}
-                # it will become this list:
-                # [ {"admin": "administratively down", "interface": "Fa0"},
-                #   {"access_vlan": "24", "interface": "Ge0/1"} ]
-                if key:
-                    for k, v in item.items():
-                        v.update({key: k})
-                        data_to_table.append(v)
-                else:
-                    data_to_table.append(item)
-        # create headers:
-        if provided_headers:
-            headers = provided_headers
-        else:
-            # headers is a set, set.update only adds unique values to set
-            [headers.update(list(item.keys())) for item in data_to_table]
-            headers = sorted(list(headers))
-        # save headers row in table:
-        table.insert(0, headers)
-        # fill in table with data:
-        for item in data_to_table:
-            row = [missing for _ in headers]
-            for k, v in item.items():
-                if k in headers:
-                    row[headers.index(k)] = v
-            table.append(row)
-        return table
-
-    def formatter_csv(self, data):
-        """Method to dump list of dictionaries into table
-        using provided separator, default is comma - ','
-        """
-        result = ""
-        # form table - list of lists
-        table = self.formatter_table(data)
-        sep = self.attributes.get('sep', ',')
-        # from results:
-        result = sep.join(table[0])
-        for row in table[1:]:
-            result += "\n" + sep.join(row)
-        return result
-
-    def formatter_tabulate(self, data):
-        """Method to format data as a table using tabulate module.
-        """
-        try:
-            from tabulate import tabulate
-        except ImportError:
-            log.critical("output.formatter_tabulate: tabulate not installed, install: 'python -m pip install tabulate'. Exiting")
-            raise SystemExit()
-        # form table - list of lists
-        table = self.formatter_table(data)
-        headers = table.pop(0)
-        attribs = self.attributes.get('format_attributes', {'args': [], 'kwargs': {}})
-        # run tabulate:
-        return tabulate(table, headers=headers, *attribs['args'], **attribs['kwargs'])
-
-    def formatter_jinja2(self, data):
-        """Method to render output template using results data.
-        """
-        # load Jinja2:
-        try:
-            from jinja2 import Environment
-        except ImportError:
-            log.critical("output.formatter_jinja2: Jinja2 not installed, install: 'python -m pip install jinja2'. Exiting")
-            raise SystemExit()
-        # load template:
-        template_obj = Environment(loader='BaseLoader', trim_blocks=True,
-                                   lstrip_blocks=True).from_string(self.element.text)
-        # render data making whole results accessible from _data_ variable in Jinja2
-        result = template_obj.render(_data_=data)
-        return result
-
-    def formatter_excel(self, data):
-        """Method to format data as an .xlsx table using openpyxl module.
-        """        
-        try:
-            from openpyxl import Workbook
-        except ImportError:
-            log.critical("output.formatter_excel: openpyxl not installed, install: 'python -m pip install openpyxl'. Exiting")
-            raise SystemExit()
-        # form table_tabs - list of dictionaries
-        try:
-            table = self.attributes['load']['table']
-        except KeyError:
-            log.critical("output.formatter_excel: output tag missing table definition. Exiting")
-            raise SystemExit()
-        table_tabs = []
-        for index, tab_det in enumerate(table):
-            if 'tab_name' in tab_det:
-                tab_name = tab_det.pop('tab_name')
-            else:
-                tab_name = "Sheet{}".format(index)
-            # get attributes out of tab_det
-            self.get_attributes(data={
-                "path": tab_det.get("path", []),
-                "headers": tab_det.get("headers", None),
-                "missing": tab_det.get("missing", ""),
-                "key": tab_det.get("key", "")
-            })
-            # form tab table
-            tab_table_data = self.formatter_table(data)
-            table_tabs.append({"name": tab_name, "data": tab_table_data})
-        # create workbook
-        wb = Workbook(write_only=True)
-        for tab in table_tabs:
-            ws = wb.create_sheet(title=tab["name"])
-            [ws.append(row) for row in tab["data"]]
-        return wb
         
         
 """
@@ -3258,11 +2176,12 @@ TTP CLI PROGRAMM
 """
 def cli_tool():
     import argparse
-    try:
-        import templates as ttp_templates
-        templates_exist = True
-    except ImportError:
-        templates_exist = False
+    # import templates
+    abs_import = "ttp."
+    if __name__ == "__main__": 
+        abs_import = ""
+    file = "{}templates.templates".format(abs_import)
+    ttp_templates = __import__(file, fromlist=[None])
 
     # form argparser menu:
     description_text='''-d,  --data         Data files location
@@ -3310,7 +2229,7 @@ def cli_tool():
     else:
         t0 = 0
 
-    if templates_exist and TEMPLATE in vars(ttp_templates):
+    if TEMPLATE in vars(ttp_templates):
         TEMPLATE = vars(ttp_templates)[TEMPLATE]
         
     parser_Obj = ttp(data=DATA, template=TEMPLATE, base_path=BASE_PATH)

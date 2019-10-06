@@ -1401,6 +1401,88 @@ load="json"
 
 
 
+
+<input load="text" name="test1-27">
+interface GigabitEthernet1/1
+ description to core-1
+ ip address 192.168.123.1 255.255.255.0
+!
+interface Vlan222
+ description Phones vlan
+!
+interface Loopback0
+ description Routing ID loopback
+ ip address 192.168.222.1 255.255.255.0
+!
+</input>
+
+<macro>
+def check_if_svi_test_1_27(data):
+    if "Vlan" in data["interface"]:
+        data["is_svi"] = True
+    else:
+        data["is_svi"] = False
+    return data
+        
+def check_if_loop_test_1_27(data):
+    if "Loopback" in data["interface"]:
+        data["is_loop"] = True
+    else:
+        data["is_loop"] = False
+    return data
+</macro>
+ 
+<macro>
+def description_mod_test_1_27(data):
+    # To revert words order in description
+    words_list = data.get("description", "").split(" ")
+    words_list_reversed = list(reversed(words_list))
+    words_reversed = " ".join(words_list_reversed) 
+    data["description"] = words_reversed
+    return data
+</macro>
+ 
+<group name="interfaces_macro_test_1_27" 
+functions="contains('ip') | macro('description_mod_test_1_27') | macro('check_if_svi_test_1_27') | macro('check_if_loop_test_1_27')"
+input="test1-27" output="test1-27"
+>
+interface {{ interface }}
+ description {{ description | ORPHRASE }}
+ ip address {{ ip }} {{ mask }}
+</group>
+
+
+<output name="test1-27"
+description="test group contains and group macro"
+load="json"
+functions="is_equal"
+>
+   {
+        "interfaces_macro_test_1_27": [
+            {
+                "description": "core-1 to",
+                "interface": "GigabitEthernet1/1",
+                "ip": "192.168.123.1",
+                "is_loop": false,
+                "is_svi": false,
+                "mask": "255.255.255.0"
+            },
+            {
+                "description": "loopback ID Routing",
+                "interface": "Loopback0",
+                "ip": "192.168.222.1",
+                "is_loop": true,
+                "is_svi": false,
+                "mask": "255.255.255.0"
+            }
+        ]
+    }
+</output>
+
+
+
+
+
 <!--output to print raw python result to screen
 <output
 name="print_python"

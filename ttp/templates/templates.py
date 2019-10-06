@@ -3640,3 +3640,36 @@ interface {{ interface }}
  description {{ description }}
 </group>
 """
+
+test234="""
+<vars name="vars.bla">
+bla="1234"
+some_var=""
+</vars>
+
+<input load="text">
+interface Vlan778
+ ip address 2002:fd37::91/124
+ switchport
+!
+</input>
+
+<input load="text">
+interface Vlan779
+ ip address 2002:fd37::99/129
+ switchport
+!
+</input>
+
+<lookup name="test" load="csv">
+ip,description
+2002,this is public ip
+</lookup>
+
+<group name="interfaces">
+interface {{ interface }}
+ ip address {{ ip | print | IPV6 | is_ip | startswith_re("2002") | sformat("format string ipv6 address: {}") | rlookup("test", add_field="ip_det") }}/{{ mask | record("some_var") }}
+ switchport {{ is_swith |set("True") }}
+{{ var_rand | set("bla") }}
+</group>
+"""
