@@ -3673,3 +3673,95 @@ interface {{ interface }}
 {{ var_rand | set("bla") }}
 </group>
 """
+
+test235="""
+<input load="text">
+swith-1#show cdp neighbors detail 
+-------------------------
+Device ID: switch-2.net
+Entry address(es): 
+  IP address: 10.13.1.7
+Platform: cisco WS-C6509,  Capabilities: Router Switch IGMP 
+Interface: GigabitEthernet4/6,  Port ID (outgoing port): GigabitEthernet1/5
+Holdtime : 130 sec
+
+Version :
+Cisco Internetwork Operating System Software 
+IOS (tm) s72033_rp Software (s72033_rp-PK9SV-M), Version 12.2(17d)SXB11a, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2006 by cisco Systems, Inc.
+Compiled Thu 13-Apr-06 04:50 by kehsiao
+
+advertisement version: 2
+VTP Management Domain: ''
+Duplex: full
+Unidirectional Mode: off
+
+-------------------------
+Device ID: switch-3
+Entry address(es): 
+  IP address: 10.17.14.1
+Platform: cisco WS-C3560-48TS,  Capabilities: Switch IGMP 
+Interface: GigabitEthernet1/1,  Port ID (outgoing port): GigabitEthernet0/1
+Holdtime : 165 sec
+
+Version :
+Cisco IOS Software, C3560 Software (C3560-IPBASE-M), Version 12.2(25)SEB2, RELEASE SOFTWARE (fc1)
+Copyright (c) 1986-2005 by Cisco Systems, Inc.
+Compiled Tue 07-Jun-05 23:34 by yenanh
+
+advertisement version: 2
+Protocol Hello:  OUI=0x00000C, Protocol ID=0x0112; payload len=27, value=00000000FFFFFFFF010221FF00000000000000152BC02D80FF0000
+VTP Management Domain: ''
+Native VLAN: 500
+Duplex: full
+Unidirectional Mode: off
+</input>
+
+<v>
+hostname='gethostname' 
+IfsNormalize = {
+     'Ge':['^GigabitEthernet'], 
+     'Pt':['^Port'], 
+     'Po':['^Eth-Trunk'], 
+     'Te':['^TenGe', '^TenGigabitEthernet', '^TenGigE'], 
+     'Fe':['^FastEthernet']
+     }
+</v>
+
+<g name="cdp_results_data">
+Device ID: {{ CDP_peer_Hostname }}
+  IP address: {{ CDP_peer_ip }}
+Platform: {{ CDP_peer_platform | ORPHRASE }},  Capabilities: {{ CDP_peer_capabilities | ORPHRASE }} 
+Interface: {{ local_interface | resuball('IfsNormalize') }},  Port ID (outgoing port): {{ CDP_peer_interface | ORPHRASE | resuball('IfsNormalize') }}
+{{ local_hostname | set("hostname") }}
+{{ pic | set("switch.svg") }}
+</g>
+
+<output format="graph" load="python" path="cdp_results_data">
+map = {
+"edges": {
+    "source": "local_hostname",
+    "target": "CDP_peer_Hostname",
+    "src_label": "local_interface",
+    "tgt_label": "CDP_peer_interface",
+    "label": "",
+	"description": ""
+	},
+"nodes": [{
+    "id": "CDP_peer_Hostname",
+	"label": "CDP_peer_Hostname",
+	"top_label": "CDP_peer_ip",
+	"bottom_label": "CDP_peer_platform",
+	"description": "",
+	"pic": ""
+    },
+	{
+    "id": "local_hostname",
+	"label": "local_hostname"
+	}]
+}
+</output>
+
+<out format="json" returner="terminal"/>
+"""

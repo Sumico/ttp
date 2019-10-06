@@ -19,6 +19,8 @@ Each group tag (<g>, <grp>, <group>) can have a number of attributes, they used 
      - Indicates parsing method, supported values are *group* or *table*
    * - `output`_   
      - Specify group specific outputs to run group result through     
+   * - `default`_   
+     - Value to supply for variables by default    	 
 
 name
 ------------------------------------------------------------------------------

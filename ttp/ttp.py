@@ -21,24 +21,24 @@ _ttp_ = {"match": {}, "python_major_version": python_major_version}
 
 class CahedModule():
     
-    def __init__(self, import_path, parent_dir, function_name):
+    def __init__(self, import_path, parent_dir, function_name, functions):
         self.import_path = import_path
         self.parent_dir = parent_dir
         self.function_name = function_name
+        self.parent_module_functions = [f for f in functions if (not f.startswith("_"))]
 
     def __call__(self, *args, **kwargs):
         log.info("calling CachedModule: module '{}', function '{}'".format(self.import_path, self.function_name))
-        # replace _ttp_ import_path with imported functions
+        # replace _ttp_ functions' references with imported functions
         abs_import = "ttp."
         if __name__ == "__main__" or __name__ == "__mp_main__": 
             abs_import = ""
         path = "{abs}{imp}".format(abs=abs_import, imp=self.import_path)
         module = __import__(path, fromlist=[None])
         setattr(module, "_ttp_", _ttp_)
-        func_names = [f for f in dir(module) if (not f.startswith("_"))]
         try: _name_map_ = getattr(module, "_name_map_")
         except AttributeError: _name_map_ = {}
-        for func_name in func_names:
+        for func_name in self.parent_module_functions:
             name = _name_map_.get(func_name, func_name)
             _ttp_[self.parent_dir][name] = getattr(module, func_name)
         # call original function
@@ -87,7 +87,7 @@ def lazy_import_functions():
             if not parent_dir in _ttp_:
                 _ttp_[parent_dir] = {}
             path = "{}.{}".format(parent_dir, filename.replace(".py", ""))
-            _ttp_[parent_dir][name] = CahedModule(path, parent_dir, name)
+            _ttp_[parent_dir][name] = CahedModule(path, parent_dir, name, functions)
     log.info("ttp.lazy_import_functions: finished functions lazy import")
         
             
@@ -2031,7 +2031,7 @@ class _outputter_class():
                 raise SystemExit()
 
         def extract_format(O):
-            supported_formats = ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint', 'tabulate', 'table', 'excel']
+            supported_formats = ['raw', 'yaml', 'json', 'csv', 'jinja2', 'pprint', 'tabulate', 'table', 'excel', "graph"]
             if O in supported_formats:
                 self.attributes['format'] = O
             else:
@@ -2142,9 +2142,9 @@ class _outputter_class():
                 results = _ttp_["output"][func_name](results, *args, **kwargs)
             except KeyError:
                 log.error("ttp_output.run: output '{}' function not found.".format(func_name))
-        # format data using requested formatter:
+        # format data using requested formatter
         results = _ttp_["formatters"][format](results)
-        # run returners:
+        # run returners
         [_ttp_["returners"][returner](results) for returner in returners]
         # check if need to return processed data:
         if self.return_to_self is True:
