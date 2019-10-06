@@ -1,8 +1,7 @@
-"""setup.py file."""
-from setuptools import setup
+from setuptools import setup, find_packages
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
+with open("README.md", "r") as f:
+    long_description = f.read()
 
 __author__ = "Denis Mulyalin <d.mulyalin@gmail.com>"
 
@@ -16,14 +15,16 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/dmulyalin/ttp",
     packages=[
-        "ttp", 
-        "ttp.functions",
-        "ttp.functions.match",
-        "ttp.functions.group",
-        "ttp.functions.input",
-        "ttp.functions.output",
-        "ttp.functions.variable",
-        "ttp.templates"
+        "ttp",
+        "ttp.formatters",
+        "ttp.group",
+        "ttp.input",
+        "ttp.match",
+        "ttp.output",
+        "ttp.returners",
+        "ttp.templates",
+        "ttp.utils",
+        "ttp.variable"
     ],
     #packages=["ttp"],
     include_package_data=True,
@@ -39,8 +40,3 @@ setup(
         'console_scripts': ['ttp=ttp.ttp:cli_tool'],
     }
 )
-
-"""
-to install without making egg:
-python3 -m pip install .
-"""
