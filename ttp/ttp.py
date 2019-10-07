@@ -354,10 +354,10 @@ class ttp():
         """
         log.info("ttp.parse: parse using single process")
         for template in self.__templates:
+            _ttp_["macro"] = template.macro
             parserObj = _parser_class(lookups=template.lookups,
                                      vars=template.vars,
-                                     groups=template.groups,
-                                     macro=template.macro)
+                                     groups=template.groups)
             if template.results_method.lower() == 'per_input':
                 for input_name, input_params in sorted(template.inputs.items()):
                     for datum in input_params['data']:
@@ -483,7 +483,7 @@ class _worker(Process):
         self.task_queue = task_queue
         self.results_queue = results_queue
         self.macro_text = macro_text
-        self.parserObj = _parser_class(lookups, vars, groups, macro={})
+        self.parserObj = _parser_class(lookups, vars, groups)
         
     def load_functions(self):
         lazy_import_functions()
@@ -1429,12 +1429,10 @@ TTP PARSER OBJECT
 class _parser_class():
     """Parser Object to run parsing of data and constructong resulted dictionary/list
     """
-    def __init__(self, lookups, vars, groups, macro):
+    def __init__(self, lookups, vars, groups):
         self.lookups = lookups
         self.original_vars = vars
         self.groups = groups
-        if macro:
-            _ttp_["macro"] = macro
 
 
     def set_data(self, D, main_results={}):
