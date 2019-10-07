@@ -1,35 +1,39 @@
 # -*- coding: utf-8 -*-
 
-# from __future__ import print_function
 import re
 import os
-import time
 import logging
 from xml.etree import cElementTree as ET
 from multiprocessing import Process, cpu_count, JoinableQueue, Queue
 from sys import version_info
 from sys import getsizeof
 
-# get version of python running the script:
+# Initiate global variables
 python_major_version = version_info.major
-
-# Initiate global variables:
-ctime = time.strftime("%Y-%m-%d_%H-%M-%S")
 log = logging.getLogger(__name__)
 _ttp_ = {"match": {}, "python_major_version": python_major_version}
 
 
-class CahedModule():
+"""
+==============================================================================
+TTP LAZY IMPORT SYSTEM
+==============================================================================
+"""
+class CachedModule():
+    """Class that contains name of the function and path to module/file
+    that contains that function, on first call to this class, function
+    will be imported into _ttp_ dictionary, subsequent calls we call 
+    function directly
+    """
     
     def __init__(self, import_path, parent_dir, function_name, functions):
         self.import_path = import_path
         self.parent_dir = parent_dir
         self.function_name = function_name
-        self.parent_module_functions = [f for f in functions if (not f.startswith("_"))]
+        self.parent_module_functions = functions
 
-    def __call__(self, *args, **kwargs):
-        log.info("calling CachedModule: module '{}', function '{}'".format(self.import_path, self.function_name))
-        # replace _ttp_ functions' references with imported functions
+    def load(self):
+        # import cached function and insert it into _ttp_ dictionary
         abs_import = "ttp."
         if __name__ == "__main__" or __name__ == "__mp_main__": 
             abs_import = ""
@@ -41,11 +45,20 @@ class CahedModule():
         for func_name in self.parent_module_functions:
             name = _name_map_.get(func_name, func_name)
             _ttp_[self.parent_dir][name] = getattr(module, func_name)
+            
+    def __call__(self, *args, **kwargs):
+        # this method invoked on CachedModule class call, triggering function import
+        log.info("calling CachedModule: module '{}', function '{}'".format(self.import_path, self.function_name))
+        self.load()
         # call original function
         return _ttp_[self.parent_dir][self.function_name](*args, **kwargs)
 
     
 def lazy_import_functions():
+    """function to collect a list of all files/directories within ttp module,
+    parse .py files using ast and extract information about all functions
+    to cache them within _ttp_ dictionary
+    """
     log.info("ttp.lazy_import_functions: starting functions lazy import")
     import ast
     # get exclusion suffix     
@@ -55,22 +68,23 @@ def lazy_import_functions():
         exclude = "_py2.py"
     module_files = []
     exclude_modules = ["ttp.py"]
-    # create a list of all modules files
+    # create a list of all ttp module files
     for item in os.walk(os.path.dirname(__file__)):
         root, dirs, files = item
         module_files += [open("{}/{}".format(root, f), "r") for f in files if (
             f.endswith(".py") and not f.startswith("_") and not f.endswith(exclude)
             and not f in exclude_modules)]
     log.info("ttp.lazy_import_functions: files loaded, starting ast parsing")
-    # get all the functions from modules and cache them in _ttp_
+    # get all functions from modules and cache them in _ttp_
     for module_file in module_files:
         node = ast.parse(module_file.read())
         assignments = [n  for n in node.body if isinstance(n, ast.Assign)]
         functions = [n.name for n in node.body if isinstance(n, ast.FunctionDef)]
+        functions = [f for f in functions if (not f.startswith("_"))]
         # get _name_map_
         _name_map_ = {}
         for assignment in assignments:
-            # stop of _name_map already found
+            # stop if _name_map_ already found
             if _name_map_: 
                 break
             for target in assignment.targets:
@@ -79,7 +93,7 @@ def lazy_import_functions():
                         key.s: assignment.value.values[index].s
                         for index, key in enumerate(assignment.value.keys)
                     })   
-        # fill in _ttp_ dictionary with references
+        # fill in _ttp_ dictionary with CachedModule class
         parent_path, filename = os.path.split(module_file.name)
         _, parent_dir = os.path.split(parent_path)
         for func_name in functions:
@@ -87,7 +101,7 @@ def lazy_import_functions():
             if not parent_dir in _ttp_:
                 _ttp_[parent_dir] = {}
             path = "{}.{}".format(parent_dir, filename.replace(".py", ""))
-            _ttp_[parent_dir][name] = CahedModule(path, parent_dir, name, functions)
+            _ttp_[parent_dir][name] = CachedModule(path, parent_dir, name, functions)
     log.info("ttp.lazy_import_functions: finished functions lazy import")
         
             
@@ -1481,14 +1495,13 @@ class _parser_class():
             for match in matches:
                 result = {} # dict to store result
                 temp = {}
-
                 # check if groupdict present - means regex with no set variables been matchesd
                 if match.groupdict():
                     temp = match.groupdict()
                 # we have match but no variables - set regex, need to check it as well:
                 else:
                     temp = {key: match.group() for key in regex['VARIABLES'].keys()}
-
+                    
                 # process matched values
                 for var_name, data in temp.items():
                     flags = {}
@@ -1526,19 +1539,16 @@ class _parser_class():
                                 flags["new_field"].update(flag["new_field"])
                             else:
                                 flags.update(flag)
-
                     if result is False:
                         break
-
+                        
                     result.update({var_name: data})
-
+                    # run flags
                     if 'new_field' in flags:
                         result.update(flags['new_field'])
-
                 # skip not start regexes that evaluated to False
                 if result is False and not regex['ACTION'].startswith('start'):
                     continue
-
                 # form result dictionary of dictionaries:
                 span_start = start + match.span()[0]
                 if span_start not in results:
@@ -1611,7 +1621,7 @@ class _parser_class():
         # update groups runs with most recent variables
         self.update_groups_runs(self.vars['globals']['vars'])
         
-        # sort global groups results:
+        # sort results for groups with global outputs
         [ raw_results.append(
           [group_result[key] for key in sorted(list(group_result.keys()))]
           ) for group_result in unsort_rslts if group_result ]
@@ -1620,7 +1630,7 @@ class _parser_class():
         RSLTSOBJ.make_results(self.vars['globals']['vars'], raw_results, main_results=self.main_results)
         self.main_results = RSLTSOBJ.results
 
-        # sort results for group specific results:
+        # sort results for groups with group specific outputs
         [ grps_raw_results.append(
         # tuple item that contains group.outputs:
         ([group_result[0][key] for key in sorted(list(group_result[0].keys()))], group_result[1],) 
@@ -1999,6 +2009,8 @@ class _outputter_class():
         method (str): how to save results, in separate files or in one file
     """
     def __init__(self, element=None, **kwargs):
+        from time import strftime
+        ctime = strftime("%Y-%m-%d_%H-%M-%S")
         # set attributes default values:
         self.attributes = {
             'returner'    : ['self'],
@@ -2044,7 +2056,8 @@ class _outputter_class():
         def extract_filename(O):
             """File name can contain time formatters supported by strftime      
             """
-            self.attributes['filename'] = time.strftime(O)
+            from time import strftime
+            self.attributes['filename'] = strftime(O)
 
         def extract_method(O):
             supported_methods = ['split', 'join']
@@ -2155,7 +2168,7 @@ class _outputter_class():
         
 """
 ==============================================================================
-SETUP LOGGING
+TTP LOGGING SETUP
 ==============================================================================
 """
 def logging_config(LOG_LEVEL, LOG_FILE):
@@ -2177,6 +2190,7 @@ TTP CLI PROGRAMM
 """
 def cli_tool():
     import argparse
+    import time
     # import templates
     abs_import = "ttp."
     if __name__ == "__main__": 
