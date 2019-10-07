@@ -11,7 +11,7 @@ from sys import getsizeof
 # Initiate global variables
 python_major_version = version_info.major
 log = logging.getLogger(__name__)
-_ttp_ = {"match": {}, "python_major_version": python_major_version}
+_ttp_ = {"macro": {}, "python_major_version": python_major_version}
 
 
 """
@@ -482,11 +482,23 @@ class _worker(Process):
         Process.__init__(self)
         self.task_queue = task_queue
         self.results_queue = results_queue
-        self.parserObj = _parser_class(lookups, vars, groups, macro_text)
-
-    def run(self):
-        # lazy import all functions for this process
+        self.macro_text = macro_text
+        self.parserObj = _parser_class(lookups, vars, groups, macro={})
+        
+    def load_functions(self):
         lazy_import_functions()
+        # load macro from text
+        funcs = {}
+        # extract macro with all the __builtins__ provided
+        for macro_text in self.macro_text:
+            try:
+                funcs = _ttp_["utils"]["load_python_exec"](macro_text, builtins=__builtins__)
+                _ttp_["macro"].update(funcs)
+            except SyntaxError as e:
+                log.error("multiprocess_worker.load_functions: syntax error, failed to load macro: \n{},\nError: {}".format(macro_text, e))    
+        
+    def run(self):
+        self.load_functions()
         # run tasks
         while True:
             next_task = self.task_queue.get()
@@ -557,7 +569,7 @@ class _template_class():
         self.name = name
         self.macro = {}                   # dictionary of macro name to function mapping
         self.results_method = 'per_input' # how to join results
-        self.macro_text = {} # dict to contain macro functions text to transfer into other processes
+        self.macro_text = [] # dict to contain macro functions text to transfer into other processes
 
         # load template from string:
         self.load_template_xml(template_text)
@@ -819,8 +831,9 @@ class _template_class():
             # extract macro with all the __builtins__ provided
             try:
                 funcs = _ttp_["utils"]["load_python_exec"](element.text, builtins=__builtins__)
-                self.macro_text.update({k: element.text for k in funcs.keys()})
                 self.macro.update(funcs)
+                # save macro text to be able to restore macro functions within another process
+                self.macro_text.append(element.text)
             except SyntaxError as e:
                 log.error("template.parse_macro: syntax error, failed to load macro: \n{},\nError: {}".format(element.text, e))
             
@@ -1420,7 +1433,8 @@ class _parser_class():
         self.lookups = lookups
         self.original_vars = vars
         self.groups = groups
-        _ttp_["macro"] = macro
+        if macro:
+            _ttp_["macro"] = macro
 
 
     def set_data(self, D, main_results={}):
