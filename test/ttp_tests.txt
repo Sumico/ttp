@@ -1482,6 +1482,80 @@ functions="is_equal"
 
 
 
+<input load="text" name="test1-28">
+interface Vlan778
+ description some description 1
+ ip address 2002:fd37::91/124
+!
+interface Vlan779
+ description some description 2
+!
+interface Vlan780
+ switchport port-security mac 4
+!
+</input>
+
+<group name="interfaces_test_1_28" exclude="ip, description" input="test1-28" output="test1-28">
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description | ORPHRASE }}
+ switchport port-security mac {{ sec_mac }}
+</group>
+
+<output name="test1-28"
+description="test group exclude function"
+load="json"
+functions="is_equal"
+>
+    {
+        "interfaces_test_1_28": {
+            "interface": "Vlan780",
+            "sec_mac": "4"
+        }
+    }
+</output>
+
+
+
+<input load="text" name="test1-29">
+interface Vlan778
+ description some description 1
+ ip address 2002:fd37::91/124
+!
+interface Vlan779
+ description some description 2
+!
+interface Vlan780
+ switchport port-security mac 4
+!
+</input>
+
+<group name="interfaces_test_1_29" excludeall="ip, description" input="test1-29" output="test1-29">
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description | ORPHRASE }}
+ switchport port-security mac {{ sec_mac }}
+</group>
+
+<output name="test1-29"
+description="test group excludeall function"
+load="json"
+functions="is_equal"
+>
+    {
+        "interfaces_test_1_29": [
+            {
+                "description": "some description 2",
+                "interface": "Vlan779"
+            },
+            {
+                "interface": "Vlan780",
+                "sec_mac": "4"
+            }
+        ]
+    }
+</output>
+
 
 <!--output to print raw python result to screen
 <output
@@ -2159,6 +2233,7 @@ format_attributes = "tablefmt='fancy_grid'"
 </template>
 
 
+
 <template
 name="test9-1"
 description="test template variables and groups runs handling, runs should be updated with lates variables only"
@@ -2217,6 +2292,221 @@ format="tabulate"
 format_attributes = "tablefmt='fancy_grid'"
 />
 
+
+</template>
+
+
+
+
+
+
+
+<template
+name="template10"
+description="test output traverse and dict_to_list functions"
+>
+
+<input name="in1" load="text">
+some.user@router-fw-host> show configuration interfaces | display set 
+set interfaces ge-0/0/11 unit 0 description "SomeDescription in1"
+set interfaces ge-0/0/11 unit 0 family inet address 10.0.40.121/31
+set interfaces ge-5/0/5 unit 0 description "L3VPN: somethere"
+set interfaces ge-5/0/5 unit 0 family inet address 10.0.31.48/31
+set interfaces lo0 unit 0 description "Routing Loopback"
+set interfaces lo0 unit 0 family inet address 10.0.0.254/32 primary
+set interfaces lo0 unit 0 family inet address 10.6.4.4/32
+</input>
+
+<input load="text">
+some.user@router-fw-host> show configuration interfaces | display set 
+set interfaces ge-0/0/11 unit 0 description "SomeDescription glob1"
+set interfaces ge-0/0/11 unit 0 family inet address 10.0.40.121/31
+set interfaces ge-5/0/5 unit 0 description "L3VPN: somethere"
+set interfaces ge-5/0/5 unit 0 family inet address 10.0.31.48/31
+set interfaces lo0 unit 0 description "Routing Loopback"
+set interfaces lo0 unit 0 family inet address 10.0.0.254/32 primary
+set interfaces lo0 unit 0 family inet address 10.6.4.4/32
+</input>
+
+<input load="text">
+some.user@router-fw-host> show configuration interfaces | display set 
+set interfaces ge-0/0/11 unit 0 description "SomeDescription glob2"
+set interfaces ge-0/0/11 unit 0 family inet address 10.0.40.121/31
+set interfaces ge-5/0/5 unit 0 description "L3VPN: somethere"
+set interfaces ge-5/0/5 unit 0 family inet address 10.0.31.48/31
+set interfaces lo0 unit 0 description "Routing Loopback"
+set interfaces lo0 unit 0 family inet address 10.0.0.254/32 primary
+set interfaces lo0 unit 0 family inet address 10.6.4.4/32
+</input>
+
+<vars name="vars">
+hostname = "gethostname"
+</vars>
+
+<group name="specific_out_interfaces.{{ interface }}{{ unit }}**" method="table" input="in1" output="out1">
+set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }}
+set interfaces {{ interface | append('.') }} unit {{ unit }} description "{{ description | ORPHRASE }}"
+set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }} primary
+{{ hostname | set("hostname") }}
+</group>
+
+<output name="out1" functions="traverse(path='specific_out_interfaces') | dict_to_list(key_name='interface')"/>
+
+<group name="glob_out_interfaces.{{ interface }}{{ unit }}**" method="table">
+set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }}
+set interfaces {{ interface | append('.') }} unit {{ unit }} description "{{ description | ORPHRASE }}"
+set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }} primary
+{{ hostname | set("hostname") }}
+</group>
+
+<output 
+functions="dict_to_list(key_name='interface', path='glob_out_interfaces')"
+/>
+
+<output name="test10-1-py3"
+description="py3 - test output traverse and dict_to_list functions"
+load="json"
+functions="is_equal"
+returner="terminal"
+format="tabulate"
+format_attributes = "tablefmt='fancy_grid'"
+>
+[
+    [
+        {
+            "description": "SomeDescription glob1",
+            "hostname": "router-fw-host",
+            "interface": "ge-0/0/11.0",
+            "ip": "10.0.40.121/31"
+        },
+        {
+            "description": "L3VPN: somethere",
+            "hostname": "router-fw-host",
+            "interface": "ge-5/0/5.0",
+            "ip": "10.0.31.48/31"
+        },
+        {
+            "description": "Routing Loopback",
+            "hostname": "router-fw-host",
+            "interface": "lo0.0",
+            "ip": "10.6.4.4/32"
+        }
+    ],
+    [
+        {
+            "description": "SomeDescription glob2",
+            "hostname": "router-fw-host",
+            "interface": "ge-0/0/11.0",
+            "ip": "10.0.40.121/31"
+        },
+        {
+            "description": "L3VPN: somethere",
+            "hostname": "router-fw-host",
+            "interface": "ge-5/0/5.0",
+            "ip": "10.0.31.48/31"
+        },
+        {
+            "description": "Routing Loopback",
+            "hostname": "router-fw-host",
+            "interface": "lo0.0",
+            "ip": "10.6.4.4/32"
+        }
+    ],
+    [
+        {
+            "description": "SomeDescription in1",
+            "hostname": "router-fw-host",
+            "interface": "ge-0/0/11.0",
+            "ip": "10.0.40.121/31"
+        },
+        {
+            "description": "L3VPN: somethere",
+            "hostname": "router-fw-host",
+            "interface": "ge-5/0/5.0",
+            "ip": "10.0.31.48/31"
+        },
+        {
+            "description": "Routing Loopback",
+            "hostname": "router-fw-host",
+            "interface": "lo0.0",
+            "ip": "10.6.4.4/32"
+        }
+    ]
+]
+</output>
+
+
+<output name="test10-1-py2"
+description="py2 - test output traverse and dict_to_list functions"
+load="json"
+functions="is_equal"
+returner="terminal"
+format="tabulate"
+format_attributes = "tablefmt='fancy_grid'"
+>
+[
+    [
+        {
+            "description": "Routing Loopback",
+            "hostname": "router-fw-host",
+            "interface": "lo0.0",
+            "ip": "10.6.4.4/32"
+        },
+        {
+            "description": "L3VPN: somethere",
+            "hostname": "router-fw-host",
+            "interface": "ge-5/0/5.0",
+            "ip": "10.0.31.48/31"
+        },
+        {
+            "description": "SomeDescription glob1",
+            "hostname": "router-fw-host",
+            "interface": "ge-0/0/11.0",
+            "ip": "10.0.40.121/31"
+        }
+    ],
+    [
+        {
+            "description": "Routing Loopback",
+            "hostname": "router-fw-host",
+            "interface": "lo0.0",
+            "ip": "10.6.4.4/32"
+        },
+        {
+            "description": "L3VPN: somethere",
+            "hostname": "router-fw-host",
+            "interface": "ge-5/0/5.0",
+            "ip": "10.0.31.48/31"
+        },
+        {
+            "description": "SomeDescription glob2",
+            "hostname": "router-fw-host",
+            "interface": "ge-0/0/11.0",
+            "ip": "10.0.40.121/31"
+        }
+    ],
+    [
+        {
+            "description": "Routing Loopback",
+            "hostname": "router-fw-host",
+            "interface": "lo0.0",
+            "ip": "10.6.4.4/32"
+        },
+        {
+            "description": "L3VPN: somethere",
+            "hostname": "router-fw-host",
+            "interface": "ge-5/0/5.0",
+            "ip": "10.0.31.48/31"
+        },
+        {
+            "description": "SomeDescription in1",
+            "hostname": "router-fw-host",
+            "interface": "ge-0/0/11.0",
+            "ip": "10.0.40.121/31"
+        }
+    ]
+]
+</output>
 
 </template>
 

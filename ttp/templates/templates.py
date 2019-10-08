@@ -3767,3 +3767,47 @@ map = {
 
 <out format="json" returner="terminal"/>
 """
+
+test237="""
+<input load="text">
+interface Vlan778
+ description some description 1
+ ip address 2002:fd37::91/124
+!
+interface Vlan779
+ description some description 2
+!
+interface Vlan780
+ switchport port-security mac 4
+!
+</input>
+
+<group name="interfaces" exclude="ip, description">
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description | ORPHRASE }}
+ switchport port-security mac {{ sec_mac }}
+</group>
+"""
+
+test238="""
+<input load="text">
+interface Vlan778
+ description some description 1
+ ip address 2002:fd37::91/124
+!
+interface Vlan779
+ description some description 2
+!
+interface Vlan780
+ switchport port-security mac 4
+!
+</input>
+
+<group name="interfaces" excludeall="ip, description">
+interface {{ interface }}
+ ip address {{ ip }}/{{ mask }}
+ description {{ description | ORPHRASE }}
+ switchport port-security mac {{ sec_mac }}
+</group>
+"""

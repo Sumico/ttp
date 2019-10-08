@@ -1005,6 +1005,24 @@ class _group_class():
                 })
             elif isinstance(O, dict):
                 self.funcs.append(O) 
+        
+        def extract_exclude(O):
+            if isinstance(O, str):
+                self.funcs.append({
+                    'name': 'exclude',
+                    'args': [i.strip() for i in O.split(',')]
+                })
+            elif isinstance(O, dict):
+                self.funcs.append(O)   
+                
+        def extract_excludeall(O):
+            if isinstance(O, str):
+                self.funcs.append({
+                    'name': 'excludeall',
+                    'args': [i.strip() for i in O.split(',')]
+                })
+            elif isinstance(O, dict):
+                self.funcs.append(O)    
             
         def extract_macro(O):
             if isinstance(O, str):
@@ -1026,12 +1044,7 @@ class _group_class():
                     'kwargs': to_ip_attributes[0]['kwargs']
                 })
             elif isinstance(O, dict):
-                self.funcs.append(O)
-            if "ipaddress" not in globals():
-                try:
-                    globals()["ipaddress"] = __import__("ipaddress")
-                except ImportError:
-                    log.error("match_variable.extract_to_ip: No ipaddress module installed, install: python -m pip install ipaddress")                
+                self.funcs.append(O)              
      
         def extract_functions(O):
             funcs = _ttp_["utils"]["get_attributes"](O)
@@ -1052,7 +1065,9 @@ class _group_class():
         }
         functions = {
         'contains'    : extract_contains,
-        'containsall' : extract_containsall,        
+        'containsall' : extract_containsall, 
+        'exclude'     : extract_exclude,
+        'excludeall'  :extract_excludeall,
         'macro'       : extract_macro,
         'functions'   : extract_functions,
         'fun'         : extract_functions,

@@ -21,6 +21,10 @@ Condition functions help to evaluate group results and return *False* or *True*,
      - String containing list of functions to run this group results through
    * - `to_ip`_   
      - transforms given values in ipaddress IPAddress object
+   * - `exclude`_   
+     - invalidates group results if **any** of given keys present in group
+   * - `excludeall`_   
+     - invalidates group results if **all** given keys present in group
      
 containsall
 ------------------------------------------------------------------------------
@@ -376,3 +380,15 @@ Results::
                                                 {   'interface': 'Vlan710',
                                                     'ip': IPv6Interface('2002::fd10/124'),
                                                     'mask': '124'}]}]
+													
+exclude
+------------------------------------------------------------------------------
+``exclude="variable1, variable2, ..., variableN"``
+
+TBD
+
+excludeall
+------------------------------------------------------------------------------
+``excludeall="variable1, variable2, ..., variableN"``
+
+TBD

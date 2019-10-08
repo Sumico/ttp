@@ -5,5 +5,5 @@ def contains(data, *args):
             if var in _ttp_["results_object"].record['DEFAULTS']:
                 if _ttp_["results_object"].record['DEFAULTS'][var] == data[var]:
                     return data, False
-            return data, None
+            return data, True
     return data, False
