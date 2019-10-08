@@ -2128,6 +2128,9 @@ class _outputter_class():
                 self.funcs.append(dict_to_list_attrs[0])
             elif isinstance(O, dict):
                 self.funcs.append(O)
+            
+        def extract_traverse(O):
+            self.funcs.append(O)
 
         options = {
         'name'           : extract_name,
@@ -2144,7 +2147,8 @@ class _outputter_class():
         'functions'      : extract_functions,
         'is_equal'       : extract_is_equal,
         'macro'          : extract_macro,
-        'dict_to_list'   : extract_dict_to_list
+        'dict_to_list'   : extract_dict_to_list,
+        'traverse'       : extract_traverse
         }     
         for attr_name, attributes in data.items():
             if attr_name.lower() in options: options[attr_name.lower()](attributes)

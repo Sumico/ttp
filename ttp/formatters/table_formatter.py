@@ -19,23 +19,15 @@ def table(data):
         source_data.append(data)
     # form data_to_table:
     for datum in source_data:
-        item = _ttp_["output"]["traverse_dict"](datum, path)
+        item = _ttp_["output"]["traverse"](datum, path)
         if not item: # skip empty results
             continue
         elif isinstance(item, list):
             data_to_table += item
         elif isinstance(item, dict):
-            # flatten dictionary data if key was given and set to "interface", 
-            # in that case if item looks like this dictionary:
-            # { "Fa0"  : {"admin": "administratively down"},
-            #   "Ge0/1": {"access_vlan": "24"}}
-            # it will become this list:
-            # [ {"admin": "administratively down", "interface": "Fa0"},
-            #   {"access_vlan": "24", "interface": "Ge0/1"} ]
+            # flatten dictionary data if key was given 
             if key:
-                for k, v in item.items():
-                    v.update({key: k})
-                    data_to_table.append(v)
+                data_to_table = _ttp_["output"]["dict_to_list"](data=item, key_name=key)
             else:
                 data_to_table.append(item)
     # create headers:

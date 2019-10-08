@@ -3036,7 +3036,7 @@ set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address
 {{ hostname | set("hostname") }}
 </group>
 
-<output name="out1" dict_to_list="key_name='interface', path='specific_out_interfaces'"/>
+<output name="out1" functions="traverse(path='specific_out_interfaces') | dict_to_list(key_name='interface')"/>
 
 <group name="glob_out_interfaces.{{ interface }}{{ unit }}**" method="table">
 set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address {{ ip }}
@@ -3045,7 +3045,9 @@ set interfaces {{ interface | append('.') }} unit {{ unit }} family inet address
 {{ hostname | set("hostname") }}
 </group>
 
-<output dict_to_list="key_name='interface', path='glob_out_interfaces'"/>
+<output 
+functions="dict_to_list(key_name='interface', path='glob_out_interfaces')"
+/>
 
 <output returner="terminal" format="json"/>
 """
