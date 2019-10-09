@@ -1,7 +1,14 @@
 import dns.resolver as dnspython
+import dns.reversename
+
+_name_map_ = {
+"dns_forward": "dns",
+"dns_reverse": "rdns"
+}
+
 dns_resolver_obj = dnspython.dns.resolver.Resolver()
 
-def dns(data, record='A', timeout=1, servers=[], add_field=False):
+def dns_forward(data, record='A', timeout=1, servers=[], add_field=False):
     """Performs forward dns lookup using dns_resolver_obj global object
     """
     dns_resolver_obj.timeout = timeout
@@ -26,8 +33,9 @@ def dns(data, record='A', timeout=1, servers=[], add_field=False):
         globals()['dns_resolver_obj'] = dnspython.dns.resolver.Resolver()
     return data, None
 
-def rdns(data, timeout=1, servers=[], add_field=False):
+def dns_reverse(data, timeout=1, servers=[], add_field=False):
     """Performs reverse dns lookup using global dns_resolver_obj
+    data - ip address string, e.g. 192.168.0.1
     """
     dns_resolver_obj.timeout = timeout
     if servers:

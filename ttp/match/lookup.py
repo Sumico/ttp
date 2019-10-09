@@ -7,7 +7,7 @@ def lookup(data, name, add_field=False):
         for i in path:
             lookup = lookup.get(i,{})
     except KeyError:
-        return D, None
+        return data, None
     # perfrom lookup:
     try:
         found_value = lookup[data]

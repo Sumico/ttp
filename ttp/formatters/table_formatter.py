@@ -27,7 +27,7 @@ def table(data):
         elif isinstance(item, dict):
             # flatten dictionary data if key was given 
             if key:
-                data_to_table = _ttp_["output"]["dict_to_list"](data=item, key_name=key)
+                data_to_table += _ttp_["output"]["dict_to_list"](data=item, key_name=key)
             else:
                 data_to_table.append(item)
     # create headers:
