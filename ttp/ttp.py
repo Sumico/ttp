@@ -633,8 +633,9 @@ class _template_class():
             self.inputs[input_name].add_data(data=data, groups=groups, preference=preference)
         # add new input to self.inputs:
         else:
-            input = _input_class(data=data, input_name=input_name, base_path=self.base_path, 
+            input = _input_class(input_name=input_name, base_path=self.base_path, 
                                  template_obj=self, groups=groups, preference=preference)
+            input.add_data(data=data)
             self.inputs.update({input.name: input})
             
 
@@ -653,8 +654,8 @@ class _template_class():
                     # string and text_data will be returned by self.utils.load_files
                     # only if no such path exists, hence text_data does not make sense here
                     data = [i for i in data_items if 'text_data' not in i[0]]
-                    input = _input_class(data=data, input_name=input_name, template_obj=self, 
-                                         preference='group_inputs')
+                    input = _input_class(input_name=input_name, template_obj=self, preference='group_inputs')
+                    input.add_data(data=data)
                     self.inputs.update({input.name: input})
                 # add group index to input group_inputs
                 self.inputs[input_name].group_inputs.append(G.grp_index)
@@ -734,11 +735,11 @@ class _template_class():
         def parse_input(element):
             input = _input_class(element, self.base_path, template_obj=self)
             if input.name in self.inputs:
-                self.inputs[input.name].add_data(data=input.data, groups=",".join(input.attributes["groups"]), 
+                self.inputs[input.name].add_data(data=input.data, groups=input.attributes["groups"], 
                                                  preference=input.attributes["preference"])
                 del input
             else:
-                self.inputs.update({input.name: input})
+                self.inputs[input.name] = input
 
         def parse_group(element, grp_index):
             self.groups.append(
@@ -856,16 +857,16 @@ TTP INPUT CLASS
 class _input_class():
     """Template input class to hold inputs data
     """
-    def __init__(self, element=None, base_path="", template_obj=None, data=None, 
+    def __init__(self, element=None, base_path="", template_obj=None,
                  input_name='Default_Input', groups='all', preference='group_inputs'):
         self.attributes = {
             'base_path': base_path,
             'load': 'python',
-            'groups': groups,
+            'groups': [groups],
             'preference': preference,
             'extensions': [],
             'filters': [],
-            'url': []            
+            'urls': []            
         }
         self.template_obj = template_obj
         self.data = []
@@ -873,13 +874,11 @@ class _input_class():
         self.group_inputs = []
         self.name = input_name
         self.funcs = []
-        # extract data from input tag
+        # extract attributes from input tag
         if element is not None:
-            self.get_attributes(element)
+            self.get_attributes(data=element.attrib, element_text=element.text)
             self.load_data(element.text)
-        elif data:
-            self.add_data(data)
-        # get groups if not extracted so far
+        # get groups indexes if not extracted so far
         if not self.groups_indexes:
             self.get_attributes(data={
                 'groups': self.attributes['groups']
@@ -897,7 +896,10 @@ class _input_class():
                 self.get_attributes(data=attribs)
         
         def extract_groups(O):
-            self.attributes["groups"] = [i.strip() for i in O.split(",")]
+            if isinstance(O, list):
+                self.attributes["groups"] = O
+            else:
+                self.attributes["groups"] = [i.strip() for i in O.split(",")]
             if 'all' in self.attributes["groups"]:
                 groups_indexes = [grp_obj.grp_index for grp_obj in self.template_obj.groups if not grp_obj.inputs]
             else:
@@ -955,8 +957,9 @@ class _input_class():
         # load data:
         for url in self.attributes["urls"]:
             url = self.attributes["base_path"] + url.lstrip('.')
-            self.data += _ttp_["utils"]["load_files"](url, self.attributes["extensions"], 
-                                                      self.attributes["filters"], read=False)
+            datums = _ttp_["utils"]["load_files"](path=url, extensions=self.attributes["extensions"], 
+                                                  filters=self.attributes["filters"], read=False)
+            self.data += datums
             
     def add_data(self, data=[], **kwargs):
         # get attributes:

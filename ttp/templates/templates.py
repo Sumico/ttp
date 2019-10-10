@@ -1818,7 +1818,7 @@ interface {{ interface }}
 
 
 test179="""
-<template base_path="C:/Users/Denis/YandexDisk/Python/NPG/Text Template Parser/ttp/!USECASES/!GitHub">
+<template base_path="C:/Users/Denis/YandexDisk/Python/TPG/Text Template Parser/ttp/!USECASES/!GitHub">
 <input name="dataset-1" load="yaml" groups="interfaces1">
 url: "/Data/Inputs/data-1/"
 extensions: ["txt"]

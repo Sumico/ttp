@@ -126,6 +126,8 @@ There are a number of attributes can be specified in input tag, these attributes
      - Specifies group(s) that should be used to parse input data
    * - `load`_   
      - Identifies loader that should be used to load text data for input tag itself
+   * - `preference`_   
+     - specify preference on how to handle inputs' groups and groups' input
 
 name
 ******************************************************************************
@@ -192,6 +194,13 @@ Result::
         }
     ]
     
+preference
+******************************************************************************
+``preference="merge|group_inputs|input_groups"``
+
+TBD
+
+
 Input parameters
 ------------------------------------------------------------------------------
 

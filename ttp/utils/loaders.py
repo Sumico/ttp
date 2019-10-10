@@ -27,11 +27,12 @@ def load_files(path, extensions=[], filters=[], read=False):
             return [('file_name', path,)]
     # check if path is a directory:
     elif os.path.isdir(path):
+        from re import search as re_search
         files = [f for f in os.listdir(path) if os.path.isfile(path + f)]
         if extensions:
             files=[f for f in files if f.split('.')[-1] in extensions]
         for filter in filters:
-            files=[f for f in files if re.search(filter, f)]
+            files=[f for f in files if re_search(filter, f)]
         if read:
             if _ttp_["python_major_version"] is 2:
                 return [('text_data', open((path + f), 'r').read(),) for f in files]
