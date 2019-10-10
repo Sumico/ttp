@@ -7,7 +7,7 @@ __author__ = "Denis Mulyalin <d.mulyalin@gmail.com>"
 
 setup(
     name="ttp",
-    version="0.0.3",
+    version="0.1.1",
     author="Denis Mulyalin",
     author_email="d.mulyalin@gmail.com",
     description="Template Text Parser",
@@ -24,7 +24,8 @@ setup(
         "ttp.returners",
         "ttp.templates",
         "ttp.utils",
-        "ttp.variable"
+        "ttp.variable",
+        "ttp.cache"		
     ],
     #packages=["ttp"],
     include_package_data=True,
@@ -32,6 +33,7 @@ setup(
         "Topic :: Utilities",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
