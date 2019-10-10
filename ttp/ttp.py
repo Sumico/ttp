@@ -328,7 +328,7 @@ class ttp():
                               macro_text=template.macro_text)
                        for i in range(num_processes)]
             [w.start() for w in workers]
-
+            
             for input_name, input_obj in sorted(template.inputs.items()):
                 for datum in input_obj.data:
                     task_dict = {
@@ -733,7 +733,12 @@ class _template_class():
 
         def parse_input(element):
             input = _input_class(element, self.base_path, template_obj=self)
-            self.inputs.update({input.name: input})
+            if input.name in self.inputs:
+                self.inputs[input.name].add_data(data=input.data, groups=",".join(input.attributes["groups"]), 
+                                                 preference=input.attributes["preference"])
+                del input
+            else:
+                self.inputs.update({input.name: input})
 
         def parse_group(element, grp_index):
             self.groups.append(
@@ -852,7 +857,7 @@ class _input_class():
     """Template input class to hold inputs data
     """
     def __init__(self, element=None, base_path="", template_obj=None, data=None, 
-                 input_name='Default_Input', groups='', preference='group_inputs'):
+                 input_name='Default_Input', groups='all', preference='group_inputs'):
         self.attributes = {
             'base_path': base_path,
             'load': 'python',
@@ -874,8 +879,13 @@ class _input_class():
             self.load_data(element.text)
         elif data:
             self.add_data(data)
+        # get groups if not extracted so far
+        if not self.groups_indexes:
+            self.get_attributes(data={
+                'groups': self.attributes['groups']
+            })
         
-    def get_attributes(self, element):
+    def get_attributes(self, data, element_text=""):
         
         def extract_name(O):
             self.name = O.strip()
@@ -883,8 +893,8 @@ class _input_class():
         def extract_load(O):
             self.attributes["load"] = O.strip()
             if self.attributes["load"] != 'text':
-                attribs = _ttp_["utils"]["load_struct"](element.text, **element.attrib)
-                self.get_attributes(attribs)
+                attribs = _ttp_["utils"]["load_struct"](element_text, **data)
+                self.get_attributes(data=attribs)
         
         def extract_groups(O):
             self.attributes["groups"] = [i.strip() for i in O.split(",")]
@@ -930,7 +940,7 @@ class _input_class():
         }
 
         # extract attributes from element tag attributes   
-        for attr_name, attributes in element.attrib.items():
+        for attr_name, attributes in data.items():
             if attr_name.lower() in options: options[attr_name.lower()](attributes)
             elif attr_name.lower() in functions: functions[attr_name.lower()](attributes)
             else: self.attributes[attr_name] = attributes    
@@ -951,7 +961,7 @@ class _input_class():
     def add_data(self, data=[], **kwargs):
         # get attributes:
         if kwargs:
-            self.get_attributes(**kwargs)
+            self.get_attributes(kwargs)
         # add data:
         if data:
             [self.data.append(d_item) for d_item in data if not d_item in self.data]
