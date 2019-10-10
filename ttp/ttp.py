@@ -1292,7 +1292,6 @@ class _variable_class():
         # initiate variableClass object variables:
         self.variable = variable
         self.LINE = line                             # original line from template
-        self.indent = len(line) - len(line.lstrip()) # variable to store line indentation
         self.functions = []                          # actions and conditions list
 
         self.SAVEACTION = 'add'                      # to store action to do with results during saving
@@ -1440,7 +1439,7 @@ class _variable_class():
         if not '_exact_' in  esc_var:
             esc_var=re.sub('\d+', r'\\d+', esc_var)  # replace all numbers with \d+ in regex in variable, skip it if EXACT in variable
         esc_var=re.sub(r'(\\ )+', r'\\ +', esc_var)  # replace all spaces with ' +' in regex in variable
-
+        
         # form escaped line:
         esc_line=re.escape(self.LINE.lstrip())         # escape all special chars in line like (){} [].* etc. and strip leading spaces to preserve indent
         if not '_exact_' in  esc_line:
@@ -1449,8 +1448,12 @@ class _variable_class():
 
         # check if regex empty, if so, make self.regex equal to escaped line, reconstruct indent and add start/end of line:
         if regex == '':
+            # form indent to honor leading space characters like \t or \s:
+            first_non_space_char_index = re.search('\S', self.LINE).start()
+            indent = self.LINE[:first_non_space_char_index]
+            # form regex:
             self.regex = esc_line
-            self.regex = self.indent * ' ' + self.regex       # reconstruct indent
+            self.regex = indent + self.regex       # reconstruct indent
             self.regex = '\\n' + self.regex + ' *(?=\\n)'     # use lookahead assertion for end of line and match any number of trailing spaces
         else:
             self.regex = regex
@@ -1507,7 +1510,7 @@ class _variable_class():
         # after regexes formed we can delete unnecessary variables:
         if log.isEnabledFor(logging.DEBUG) == False:
             del self.attributes, esc_line
-            del self.LINE, self.skip_defaults, self.indent
+            del self.LINE, self.skip_defaults
             del self.var_dict, self.REs, self.var_res
 
         return self.regex

@@ -3811,3 +3811,67 @@ interface {{ interface }}
  switchport port-security mac {{ sec_mac }}
 </group>
 """
+
+
+test239="""
+<input load="text">
+*Virtual Server : C-AUTH.COM-NGINX-EXT 199.85.76.109   All Up
+    +port 80  http ====>C-AUTH.COM-NGINX-EXT-HTTP	State :All Up
+	+CAUTH-NGINX:80                 10.151.16.77         State : Up
+    +port 443  tcp ====>C-AUTH.COM-NGINX-EXT-HTTPS	State :All Up
+	+CAUTH-NGINX:443                10.151.16.77         State : Up
+</input>
+
+<group name="virtual-servers*">
+*Virtual Server : {{ name }} {{ ip }} {{ portion }} {{ state }}
+<group name="slb-servers*">
+    +port {{ port_no }} {{ protocol }} ====>{{ internal_service_name }}	State :{{ internal_portion }} {{ internal_status }}
+	+{{internal_server_name}}:{{ internal_port }}                 {{ internal_server_ip }}         State : {{ internal_server_state }}
+</group>
+</group>
+
+<output
+load="json"
+functions="is_equal"
+description="test leading tab charachter indentation"
+>
+[
+    {
+        "virtual-servers": [
+            {
+                "ip": "199.85.76.109",
+                "name": "C-AUTH.COM-NGINX-EXT",
+                "portion": "All",
+                "slb-servers": [
+                    {
+                        "internal_port": "80",
+                        "internal_portion": "All",
+                        "internal_server_ip": "10.151.16.77",
+                        "internal_server_name": "CAUTH-NGINX",
+                        "internal_server_state": "Up",
+                        "internal_service_name": "C-AUTH.COM-NGINX-EXT-HTTP",
+                        "internal_status": "Up",
+                        "port_no": "80",
+                        "protocol": "http"
+                    },
+                    {
+                        "internal_port": "443",
+                        "internal_portion": "All",
+                        "internal_server_ip": "10.151.16.77",
+                        "internal_server_name": "CAUTH-NGINX",
+                        "internal_server_state": "Up",
+                        "internal_service_name": "C-AUTH.COM-NGINX-EXT-HTTPS",
+                        "internal_status": "Up",
+                        "port_no": "443",
+                        "protocol": "tcp"
+                    }
+                ],
+                "state": "Up"
+            }
+        ]
+    }
+]
+</output>
+
+<output format="json" returner="terminal"/>
+"""

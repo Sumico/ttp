@@ -48,7 +48,7 @@ And get these results::
 
 Above process is very similar to writing `Jinja2 <https://palletsprojects.com/p/jinja/>`_ templates but in reverse direction - we have text and we need to transform it into structured data, as opposed to having structured data, that needs to be rendered with Jinja2 template to produce text.
 
-.. warning:: Leading spaces (indentation) are important. Trailing spaces are ignored by TTP.
+.. warning:: Indentation is important, leading spaces and tabs used by ttp to construct regular expressions. Trailing spaces are ignored by TTP.
 
 TTP use leading spaces to produce better match results, exact number of leading spaces used to form regular expressions. There is a way to ignore indentation by the use of :ref:`Match Variables/Indicators:ignore` indicator coupled with ``\s*`` or ``\s+`` or ``\s{1,3}`` regular expressions. 
 
