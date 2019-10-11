@@ -112,7 +112,7 @@ And result would be::
 Input tag attributes
 -----------------------------------------------------------------------------
 
-There are a number of attributes can be specified in input tag, these attributes required to define input behavior and how data should be loaded and parsed.
+There are a number of attributes can be specified in input tag, these attributes help to define input behavior and how data should be loaded and parsed.
 
 .. list-table:: 
    :widths: 10 90

@@ -24,8 +24,7 @@ setup(
         "ttp.returners",
         "ttp.templates",
         "ttp.utils",
-        "ttp.variable",
-        "ttp.cache"		
+        "ttp.variable"	
     ],
     #packages=["ttp"],
     include_package_data=True,

@@ -46,6 +46,8 @@ def join(data, char):
         return data, None
 
 def append(data, char):
+    vars = _ttp_["parser_object"].vars['globals']['vars']
+    char = vars.get(char, char)
     if isinstance(data, str):
         return (data + char), None
     elif isinstance(data, list):
@@ -55,6 +57,8 @@ def append(data, char):
         return data, None
 
 def prepend(data, char):
+    vars = _ttp_["parser_object"].vars['globals']['vars']
+    char = vars.get(char, char)
     if isinstance(data, str):
         return (char + data), None
     elif isinstance(data, list):

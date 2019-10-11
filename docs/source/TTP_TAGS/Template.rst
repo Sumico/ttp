@@ -63,3 +63,43 @@ Above code will produce same results as this code::
     parser.add_data(some_data)
     parser.add_template(template)
     parser.parse()
+    
+Template tag attributes
+-----------------------------------------------------------------------------
+
+There are a number of attributes can be used with template tag, these attributes help to define template processing behavior.
+
+.. list-table:: 
+   :widths: 10 90
+   :header-rows: 1
+
+   * - Attribute
+     - Description
+   * - `name`_   
+     - Uniquely identifies template
+   * - `base_path`_   
+     - Fully qualified OS path to data
+   * - `results`_   
+     - Identifies the way how results should be grouped
+   * - `pathchar`_   
+     - Character to use for group name-path processing
+
+name
+******************************************************************************     
+
+TBD
+
+base_path
+******************************************************************************     
+
+TBD
+
+results
+******************************************************************************     
+
+TBD
+
+pathchar
+******************************************************************************     
+
+TBD

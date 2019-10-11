@@ -862,7 +862,7 @@ class _input_class():
         self.attributes = {
             'base_path': base_path,
             'load': 'python',
-            'groups': [groups],
+            'groups': groups,
             'preference': preference,
             'extensions': [],
             'filters': [],
@@ -1065,42 +1065,6 @@ class _group_class():
         def extract_name(O):
             self.path = self.path + O.split(self.pathchar)
             self.name = '.'.join(self.path)
-
-        def extract_contains(O):
-            if isinstance(O, str):
-                self.funcs.append({
-                    'name': 'contains',
-                    'args': [i.strip() for i in O.split(',')]
-                })
-            elif isinstance(O, dict):
-                self.funcs.append(O)
-
-        def extract_containsall(O):
-            if isinstance(O, str):
-                self.funcs.append({
-                    'name': 'containsall',
-                    'args': [i.strip() for i in O.split(',')]
-                })
-            elif isinstance(O, dict):
-                self.funcs.append(O) 
-        
-        def extract_exclude(O):
-            if isinstance(O, str):
-                self.funcs.append({
-                    'name': 'exclude',
-                    'args': [i.strip() for i in O.split(',')]
-                })
-            elif isinstance(O, dict):
-                self.funcs.append(O)   
-                
-        def extract_excludeall(O):
-            if isinstance(O, str):
-                self.funcs.append({
-                    'name': 'excludeall',
-                    'args': [i.strip() for i in O.split(',')]
-                })
-            elif isinstance(O, dict):
-                self.funcs.append(O)    
             
         def extract_macro(O):
             if isinstance(O, str):
@@ -1114,12 +1078,11 @@ class _group_class():
 
         def extract_to_ip(O):
             if isinstance(O, str):
-                to_ip_attributes = _ttp_["utils"]["get_attributes"](
-                                'to_ip_attributes({})'.format(O))
+                attribs = _ttp_["utils"]["get_attributes"]('attribs({})'.format(O))
                 self.funcs.append({
                     'name': 'to_ip',
-                    'args': to_ip_attributes[0]['args'],
-                    'kwargs': to_ip_attributes[0]['kwargs']
+                    'args': attribs[0]['args'],
+                    'kwargs': attribs[0]['kwargs']
                 })
             elif isinstance(O, dict):
                 self.funcs.append(O)              
@@ -1131,7 +1094,7 @@ class _group_class():
                 if func_name in functions: 
                     functions[func_name](i)
                 else: 
-                    log.error('group.extract_functions: Unknown group function: "{}"'.format(func_name))
+                    self.funcs.append(i)
 
         # group attributes extract functions dictionary:
         options = {
@@ -1142,20 +1105,17 @@ class _group_class():
         'default'     : extract_default
         }
         functions = {
-        'contains'    : extract_contains,
-        'containsall' : extract_containsall, 
-        'exclude'     : extract_exclude,
-        'excludeall'  :extract_excludeall,
         'macro'       : extract_macro,
         'functions'   : extract_functions,
-        'fun'         : extract_functions,
         'to_ip'       : extract_to_ip    
         }
 
         for attr_name, attributes in data.items():
             if attr_name.lower() in options: options[attr_name.lower()](attributes)
             elif attr_name.lower() in functions: functions[attr_name.lower()](attributes)
-            else: log.error('group.get_attributes: group "{}", unknown group attribute: {}="{}"'.format(self.name, attr_name, attributes))
+            else:
+                self.funcs.append({'name': attr_name.lower(),
+                                   'args': [i.strip() for i in attributes.split(',')]})
 
 
     def get_regexes(self, data, tail=False):
@@ -1449,12 +1409,12 @@ class _variable_class():
         # check if regex empty, if so, make self.regex equal to escaped line, reconstruct indent and add start/end of line:
         if regex == '':
             # form indent to honor leading space characters like \t or \s:
-            first_non_space_char_index = re.search('\S', self.LINE).start()
+            first_non_space_char_index = len(self.LINE) - len(self.LINE.lstrip())
             indent = self.LINE[:first_non_space_char_index]
             # form regex:
             self.regex = esc_line
-            self.regex = indent + self.regex       # reconstruct indent
-            self.regex = '\\n' + self.regex + ' *(?=\\n)'     # use lookahead assertion for end of line and match any number of trailing spaces
+            self.regex = indent + self.regex               # reconstruct indent
+            self.regex = '\\n' + self.regex + ' *(?=\\n)'  # use lookahead assertion for end of line and match any number of trailing spaces
         else:
             self.regex = regex
 
