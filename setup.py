@@ -14,19 +14,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/dmulyalin/ttp",
-    packages=[
-        "ttp",
-        "ttp.formatters",
-        "ttp.group",
-        "ttp.input",
-        "ttp.match",
-        "ttp.output",
-        "ttp.returners",
-        "ttp.templates",
-        "ttp.utils",
-        "ttp.variable"	
-    ],
-    #packages=["ttp"],
+    packages=find_packages(),
     include_package_data=True,
     classifiers=[
         "Topic :: Utilities",
