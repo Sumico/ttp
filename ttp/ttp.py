@@ -149,13 +149,13 @@ class ttp():
         lazy_import_functions()
         # check if data given, if so - load it:
         if data is not '':
-            self.add_data(data=data)
+            self.add_input(data=data)
         # check if template given, if so - load it
         if template is not '':
             self.add_template(template=template)
             
 
-    def add_data(self, data, input_name='Default_Input', groups=['all']):
+    def add_input(self, data, input_name='Default_Input', groups=['all']):
         """Method to load additional data to be parsed. This data will be used
         to fill in template input with input_name and parse that data against
         a list of provided groups.
@@ -172,9 +172,9 @@ class ttp():
             self.__data.append((data_items, input_name, groups,))
 
 
-    def set_data(self, data, input_name='Default_Input', groups=['all']):
+    def set_input(self, data, input_name='Default_Input', groups=['all']):
         """Method to replace existing templates data with new set of data. This 
-        method run clear_data first and add_data method after that.
+        method run clear_input first and add_input method after that.
         
         **Parameters**        
         
@@ -182,11 +182,11 @@ class ttp():
         * ``input_name`` (str) name of the input to put data in, default is *Default_Input*
         * ``groups`` (list) list of group names to use to parse this input data        
         """
-        self.clear_data()
-        self.add_data(data=data, input_name=input_name, groups=groups)
+        self.clear_input()
+        self.add_input(data=data, input_name=input_name, groups=groups)
         
         
-    def clear_data(self):
+    def clear_input(self):
         """Method to delete all input data for all templates, can be used prior
         to adding new set of data to parse with same templates, instead of
         re-initializing ttp object.
