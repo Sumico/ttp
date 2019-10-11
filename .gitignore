@@ -1,5 +1,6 @@
 *.pyc
 Data/*
+Output/*
 ttp.egg-info/*
 dist/*
 build/*
